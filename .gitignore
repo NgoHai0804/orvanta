@@ -76,6 +76,9 @@ apps/vscode/webview-ui/src/**/*.js
 apps/vscode/webview-ui/src/**/*.js.map
 
 
+# Orvanta project-local company state (never commit)
+.orvanta/
+
 # SDK Session files / User data
 .cline/data
 .cline/tmp
