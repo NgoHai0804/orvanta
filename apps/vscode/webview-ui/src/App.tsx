@@ -1,6 +1,7 @@
 import type { Boolean, EmptyRequest } from "@shared/proto/cline/common"
-import { useCallback, useEffect } from "react"
+import { useCallback, useEffect, useState } from "react"
 import AccountView from "./components/account/AccountView"
+import ChatErrorBoundary from "./components/chat/ChatErrorBoundary"
 import ChatView from "./components/chat/ChatView"
 import HistoryView from "./components/history/HistoryView"
 import MarketplaceView from "./components/marketplace/MarketplaceView"
@@ -11,6 +12,7 @@ import SettingsView from "./components/settings/SettingsView"
 import WorktreesView from "./components/worktrees/WorktreesView"
 import { useClineAuth } from "./context/ClineAuthContext"
 import { useExtensionState } from "./context/ExtensionStateContext"
+import OrvantaShell, { type OrvantaTab } from "./orvanta/OrvantaShell"
 import { Providers } from "./Providers"
 import { UiServiceClient } from "./services/grpc-client"
 
@@ -41,6 +43,8 @@ const AppContent = () => {
 	} = useExtensionState()
 
 	const { clineUser, organizations, activeOrganization, accountSwitch, accountSwitchError } = useClineAuth()
+	const [orvantaTab, setOrvantaTab] = useState<OrvantaTab>("home")
+	const overlayOpen = showSettings || showHistory || showMarketplace || showMcp || showAccount || showWorktrees
 
 	const showUpdateAnnouncementModal = useCallback(() => {
 		setShowAnnouncement(true)
@@ -69,15 +73,17 @@ const AppContent = () => {
 	}, [clineUser?.uid, clineUser?.appBaseUrl])
 
 	if (!didHydrateState) {
-		return null
+		return (
+			<div className="flex h-full min-h-0 w-full flex-col">
+				<OrvantaShell activeTab={orvantaTab} onTabChange={setOrvantaTab} />
+			</div>
+		)
 	}
 
-	if (showWelcome) {
-		return <OnboardingView />
-	}
+	const showOnboarding = showWelcome && orvantaTab === "chat"
 
 	return (
-		<div className="flex h-screen w-full flex-col">
+		<div className="flex h-full min-h-0 w-full flex-col">
 			{(accountSwitch || accountSwitchError) && !showAccount && (
 				<div className="z-50 bg-editor-background p-2 text-xs" role="status">
 					{accountSwitch
@@ -101,9 +107,15 @@ const AppContent = () => {
 			)}
 			{showWorktrees && <WorktreesView onDone={hideWorktrees} />}
 			{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
+			{!overlayOpen && <OrvantaShell activeTab={orvantaTab} onTabChange={setOrvantaTab} />}
+			{showOnboarding && !overlayOpen && (
+				<div className="min-h-0 flex-1 overflow-auto">
+					<OnboardingView />
+				</div>
+			)}
 			<ChatView
 				hideAnnouncement={hideAnnouncement}
-				isHidden={showSettings || showHistory || showMarketplace || showMcp || showAccount || showWorktrees}
+				isHidden={overlayOpen || orvantaTab !== "chat" || showWelcome}
 				showAnnouncement={showAnnouncement}
 				showHistoryView={navigateToHistory}
 			/>
@@ -114,7 +126,9 @@ const AppContent = () => {
 const App = () => {
 	return (
 		<Providers>
-			<AppContent />
+			<ChatErrorBoundary errorTitle="Orvanta gặp lỗi giao diện">
+				<AppContent />
+			</ChatErrorBoundary>
 		</Providers>
 	)
 }

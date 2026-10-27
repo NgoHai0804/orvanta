@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package cline;
+
+import "cline/common.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
+service OrvantaService {
+  rpc getCompany(EmptyRequest) returns (OrvantaCompanyResponse);
+  rpc createCompany(OrvantaCreateCompanyRequest) returns (OrvantaCompanyResponse);
+  rpc subscribeCompany(EmptyRequest) returns (stream OrvantaCompanyResponse);
+  rpc listAgentProfiles(EmptyRequest) returns (OrvantaAgentProfileList);
+  rpc upsertAgentProfile(OrvantaAgentProfile) returns (OrvantaAgentProfile);
+  rpc deleteAgentProfile(StringRequest) returns (OrvantaCompanyResponse);
+}
+
+message OrvantaCreateCompanyRequest {
+  string name = 1;
+  string purpose = 2;
+}
+
+message OrvantaRosterAgent {
+  string id = 1;
+  string display_name = 2;
+  string role = 3;
+  string status = 4;
+}
+
+message OrvantaCompanyResponse {
+  string status = 1;
+  repeated string errors = 2;
+  string id = 3;
+  string name = 4;
+  string purpose = 5;
+  string team_name = 6;
+  repeated OrvantaRosterAgent agents = 7;
+}
+
+message OrvantaAgentTools {
+  repeated string allow = 1;
+  repeated string deny = 2;
+}
+
+message OrvantaAgentScopePaths {
+  repeated string allow = 1;
+  repeated string deny_write = 2;
+}
+
+message OrvantaAgentProfile {
+  string id = 1;
+  string display_name = 2;
+  string role = 3;
+  string description = 4;
+  optional string model_id = 5;
+  optional int32 max_iterations = 6;
+  optional double temperature = 7;
+  string instructions = 8;
+  string file_path = 9;
+  OrvantaAgentTools tools = 10;
+  OrvantaAgentScopePaths scope_paths = 11;
+}
+
+message OrvantaAgentProfileList {
+  repeated OrvantaAgentProfile profiles = 1;
+}

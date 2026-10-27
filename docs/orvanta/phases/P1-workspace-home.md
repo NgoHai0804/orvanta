@@ -186,29 +186,29 @@ Sau proto: `cd apps/vscode && bun run protos`.
 
 ## Tasks
 
-- [ ] Task: schema + test shared  
+- [x] Task: schema + test shared  
   - Acceptance: `bun -F @cline/shared test` xanh, export từ `@cline/shared` (thêm export path nếu package.json `exports` chặn)  
   - Files: `sdk/packages/shared/src/orvanta/*`, `sdk/packages/shared/package.json` nếu cần  
   - Verify: `bun -F @cline/shared test` rồi `bun run build:sdk`
 
-- [ ] Task: workspace-store + test  
+- [x] Task: workspace-store + test  
   - Acceptance: 5 case trên  
   - Files: `apps/vscode/src/orvanta/workspace-store.ts`, `*.test.ts`  
   - Verify: `cd apps/vscode && bun run test:unit` (filter orvanta nếu script cho phép)
 
-- [ ] Task: proto + handlers + register  
+- [x] Task: proto + handlers + register  
   - Acceptance: `bun run protos` xong; get/create/subscribe compile  
   - Files: `proto/cline/orvanta.proto`, controller/orvanta/*, chỗ register  
   - Verify: `cd apps/vscode && bun run protos` không lỗi
 
-- [ ] Task: Home UI empty/ready/broken  
+- [x] Task: Home UI empty/ready/broken  
   - Acceptance: lập công ty từ UI ghi đúng cây file; reload extension host vẫn ready  
   - Files: webview `orvanta/*`, `App.tsx`  
   - Verify: tay — F5 extension, mở folder temp, lập công ty, Reload Window
 
 ## Done P1
 
-- [ ] Demo sentence làm được trên máy founder
-- [ ] Không có file dưới `~/.orvanta`
-- [ ] `.gitignore` vẫn có `.orvanta/`
-- [ ] Chat Cline chưa vỡ (gửi 1 tin nếu có key; không có key thì mở được Chat tab)
+- [x] Demo sentence làm được trên máy founder
+- [x] Không có file dưới `~/.orvanta`
+- [x] `.gitignore` vẫn có `.orvanta/`
+- [x] Chat Cline chưa vỡ (gửi 1 tin nếu có key; không có key thì mở được Chat tab)

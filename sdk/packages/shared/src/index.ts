@@ -631,6 +631,8 @@ export {
 	isChatWorkspacePath,
 } from "./storage/chat-workspace-paths";
 export * from "./tasks";
+export type { AgentRole } from "./agent";
+export * from "./orvanta";
 export * from "./team";
 export { createTool } from "./tools/create";
 export * from "./types";

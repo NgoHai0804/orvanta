@@ -156,6 +156,8 @@ export default defineConfig({
 		// 'useRef')"). Pin react/react-dom to webview-ui's own (React 18) copy.
 		dedupe: ["react", "react-dom"],
 		alias: {
+			// Isomorphic Orvanta schema/templates only — never the Node @cline/shared barrel (vcr/fs).
+			"@cline/shared/orvanta": resolve(__dirname, "../../../sdk/packages/shared/src/orvanta/index.ts"),
 			react: resolve(__dirname, "node_modules/react"),
 			"react-dom": resolve(__dirname, "node_modules/react-dom"),
 			"@": resolve(__dirname, "./src"),

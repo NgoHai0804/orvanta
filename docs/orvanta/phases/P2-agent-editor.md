@@ -43,21 +43,21 @@ rpc deleteAgentProfile(StringRequest) returns (OrvantaCompanyResponse);
 
 ## Tasks
 
-- [ ] Task: agent-profile Zod + templates + test shared  
+- [x] Task: agent-profile Zod + templates + test shared  
   - Verify: `bun -F @cline/shared test` + `bun run build:sdk`
 
-- [ ] Task: workspace-store upsert/delete + test  
+- [x] Task: workspace-store upsert/delete + test  
   - Verify: unit vscode
 
-- [ ] Task: proto RPC + handlers  
+- [x] Task: proto RPC + handlers  
   - Verify: `bun run protos`
 
-- [ ] Task: AgentEditor + Home Thêm/Sửa  
+- [x] Task: AgentEditor + Home Thêm/Sửa  
   - Verify tay: thêm 2 agent khác template, sửa coordinator instructions, reload còn
   - Verify: không tạo folder `~/.orvanta`
 
 ## Done P2
 
-- [ ] Mỗi agent một file markdown đúng hợp đồng
-- [ ] Roster khớp file
-- [ ] Demo sentence
+- [x] Mỗi agent một file markdown đúng hợp đồng
+- [x] Roster khớp file
+- [x] Demo sentence

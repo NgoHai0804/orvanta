@@ -1,0 +1,243 @@
+import { afterEach, describe, expect, it } from "bun:test"
+import { mkdir, mkdtemp, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { MANDATORY_DENY_WRITE_PATHS, PURPOSE_FILE, WORKSPACE_DIRNAME, WORKSPACE_TMP_DIRNAME } from "@cline/shared"
+import {
+	CannotDeleteCoordinatorError,
+	CompanyAlreadyExistsError,
+	createCompany,
+	getAgent,
+	listAgentProfiles,
+	loadCompany,
+	pathExists,
+	pickWorkspaceRoot,
+	removeAgent,
+	upsertAgent,
+} from "./workspace-store"
+
+const PURPOSE = "Xây công ty AI theo từng repo, giữ agent đúng mục tiêu."
+
+const created: string[] = []
+
+afterEach(async () => {
+	await Promise.all(created.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+})
+
+async function tempWorkspace(): Promise<string> {
+	const dir = await mkdtemp(join(tmpdir(), "orvanta-ws-"))
+	created.push(dir)
+	return dir
+}
+
+describe("pickWorkspaceRoot", () => {
+	it("returns the folder that already has .orvanta", async () => {
+		const a = await tempWorkspace()
+		const b = await tempWorkspace()
+		await mkdir(join(b, WORKSPACE_DIRNAME))
+		expect(await pickWorkspaceRoot([a, b])).toBe(b)
+	})
+
+	it("falls back to the first folder", async () => {
+		const a = await tempWorkspace()
+		expect(await pickWorkspaceRoot([a])).toBe(a)
+	})
+})
+
+describe("workspace-store", () => {
+	it("loads missing when the folder is empty", async () => {
+		const root = await tempWorkspace()
+		expect(await loadCompany(root)).toEqual({ status: "missing" })
+	})
+
+	it("creates then loads a ready company", async () => {
+		const root = await tempWorkspace()
+		const createdCompany = await createCompany(root, {
+			name: "Orvanta",
+			purpose: PURPOSE,
+		})
+		expect(createdCompany.status).toBe("ready")
+		if (createdCompany.status !== "ready") {
+			return
+		}
+		expect(createdCompany.company.name).toBe("Orvanta")
+		expect(createdCompany.company.teamName).toBe("orvanta")
+		expect(createdCompany.roster.agents).toHaveLength(1)
+		expect(createdCompany.roster.agents[0]?.id).toBe("coordinator")
+		expect(await loadCompany(root)).toEqual(createdCompany)
+	})
+
+	it("is broken when purpose.md is missing", async () => {
+		const root = await tempWorkspace()
+		await createCompany(root, { name: "Orvanta", purpose: PURPOSE })
+		await rm(join(root, WORKSPACE_DIRNAME, PURPOSE_FILE))
+		const loaded = await loadCompany(root)
+		expect(loaded.status).toBe("broken")
+		if (loaded.status === "broken") {
+			expect(loaded.errors).toContain("thiếu purpose.md")
+		}
+	})
+
+	it("rejects create when a company already exists", async () => {
+		const root = await tempWorkspace()
+		await createCompany(root, { name: "Orvanta", purpose: PURPOSE })
+		await expect(createCompany(root, { name: "Other", purpose: PURPOSE })).rejects.toBeInstanceOf(CompanyAlreadyExistsError)
+	})
+
+	it("leaves no .orvanta.tmp after a successful create", async () => {
+		const root = await tempWorkspace()
+		await createCompany(root, { name: "Orvanta", purpose: PURPOSE })
+		expect(await pathExists(join(root, WORKSPACE_TMP_DIRNAME))).toBe(false)
+		expect(await pathExists(join(root, WORKSPACE_DIRNAME))).toBe(true)
+	})
+	it("upserts a new teammate agent, creates profile.md and memory.md, and adds to roster", async () => {
+		const root = await tempWorkspace()
+		await createCompany(root, { name: "Orvanta", purpose: PURPOSE })
+		const created = await upsertAgent(root, {
+			id: "reviewer",
+			displayName: "Code Reviewer",
+			role: "teammate",
+			instructions: "Review code thoroughly and accurately.",
+		})
+		expect(created.id).toBe("reviewer")
+		expect(created.displayName).toBe("Code Reviewer")
+		expect(created.role).toBe("teammate")
+		for (const p of MANDATORY_DENY_WRITE_PATHS) {
+			expect(created.scopePaths.denyWrite).toContain(p)
+		}
+
+		// check profile.md and memory.md on disk
+		const profilePath = join(root, WORKSPACE_DIRNAME, "org", "agents", "reviewer", "profile.md")
+		const memoryPath = join(root, WORKSPACE_DIRNAME, "org", "agents", "reviewer", "workspace", "memory.md")
+		expect(await pathExists(profilePath)).toBe(true)
+		expect(await pathExists(memoryPath)).toBe(true)
+
+		// check listAgentProfiles
+		const profiles = await listAgentProfiles(root)
+		expect(profiles).toHaveLength(2)
+		expect(profiles[0].id).toBe("coordinator")
+		expect(profiles[1].id).toBe("reviewer")
+
+		// check roster has reviewer
+		const loaded = await loadCompany(root)
+		if (loaded.status === "ready") {
+			expect(loaded.roster.agents).toHaveLength(2)
+			expect(loaded.roster.agents.find((a) => a.id === "reviewer")).toBeDefined()
+		}
+	})
+
+	it("preserves mandatory denyWrite paths even if user specifies custom denyWrite", async () => {
+		const root = await tempWorkspace()
+		await createCompany(root, { name: "Orvanta", purpose: PURPOSE })
+		const created = await upsertAgent(root, {
+			id: "reviewer",
+			displayName: "Reviewer",
+			role: "teammate",
+			instructions: "Review code.",
+			scopePaths: {
+				allow: ["src/**"],
+				denyWrite: ["secret.txt"],
+			},
+		})
+		for (const p of MANDATORY_DENY_WRITE_PATHS) {
+			expect(created.scopePaths.denyWrite).toContain(p)
+		}
+		expect(created.scopePaths.denyWrite).toContain("secret.txt")
+	})
+
+	it("rejects uppercase id, empty instructions, or second lead", async () => {
+		const root = await tempWorkspace()
+		await createCompany(root, { name: "Orvanta", purpose: PURPOSE })
+
+		// Uppercase id
+		await expect(
+			upsertAgent(root, {
+				id: "Reviewer",
+				displayName: "Reviewer",
+				role: "teammate",
+				instructions: "Review code.",
+			}),
+		).rejects.toThrow()
+
+		// Empty instructions
+		await expect(
+			upsertAgent(root, {
+				id: "reviewer",
+				displayName: "Reviewer",
+				role: "teammate",
+				instructions: "",
+			}),
+		).rejects.toThrow()
+
+		// Second lead
+		await expect(
+			upsertAgent(root, {
+				id: "reviewer",
+				displayName: "Reviewer",
+				role: "lead",
+				instructions: "Lead reviewer.",
+			}),
+		).rejects.toThrow("Không thể có hai lead")
+	})
+
+	it("updates existing agent prompt and frontmatter", async () => {
+		const root = await tempWorkspace()
+		await createCompany(root, { name: "Orvanta", purpose: PURPOSE })
+		await upsertAgent(root, {
+			id: "reviewer",
+			displayName: "Reviewer",
+			role: "teammate",
+			instructions: "Old prompt.",
+		})
+
+		const updated = await upsertAgent(root, {
+			id: "reviewer",
+			displayName: "Senior Reviewer",
+			role: "teammate",
+			instructions: "New updated prompt.",
+			modelId: "anthropic/claude-3-7-sonnet",
+		})
+		expect(updated.displayName).toBe("Senior Reviewer")
+		expect(updated.instructions).toBe("New updated prompt.")
+		expect(updated.modelId).toBe("anthropic/claude-3-7-sonnet")
+
+		const detail = await getAgent(root, "reviewer")
+		expect(detail).toBeDefined()
+		expect(detail?.profile.displayName).toBe("Senior Reviewer")
+		expect(detail?.profile.instructions).toBe("New updated prompt.")
+	})
+
+	it("deletes teammate agent, removes folder and updates roster", async () => {
+		const root = await tempWorkspace()
+		await createCompany(root, { name: "Orvanta", purpose: PURPOSE })
+		await upsertAgent(root, {
+			id: "reviewer",
+			displayName: "Reviewer",
+			role: "teammate",
+			instructions: "Review code.",
+		})
+		expect(await listAgentProfiles(root)).toHaveLength(2)
+
+		await removeAgent(root, "reviewer")
+
+		expect(await listAgentProfiles(root)).toHaveLength(1)
+		const agentDir = join(root, WORKSPACE_DIRNAME, "org", "agents", "reviewer")
+		expect(await pathExists(agentDir)).toBe(false)
+
+		const loaded = await loadCompany(root)
+		if (loaded.status === "ready") {
+			expect(loaded.roster.agents).toHaveLength(1)
+			expect(loaded.roster.agents.find((a) => a.id === "reviewer")).toBeUndefined()
+		}
+	})
+
+	it("rejects deleting coordinator with CannotDeleteCoordinatorError", async () => {
+		const root = await tempWorkspace()
+		await createCompany(root, { name: "Orvanta", purpose: PURPOSE })
+		await expect(removeAgent(root, "coordinator")).rejects.toBeInstanceOf(CannotDeleteCoordinatorError)
+
+		// Coordinator files still intact
+		const coordinatorProfile = join(root, WORKSPACE_DIRNAME, "org", "agents", "coordinator", "profile.md")
+		expect(await pathExists(coordinatorProfile)).toBe(true)
+	})
+})
