@@ -77,20 +77,20 @@ export class UserLibraryStore {
 
 ## Tasks
 
-- [ ] Task: library types + slugify + test shared  
+- [x] Task: library types + slugify + test shared  
   - Verify: `bun -F @cline/shared test` + `build:sdk`
 
-- [ ] Task: UserLibraryStore inject root + test  
+- [x] Task: UserLibraryStore inject root + test  
   - Verify: unit vscode; sau test không còn rác `~/.orvanta/companies/orvanta-test-*` (dùng tmp)
 
-- [ ] Task: proto + handlers  
+- [x] Task: proto + handlers  
   - Verify: `bun run protos`
 
-- [ ] Task: LibraryDialog  
+- [x] Task: LibraryDialog  
   - Verify tay: Lưu / Tải folder trống / Tải đè (cancel + confirm) / hai slug
 
 ## Done P3
 
-- [ ] Demo sentence trên Windows path thật
-- [ ] Explorer hiện đúng allowlist
-- [ ] Workspace sau Load không có task nguồn
+- [x] Demo sentence trên Windows path thật
+- [x] Explorer hiện đúng allowlist
+- [x] Workspace sau Load không có task nguồn

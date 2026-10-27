@@ -5,6 +5,7 @@ import { useState } from "react"
 import MarkdownBlock from "@/components/common/MarkdownBlock"
 import { OrvantaServiceClient } from "@/services/grpc-client"
 import AgentEditor from "./AgentEditor"
+import LibraryDialog, { type LibraryDialogMode } from "./LibraryDialog"
 
 const emptyRequest = {} as EmptyRequest
 
@@ -70,6 +71,8 @@ const HomeView = ({
 	const [showTemplatePicker, setShowTemplatePicker] = useState(false)
 	const [activeEditorProfile, setActiveEditorProfile] = useState<OrvantaAgentProfile | undefined>()
 	const [isEditorNew, setIsEditorNew] = useState(false)
+	const [showMenu, setShowMenu] = useState(false)
+	const [libraryDialogMode, setLibraryDialogMode] = useState<LibraryDialogMode | undefined>()
 
 	const handleSelectTemplate = (templateKey: string) => {
 		const tmpl = AGENT_TEMPLATES.find((t) => t.id === templateKey)
@@ -192,9 +195,42 @@ const HomeView = ({
 
 		return (
 			<div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 text-sm">
-				<header>
-					<h2 className="text-base font-semibold">{company.name}</h2>
-					{purposeTagline && <p className="text-xs opacity-75">{purposeTagline}</p>}
+				<header className="flex items-start justify-between">
+					<div>
+						<h2 className="text-base font-semibold">{company.name}</h2>
+						{purposeTagline && <p className="text-xs opacity-75">{purposeTagline}</p>}
+					</div>
+					<div className="relative">
+						<button
+							className="rounded px-2 py-0.5 text-xs font-bold opacity-70 hover:bg-white/10 hover:opacity-100"
+							onClick={() => setShowMenu((prev) => !prev)}
+							title="Tùy chọn thư viện"
+							type="button">
+							···
+						</button>
+						{showMenu && (
+							<div className="absolute right-0 top-full z-20 mt-1 min-w-36 rounded border border-border-panel bg-(--vscode-editor-background) p-1 shadow-xl">
+								<button
+									className="w-full rounded px-2.5 py-1 text-left text-xs hover:bg-white/5"
+									onClick={() => {
+										setShowMenu(false)
+										setLibraryDialogMode("save")
+									}}
+									type="button">
+									Lưu công ty…
+								</button>
+								<button
+									className="w-full rounded px-2.5 py-1 text-left text-xs hover:bg-white/5"
+									onClick={() => {
+										setShowMenu(false)
+										setLibraryDialogMode("load")
+									}}
+									type="button">
+									Tải công ty…
+								</button>
+							</div>
+						)}
+					</div>
 				</header>
 				<section className="flex flex-col gap-1">
 					<div className="flex items-center justify-between">
@@ -222,10 +258,11 @@ const HomeView = ({
 					</div>
 					<div className="flex flex-col gap-2">
 						{agents.map((agent) => (
-							<div
-								className="flex cursor-pointer items-center justify-between rounded border border-border-panel bg-(--vscode-editor-background) px-2.5 py-2 hover:border-(--vscode-focusBorder)"
+							<button
+								className="flex w-full cursor-pointer items-center justify-between rounded border border-border-panel bg-(--vscode-editor-background) px-2.5 py-2 text-left hover:border-(--vscode-focusBorder)"
 								key={agent.id}
-								onClick={() => handleOpenAgent(agent.id)}>
+								onClick={() => handleOpenAgent(agent.id)}
+								type="button">
 								<div>
 									<div className="font-medium text-xs">{agent.displayName}</div>
 									<div className="text-[11px] opacity-60">@{agent.id}</div>
@@ -239,7 +276,7 @@ const HomeView = ({
 									</span>
 									<span className="text-[11px] opacity-50 hover:opacity-100">Sửa →</span>
 								</div>
-							</div>
+							</button>
 						))}
 					</div>
 				</section>
@@ -285,21 +322,60 @@ const HomeView = ({
 						onSave={handleSaveAgent}
 					/>
 				)}
+
+				{/* Library Dialog Overlay */}
+				{libraryDialogMode && (
+					<LibraryDialog
+						currentCompany={company}
+						mode={libraryDialogMode}
+						onClose={() => setLibraryDialogMode(undefined)}
+						onCompanyLoaded={async () => {
+							setLibraryDialogMode(undefined)
+							if (onRefresh) {
+								await onRefresh()
+							}
+						}}
+					/>
+				)}
 			</div>
 		)
 	}
 
-	return <CreateCompanyForm creating={creating} error={createError} onCreate={onCreate} />
+	return (
+		<>
+			<CreateCompanyForm
+				creating={creating}
+				error={createError}
+				onCreate={onCreate}
+				onOpenLoadLibrary={() => setLibraryDialogMode("load")}
+			/>
+			{libraryDialogMode && (
+				<LibraryDialog
+					currentCompany={company}
+					mode={libraryDialogMode}
+					onClose={() => setLibraryDialogMode(undefined)}
+					onCompanyLoaded={async () => {
+						setLibraryDialogMode(undefined)
+						if (onRefresh) {
+							await onRefresh()
+						}
+					}}
+				/>
+			)}
+		</>
+	)
 }
 
 const CreateCompanyForm = ({
 	creating,
 	error,
 	onCreate,
+	onOpenLoadLibrary,
 }: {
 	creating: boolean
 	error?: string
 	onCreate: (name: string, purpose: string) => Promise<unknown>
+	onOpenLoadLibrary: () => void
 }) => {
 	const [name, setName] = useState("")
 	const [purpose, setPurpose] = useState(PURPOSE_TEMPLATE)
@@ -353,12 +429,20 @@ const CreateCompanyForm = ({
 				/>
 			</label>
 			{displayError && <p className="text-xs text-error">{displayError}</p>}
-			<button
-				className="rounded bg-(--vscode-button-background) px-3 py-1.5 text-(--vscode-button-foreground) hover:bg-(--vscode-button-hoverBackground) disabled:opacity-50"
-				disabled={creating}
-				type="submit">
-				{creating ? "Đang ghi .orvanta…" : "Lập công ty"}
-			</button>
+			<div className="flex items-center gap-2">
+				<button
+					className="flex-1 rounded bg-(--vscode-button-background) px-3 py-1.5 text-(--vscode-button-foreground) hover:bg-(--vscode-button-hoverBackground) disabled:opacity-50"
+					disabled={creating}
+					type="submit">
+					{creating ? "Đang ghi .orvanta…" : "Lập công ty"}
+				</button>
+				<button
+					className="rounded border border-border-panel px-3 py-1.5 text-xs hover:bg-white/5"
+					onClick={onOpenLoadLibrary}
+					type="button">
+					Tải từ thư viện
+				</button>
+			</div>
 		</form>
 	)
 }

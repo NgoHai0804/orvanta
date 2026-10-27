@@ -15,6 +15,10 @@ service OrvantaService {
   rpc listAgentProfiles(EmptyRequest) returns (OrvantaAgentProfileList);
   rpc upsertAgentProfile(OrvantaAgentProfile) returns (OrvantaAgentProfile);
   rpc deleteAgentProfile(StringRequest) returns (OrvantaCompanyResponse);
+  rpc listLibrary(EmptyRequest) returns (OrvantaLibraryList);
+  rpc saveCompanyToLibrary(OrvantaSaveLibraryRequest) returns (OrvantaLibraryList);
+  rpc loadCompanyFromLibrary(OrvantaLoadLibraryRequest) returns (OrvantaCompanyResponse);
+  rpc deleteLibraryCompany(StringRequest) returns (OrvantaLibraryList);
 }
 
 message OrvantaCreateCompanyRequest {
@@ -66,3 +70,29 @@ message OrvantaAgentProfile {
 message OrvantaAgentProfileList {
   repeated OrvantaAgentProfile profiles = 1;
 }
+
+message OrvantaLibraryEntry {
+  string slug = 1;
+  string name = 2;
+  string saved_at = 3;
+  int32 agent_count = 4;
+  string purpose_preview = 5;
+  bool is_broken = 6;
+  string error = 7;
+}
+
+message OrvantaLibraryList {
+  repeated OrvantaLibraryEntry entries = 1;
+}
+
+message OrvantaSaveLibraryRequest {
+  string name = 1;
+  string slug = 2;
+  bool overwrite = 3;
+}
+
+message OrvantaLoadLibraryRequest {
+  string slug = 1;
+  bool replace = 2;
+}
+

@@ -19,13 +19,13 @@ Cách dùng: làm theo [ROADMAP.md](./ROADMAP.md). Vision đủ A–D nằm hế
 
 ## Company library (P3)
 
-- [ ] Lưu allowlist only — không `state/` `inbox/` `runs/`
-- [ ] Nhiều slug không đè nhau
-- [ ] Path `homedir()/.orvanta/companies/<slug>`
-- [ ] Tải folder trống = đủ đội + purpose, id mới, idle
-- [ ] Tải đè: cancel giữ; confirm xóa local
-- [ ] `library.json` + scan folder
-- [ ] Xóa bản thư viện không đụng workspace
+- [x] Lưu allowlist only — không `state/` `inbox/` `runs/`
+- [x] Nhiều slug không đè nhau
+- [x] Path `homedir()/.orvanta/companies/<slug>`
+- [x] Tải folder trống = đủ đội + purpose, id mới, idle
+- [x] Tải đè: cancel giữ; confirm xóa local
+- [x] `library.json` + scan folder
+- [x] Xóa bản thư viện không đụng workspace
 
 ## 0. Nền — `schema` + `persistence` + `brand-shell`
 
