@@ -125,8 +125,9 @@ class MockTeamStore {
 	persistRuntime = vi.fn();
 }
 
+const createLocalTeamStoreMock = vi.fn((_options?: unknown) => new MockTeamStore());
 vi.mock("../../services/storage/team-store", () => ({
-	createLocalTeamStore: () => new MockTeamStore(),
+	createLocalTeamStore: (options?: unknown) => createLocalTeamStoreMock(options),
 }));
 
 describe("DefaultRuntimeBuilder team persistence boundary", () => {
@@ -314,5 +315,28 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 				cwd: "/repo/demo",
 			}),
 		);
+	});
+
+	it("passes teamDir to createLocalTeamStore when provided", async () => {
+		const { DefaultRuntimeBuilder } = await import("./runtime-builder");
+		createLocalTeamStoreMock.mockClear();
+
+		await new DefaultRuntimeBuilder().build({
+			config: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				apiKey: "key",
+				systemPrompt: "test",
+				cwd: process.cwd(),
+				enableTools: false,
+				enableSpawnAgent: false,
+				enableAgentTeams: true,
+				teamDir: "/custom/workspace/.orvanta/state/team",
+			},
+		});
+
+		expect(createLocalTeamStoreMock).toHaveBeenCalledWith({
+			teamDir: "/custom/workspace/.orvanta/state/team",
+		});
 	});
 });

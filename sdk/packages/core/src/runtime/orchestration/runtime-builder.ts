@@ -634,7 +634,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 
 		let teamRuntime: AgentTeamsRuntime | undefined;
 		const teamStore = normalized.enableAgentTeams
-			? createLocalTeamStore()
+			? createLocalTeamStore({ teamDir: config.teamDir })
 			: undefined;
 		const restoredTeam = teamStore?.loadRuntime(teamStoreKey);
 		const restoredTeamState = restoredTeam?.state;

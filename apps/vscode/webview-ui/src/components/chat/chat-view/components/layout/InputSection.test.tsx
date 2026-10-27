@@ -330,4 +330,49 @@ describe("InputSection", () => {
 		expect(screen.getByLabelText("composer")).toBeDisabled()
 		expect(screen.getByRole("button", { name: "Send" })).toBeDisabled()
 	})
+
+	it("renders focus agent chip with ★ for coordinator", () => {
+		render(
+			<InputSection
+				chatState={makeChatState()}
+				focusAgent={{ id: "coordinator", displayName: "Lead Bot", role: "lead", status: "idle" }}
+				messageHandlers={{ handleSendMessage: vi.fn() } as unknown as MessageHandlers}
+				onResetFocusAgent={vi.fn()}
+				placeholderText="Type a message"
+				scrollBehavior={makeScrollBehavior()}
+				selectFilesAndImages={vi.fn()}
+				shouldDisableFilesAndImages={false}
+			/>,
+		)
+
+		const chip = screen.getByTestId("composer-focus-chip")
+		expect(chip).toBeInTheDocument()
+		expect(chip).toHaveTextContent("Lead Bot")
+		expect(chip).toHaveTextContent("★")
+		expect(screen.queryByRole("button", { name: "Quay lại coordinator" })).not.toBeInTheDocument()
+	})
+
+	it("renders focus agent chip with reset button for teammate", () => {
+		const onReset = vi.fn()
+		render(
+			<InputSection
+				chatState={makeChatState()}
+				focusAgent={{ id: "coder", displayName: "Coder Bot", role: "teammate", status: "running" }}
+				messageHandlers={{ handleSendMessage: vi.fn() } as unknown as MessageHandlers}
+				onResetFocusAgent={onReset}
+				placeholderText="Type a message"
+				scrollBehavior={makeScrollBehavior()}
+				selectFilesAndImages={vi.fn()}
+				shouldDisableFilesAndImages={false}
+			/>,
+		)
+
+		const chip = screen.getByTestId("composer-focus-chip")
+		expect(chip).toBeInTheDocument()
+		expect(chip).toHaveTextContent("Coder Bot")
+		const resetButton = screen.getByRole("button", { name: "Quay lại coordinator" })
+		expect(resetButton).toBeInTheDocument()
+		fireEvent.click(resetButton)
+		expect(onReset).toHaveBeenCalledTimes(1)
+	})
 })

@@ -102,4 +102,11 @@ export const BUILTIN_SLASH_COMMANDS: AvailableRuntimeCommand[] = [
 		instructions: DEEP_PLANNING_INSTRUCTIONS,
 		kind: "skill",
 	},
+	{
+		id: "builtin:team",
+		name: "team",
+		description: "Spawn a team of agents for the following task",
+		instructions: "spawn a team of agents for the following task:",
+		kind: "skill",
+	},
 ]

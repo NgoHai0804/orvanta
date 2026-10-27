@@ -36,6 +36,7 @@ const mocks = vi.hoisted(() => {
 		getDistinctId: vi.fn(() => "test-distinct-id"),
 		getProviderSettingsManager: vi.fn(() => providerSettingsManager),
 		providerSettingsManager,
+		loadCompany: vi.fn(() => Promise.resolve({ status: "missing" })),
 		stateManager: {
 			getApiConfiguration: vi.fn(() => ({
 				actModeApiProvider: "anthropic",
@@ -59,6 +60,10 @@ vi.mock("@/core/storage/StateManager", () => ({
 	StateManager: {
 		get: () => mocks.stateManager,
 	},
+}))
+
+vi.mock("@/orvanta/workspace-store", () => ({
+	loadCompany: mocks.loadCompany,
 }))
 
 vi.mock("@/services/logging/distinctId", () => ({
@@ -1582,6 +1587,48 @@ describe("buildSessionConfig", () => {
 			},
 		})
 		expect(config.systemPrompt).toContain("# Plan / Act Modes")
+	})
+
+	it("enables agent teams and sets teamName and teamDir when company is ready", async () => {
+		const workspaceRoot = path.join(tempDir, "orvanta-company-workspace")
+		fs.mkdirSync(workspaceRoot, { recursive: true })
+
+		mocks.loadCompany.mockResolvedValueOnce({
+			status: "ready",
+			company: {
+				id: "orvanta-test-123",
+				name: "Acme Corp",
+				teamName: "acme-corp-team",
+				createdAt: new Date().toISOString(),
+				schemaVersion: 1,
+				coordinatorAgentId: "coordinator",
+			},
+			purpose: "Build software",
+			roster: { version: 1, agents: [] },
+		} as any)
+
+		const config = await buildSessionConfig({
+			cwd: workspaceRoot,
+			workspaceRoot,
+		})
+
+		expect(config.enableAgentTeams).toBe(true)
+		expect(config.teamName).toBe("acme-corp-team")
+		expect(config.teamDir).toBe(path.join(workspaceRoot, ".orvanta", "state", "team"))
+		expect(fs.existsSync(path.join(workspaceRoot, ".orvanta", "state", "team"))).toBe(true)
+	})
+
+	it("disables agent teams and omits teamName and teamDir when company is missing", async () => {
+		mocks.loadCompany.mockResolvedValueOnce({ status: "missing" } as any)
+
+		const config = await buildSessionConfig({
+			cwd: "/tmp/workspace",
+			workspaceRoot: "/tmp/workspace",
+		})
+
+		expect(config.enableAgentTeams).toBe(false)
+		expect(config.teamName).toBeUndefined()
+		expect(config.teamDir).toBeUndefined()
 	})
 })
 

@@ -10,6 +10,11 @@ describe("BUILTIN_SLASH_COMMANDS", () => {
 		expect(result).not.toContain("/deep-planning")
 	})
 
+	it("expands /team through the shared slash-command machinery", () => {
+		const result = expandSlashCommands("/team review this pull request", BUILTIN_SLASH_COMMANDS)
+		expect(result).toBe("spawn a team of agents for the following task: review this pull request")
+	})
+
 	it("leaves URLs and unrelated text unchanged", () => {
 		expect(expandSlashCommands("see http://x.com/deep-planning", BUILTIN_SLASH_COMMANDS)).toBe(
 			"see http://x.com/deep-planning",

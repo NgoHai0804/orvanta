@@ -13,6 +13,8 @@ import WorktreesView from "./components/worktrees/WorktreesView"
 import { useClineAuth } from "./context/ClineAuthContext"
 import { useExtensionState } from "./context/ExtensionStateContext"
 import OrvantaShell, { type OrvantaTab } from "./orvanta/OrvantaShell"
+import TeamSidebar from "./orvanta/TeamSidebar"
+import { useOrvantaCompany } from "./orvanta/useOrvantaCompany"
 import { Providers } from "./Providers"
 import { UiServiceClient } from "./services/grpc-client"
 
@@ -43,7 +45,16 @@ const AppContent = () => {
 	} = useExtensionState()
 
 	const { clineUser, organizations, activeOrganization, accountSwitch, accountSwitchError } = useClineAuth()
+	const { company } = useOrvantaCompany()
 	const [orvantaTab, setOrvantaTab] = useState<OrvantaTab>("home")
+	const [focusAgentId, setFocusAgentId] = useState<string>("coordinator")
+
+	const hasCompany = company.status === "ready" && company.agents.length > 0
+	const coordinatorAgent = company.agents.find((a) => a.role === "lead" || a.id === "coordinator") ?? company.agents[0]
+	const effectiveFocusAgentId = company.agents.some((a) => a.id === focusAgentId)
+		? focusAgentId
+		: (coordinatorAgent?.id ?? "coordinator")
+	const focusedAgent = company.agents.find((a) => a.id === effectiveFocusAgentId) ?? coordinatorAgent
 	const overlayOpen = showSettings || showHistory || showMarketplace || showMcp || showAccount || showWorktrees
 
 	const showUpdateAnnouncementModal = useCallback(() => {
@@ -113,12 +124,28 @@ const AppContent = () => {
 					<OnboardingView />
 				</div>
 			)}
-			<ChatView
-				hideAnnouncement={hideAnnouncement}
-				isHidden={overlayOpen || orvantaTab !== "chat" || showWelcome}
-				showAnnouncement={showAnnouncement}
-				showHistoryView={navigateToHistory}
-			/>
+			<div
+				className="flex min-h-0 flex-1 w-full overflow-hidden"
+				style={{ display: overlayOpen || orvantaTab !== "chat" || showWelcome ? "none" : "flex" }}>
+				{hasCompany && (
+					<TeamSidebar
+						agents={company.agents}
+						focusAgentId={effectiveFocusAgentId}
+						onHire={() => setOrvantaTab("home")}
+						onSelectAgent={setFocusAgentId}
+					/>
+				)}
+				<div className="flex-1 min-w-0 h-full relative">
+					<ChatView
+						focusAgent={hasCompany ? focusedAgent : undefined}
+						hideAnnouncement={hideAnnouncement}
+						isHidden={overlayOpen || orvantaTab !== "chat" || showWelcome}
+						onResetFocusAgent={() => setFocusAgentId(coordinatorAgent?.id ?? "coordinator")}
+						showAnnouncement={showAnnouncement}
+						showHistoryView={navigateToHistory}
+					/>
+				</div>
+			</div>
 		</div>
 	)
 }

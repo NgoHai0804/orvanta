@@ -263,6 +263,7 @@ export interface CoreSessionConfig
 	workspaceRoot?: string;
 	systemPrompt: string;
 	teamName?: string;
+	teamDir?: string;
 	missionLogIntervalSteps?: number;
 	missionLogIntervalMs?: number;
 	hooks?: AgentHooks;

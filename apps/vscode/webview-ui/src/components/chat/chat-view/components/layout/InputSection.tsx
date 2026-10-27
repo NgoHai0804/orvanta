@@ -1,4 +1,5 @@
 import { isCloudTargetReady } from "@shared/cloud/cloud-sessions"
+import type { OrvantaRosterAgent } from "@shared/proto/cline/orvanta"
 import React from "react"
 import ChatTextArea from "@/components/chat/ChatTextArea"
 import QuotedMessagePreview from "@/components/chat/QuotedMessagePreview"
@@ -12,6 +13,8 @@ interface InputSectionProps {
 	placeholderText: string
 	shouldDisableFilesAndImages: boolean
 	selectFilesAndImages: () => Promise<void>
+	focusAgent?: OrvantaRosterAgent
+	onResetFocusAgent?: () => void
 }
 
 /**
@@ -24,6 +27,8 @@ export const InputSection: React.FC<InputSectionProps> = ({
 	placeholderText,
 	shouldDisableFilesAndImages,
 	selectFilesAndImages,
+	focusAgent,
+	onResetFocusAgent,
 }) => {
 	const {
 		activeQuote,
@@ -80,6 +85,32 @@ export const InputSection: React.FC<InputSectionProps> = ({
 						onDismiss={() => setActiveQuote(null)}
 						text={activeQuote}
 					/>
+				</div>
+			)}
+			{focusAgent && (
+				<div
+					aria-label={`Nói với ${focusAgent.displayName}`}
+					className="mx-3.5 mt-2 -mb-1 flex items-center gap-1.5 text-xs text-description"
+					data-testid="composer-focus-chip">
+					<span>Nói với:</span>
+					<span className="inline-flex items-center gap-1 rounded bg-(--vscode-badge-background) text-(--vscode-badge-foreground) px-1.5 py-0.5 font-medium text-[11px]">
+						<span>{focusAgent.displayName}</span>
+						{(focusAgent.role === "lead" || focusAgent.id === "coordinator") && (
+							<span className="text-amber-400" title="Coordinator">
+								★
+							</span>
+						)}
+						{focusAgent.role !== "lead" && focusAgent.id !== "coordinator" && onResetFocusAgent && (
+							<button
+								aria-label="Quay lại coordinator"
+								className="ml-0.5 cursor-pointer opacity-70 hover:opacity-100"
+								onClick={onResetFocusAgent}
+								title="Quay lại coordinator"
+								type="button">
+								✕
+							</button>
+						)}
+					</span>
 				</div>
 			)}
 

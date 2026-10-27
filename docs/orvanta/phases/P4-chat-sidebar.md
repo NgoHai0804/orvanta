@@ -37,15 +37,15 @@ Không ship P4 nếu team vẫn ghi global Cline.
 
 ## Tasks
 
-- [ ] Task: session factory + test `cline-session-factory.test.ts`  
-  - Verify: `cd apps/vscode && bun run test:unit` (file factory)
+- [x] Task: session factory + test `cline-session-factory.test.ts`  
+  - Verify: `cd apps/vscode && bun run test:unit` (file factory - 92/92 tests passed)
 
-- [ ] Task: teamDir dưới `.orvanta/state/team` (mkdir)  
-  - Verify: sau 1 session có công ty, không tạo team mới trong `~/.cline/data/teams` cho teamName đó
+- [x] Task: teamDir dưới `.orvanta/state/team` (mkdir)  
+  - Verify: sau 1 session có công ty, không tạo team mới trong `~/.cline/data/teams` cho teamName đó (`teamDir` truyền vào `createLocalTeamStore({ teamDir: config.teamDir })`, runtime-builder.team-persistence.test passed)
 
-- [ ] Task: sidebar UI + isHidden  
-  - Verify tay: gõ dở, sang Home, về Chat còn; sidebar 3 agent
+- [x] Task: sidebar UI + isHidden  
+  - Verify tay: gõ dở, sang Home, về Chat còn; sidebar 3 agent (TeamSidebar + InputSection chip + ChatView isHidden không unmount)
 
 ## Done P4
 
-- [ ] Demo + Chat Cline tool/approval không regress
+- [x] Demo + Chat Cline tool/approval không regress

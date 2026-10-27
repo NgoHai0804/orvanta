@@ -8,7 +8,9 @@
 //
 // The factory does NOT handle UI concerns — that's the SdkController's job.
 
+import { promises as fs } from "node:fs"
 import { BlockList, isIP } from "node:net"
+import path from "node:path"
 import {
 	buildWorkspaceMetadata,
 	type ClineCoreStartInput,
@@ -40,6 +42,7 @@ import { reasoningEffortFromThinkingBudget } from "@shared/utils/reasoning-suppo
 import { stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
+import { loadCompany } from "@/orvanta/workspace-store"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { fetch, fetchWithoutIdleTimeouts } from "@/shared/net"
@@ -1171,6 +1174,24 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		fetch: resolveProviderFetch(sdkProviderId, baseUrl),
 	}
 
+	let enableAgentTeams = false
+	let teamName: string | undefined
+	let teamDir: string | undefined
+
+	try {
+		const companyLoad = await loadCompany(workspaceRoot)
+		if (companyLoad.status === "ready") {
+			enableAgentTeams = true
+			teamName = companyLoad.company.teamName
+			teamDir = path.join(workspaceRoot, ".orvanta", "state", "team")
+			await fs.mkdir(teamDir, { recursive: true }).catch((err) => {
+				Logger.warn("[SessionFactory] Failed to create teamDir:", err)
+			})
+		}
+	} catch (error) {
+		Logger.warn("[SessionFactory] Failed to load Orvanta company:", error)
+	}
+
 	const config: CoreSessionConfig = {
 		providerId: sdkProviderId,
 		modelId,
@@ -1189,7 +1210,9 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			enabled: enableCheckpoints,
 		},
 		enableSpawnAgent: false,
-		enableAgentTeams: false,
+		enableAgentTeams,
+		...(teamName ? { teamName } : {}),
+		...(teamDir ? { teamDir } : {}),
 		...(useAutoCondense
 			? {
 					compaction: {

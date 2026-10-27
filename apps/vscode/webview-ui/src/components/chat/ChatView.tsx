@@ -3,6 +3,7 @@ import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { combineHookSequences } from "@shared/combineHookSequences"
 import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
+import type { OrvantaRosterAgent } from "@shared/proto/cline/orvanta"
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useMount } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -40,13 +41,22 @@ interface ChatViewProps {
 	showAnnouncement: boolean
 	hideAnnouncement: () => void
 	showHistoryView: () => void
+	focusAgent?: OrvantaRosterAgent
+	onResetFocusAgent?: () => void
 }
 
 // Use constants from the imported module
 const MAX_IMAGES_AND_FILES_PER_MESSAGE = CHAT_CONSTANTS.MAX_IMAGES_AND_FILES_PER_MESSAGE
 const QUICK_WINS_HISTORY_THRESHOLD = 3
 
-const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
+const ChatView = ({
+	isHidden,
+	showAnnouncement,
+	hideAnnouncement,
+	showHistoryView,
+	focusAgent,
+	onResetFocusAgent,
+}: ChatViewProps) => {
 	const showNavbar = useShowNavbar()
 	const {
 		version,
@@ -384,9 +394,13 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	}, [queuedPromptCount, taskTs, scrollToBottomSmooth, scrollToBottomAuto, disableAutoScrollRef])
 
 	const placeholderText = useMemo(() => {
+		if (focusAgent) {
+			const isLead = focusAgent.role === "lead" || focusAgent.id === "coordinator"
+			return isLead ? "Nói với coordinator..." : `Chỉ đạo ${focusAgent.displayName}...`
+		}
 		const text = task ? "Type a message..." : "Type your task here..."
 		return text
-	}, [task])
+	}, [task, focusAgent])
 
 	return (
 		<ChatLayout isHidden={isHidden}>
@@ -438,7 +452,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				<QueuedPrompts items={queuedPrompts} />
 				<InputSection
 					chatState={chatState}
+					focusAgent={focusAgent}
 					messageHandlers={messageHandlers}
+					onResetFocusAgent={onResetFocusAgent}
 					placeholderText={placeholderText}
 					scrollBehavior={scrollBehavior}
 					selectFilesAndImages={selectFilesAndImages}
