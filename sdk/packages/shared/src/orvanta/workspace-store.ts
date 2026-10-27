@@ -1,5 +1,7 @@
-import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { type AgentProfile, parseAgentProfile } from "./agent-profile";
+
 import {
 	type CompanyJson,
 	type CompanyLoad,
@@ -152,3 +154,58 @@ export async function createCompany(
 
 	return loadCompany(workspaceRoot);
 }
+
+export async function listAgentProfiles(
+	workspaceRoot: string,
+): Promise<AgentProfile[]> {
+	const root = join(workspaceRoot, WORKSPACE_DIRNAME);
+	const agentsDir = join(root, "org", "agents");
+	if (!(await pathExists(agentsDir))) {
+		return [];
+	}
+	const entries = await readdir(agentsDir, { withFileTypes: true });
+	const profiles: AgentProfile[] = [];
+	for (const entry of entries) {
+		if (entry.isDirectory()) {
+			const profilePath = join(agentsDir, entry.name, "profile.md");
+			if (await pathExists(profilePath)) {
+				try {
+					const content = await readFile(profilePath, "utf8");
+					const profile = parseAgentProfile(
+						content,
+						`org/agents/${entry.name}/profile.md`,
+					);
+					profiles.push(profile);
+				} catch {
+					// Ignore invalid profile
+				}
+			}
+		}
+	}
+	profiles.sort((a, b) => {
+		if (a.role === "lead") return -1;
+		if (b.role === "lead") return 1;
+		return a.displayName.localeCompare(b.displayName);
+	});
+	return profiles;
+}
+
+export async function getAgentProfile(
+	workspaceRoot: string,
+	agentId: string,
+): Promise<AgentProfile | undefined> {
+	const filePath = join(
+		workspaceRoot,
+		WORKSPACE_DIRNAME,
+		"org",
+		"agents",
+		agentId,
+		"profile.md",
+	);
+	if (!(await pathExists(filePath))) {
+		return undefined;
+	}
+	const content = await readFile(filePath, "utf8");
+	return parseAgentProfile(content, `org/agents/${agentId}/profile.md`);
+}
+

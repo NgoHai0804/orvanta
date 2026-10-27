@@ -444,7 +444,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			configExtensions,
 			toolExecutors,
 		} = input;
-		const onTeamEvent = input.onTeamEvent ?? (() => {});
+		const onTeamEvent = input.onTeamEvent ?? config.onTeamEvent ?? (() => {});
 		const normalized = normalizeConfig(config);
 		const modelTools: ModelTool[] = [];
 		if (
@@ -638,11 +638,15 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			: undefined;
 		const restoredTeam = teamStore?.loadRuntime(teamStoreKey);
 		const restoredTeamState = restoredTeam?.state;
-		const restoredTeammateSpecs = restoredTeam?.teammates ?? [];
-		const teammateSpecs = new Map(
-			restoredTeammateSpecs.map((spec) => [spec.agentId, spec] as const),
-		);
+		const teammateSpecs = new Map<string, TeamTeammateSpec>();
+		for (const spec of restoredTeam?.teammates ?? []) {
+			teammateSpecs.set(spec.agentId, spec);
+		}
+		for (const spec of config.teammates ?? []) {
+			teammateSpecs.set(spec.agentId, spec);
+		}
 		const teamPersistence = teamStore
+
 			? new TeamPersistenceWriter({
 					teamKey: teamStoreKey,
 					store: teamStore,
@@ -796,8 +800,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					runtime: teamRuntime,
 					leadAgentId: config.sessionId || "lead",
 					restoredFromPersistence: Boolean(restoredTeamState),
-					restoredTeammates: restoredTeammateSpecs,
-					includeLeadSpawnTool: true,
+					restoredTeammates: Array.from(teammateSpecs.values()),
+					includeLeadSpawnTool: config.includeLeadSpawnTool ?? true,
 					includeLeadManagementTools: true,
 					onLeadToolsUnlocked: (teamTools) => {
 						pendingLeadTeamTools = teamTools;

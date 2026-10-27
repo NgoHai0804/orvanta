@@ -1,6 +1,7 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OrvantaCompanyResponse } from "@shared/proto/cline/orvanta"
 import { resolveOrvantaWorkspaceRoot } from "@/orvanta/resolve-workspace"
+import { globalTeamStatusTracker } from "@/orvanta/team-status-tracker"
 import { toCompanyResponse } from "@/orvanta/to-company-response"
 import { loadCompany } from "@/orvanta/workspace-store"
 import type { Controller } from ".."
@@ -10,5 +11,5 @@ export async function getCompany(_controller: Controller, _request: EmptyRequest
 	if (!root) {
 		return toCompanyResponse({ status: "missing" }, ["no_folder"])
 	}
-	return toCompanyResponse(await loadCompany(root))
+	return toCompanyResponse(await loadCompany(root), [], globalTeamStatusTracker.getRunningAgentIds())
 }

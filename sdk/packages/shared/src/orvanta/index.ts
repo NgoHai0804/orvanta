@@ -73,5 +73,30 @@ export {
 	SNAPSHOT_FORBIDDEN_NAMES,
 	slugify,
 } from "./library";
+export {
+	buildTeammateSpecs,
+	type AgentProfileLookup,
+	type BuildTeammateSpecsOptions,
+} from "./teammate-specs";
+export {
+	DEFAULT_ORVANTA_CONSTRAINTS,
+	buildOrvantaPromptBlock,
+	injectOrvantaSystemPrompt,
+	type BuildOrvantaPromptOptions,
+} from "./system-prompt";
+export {
+	checkPurposeLockPath,
+	createPurposeLockHook,
+	wrapToolWithPurposeLock,
+	normalizeTargetPath,
+	WRITE_TOOL_NAMES,
+	type PurposeLockCheckResult,
+	type CheckPurposeLockOptions,
+} from "./purpose-lock";
+export {
+	listAgentProfiles,
+	getAgentProfile,
+} from "./workspace-store";
+
 
 

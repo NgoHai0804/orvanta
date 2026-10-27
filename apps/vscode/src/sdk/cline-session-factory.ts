@@ -29,7 +29,14 @@ import {
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
 	OLLAMA_DEFAULT_CONTEXT_WINDOW,
 } from "@cline/llms"
-import { buildClineSystemPrompt, isClineProvider } from "@cline/shared"
+import {
+	buildClineSystemPrompt,
+	buildTeammateSpecs,
+	injectOrvantaSystemPrompt,
+	isClineProvider,
+	type TeamTeammateSpec,
+} from "@cline/shared"
+
 import type { ApiConfiguration } from "@shared/api"
 import { ClineClient } from "@shared/cline"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -42,8 +49,10 @@ import { reasoningEffortFromThinkingBudget } from "@shared/utils/reasoning-suppo
 import { stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
-import { loadCompany } from "@/orvanta/workspace-store"
+import { globalTeamStatusTracker } from "@/orvanta/team-status-tracker"
+import { getAgentProfile, listAgentProfiles, loadCompany } from "@/orvanta/workspace-store"
 import { ExtensionRegistryInfo } from "@/registry"
+
 import { getDistinctId } from "@/services/logging/distinctId"
 import { fetch, fetchWithoutIdleTimeouts } from "@/shared/net"
 import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
@@ -1177,6 +1186,8 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	let enableAgentTeams = false
 	let teamName: string | undefined
 	let teamDir: string | undefined
+	let teammates: TeamTeammateSpec[] | undefined
+	let includeLeadSpawnTool: boolean | undefined
 
 	try {
 		const companyLoad = await loadCompany(workspaceRoot)
@@ -1187,6 +1198,30 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			await fs.mkdir(teamDir, { recursive: true }).catch((err) => {
 				Logger.warn("[SessionFactory] Failed to create teamDir:", err)
 			})
+
+			// 1. Layer 1 Purpose-Lock: Prepend purpose + constraints to systemPrompt
+			let constraints: string | undefined
+			const constraintsPath = path.join(workspaceRoot, ".orvanta", "constraints.md")
+			try {
+				constraints = await fs.readFile(constraintsPath, "utf8")
+			} catch {
+				// optional file; default constraints will be used
+			}
+			const coordinatorProfile = await getAgentProfile(workspaceRoot, "coordinator")
+			systemPrompt = injectOrvantaSystemPrompt(systemPrompt, {
+				companyName: companyLoad.company.name,
+				purpose: companyLoad.purpose,
+				constraints,
+				roleInstructions: coordinatorProfile?.instructions,
+			})
+
+			// 2. Map roster teammate profiles to TeamTeammateSpec
+			const profiles = await listAgentProfiles(workspaceRoot)
+			const profilesMap = new Map(profiles.map((p) => [p.id, p]))
+			teammates = buildTeammateSpecs(companyLoad.roster, profilesMap)
+
+			// 3. Lead tools: omit team_spawn_teammate for lead (agents only from roster)
+			includeLeadSpawnTool = false
 		}
 	} catch (error) {
 		Logger.warn("[SessionFactory] Failed to load Orvanta company:", error)
@@ -1213,6 +1248,12 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		enableAgentTeams,
 		...(teamName ? { teamName } : {}),
 		...(teamDir ? { teamDir } : {}),
+		...(teammates ? { teammates } : {}),
+		...(includeLeadSpawnTool !== undefined ? { includeLeadSpawnTool } : {}),
+		onTeamEvent: (event) => {
+			globalTeamStatusTracker.handleTeamEvent(event)
+		},
+
 		...(useAutoCondense
 			? {
 					compaction: {

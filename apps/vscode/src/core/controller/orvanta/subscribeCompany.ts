@@ -4,7 +4,9 @@ import { WORKSPACE_DIRNAME } from "@cline/shared"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OrvantaCompanyResponse } from "@shared/proto/cline/orvanta"
 import { resolveOrvantaWorkspaceRoot } from "@/orvanta/resolve-workspace"
+import { globalTeamStatusTracker } from "@/orvanta/team-status-tracker"
 import { Logger } from "@/shared/services/Logger"
+
 import type { Controller } from ".."
 import { getRequestRegistry, type StreamingResponseHandler } from "../grpc-handler"
 import { getCompany } from "./getCompany"
@@ -66,10 +68,14 @@ export async function subscribeCompany(
 		tryAttachOrvantaWatcher(root)
 	}
 
+	const unsubscribeStatusTracker = globalTeamStatusTracker.subscribeRunningChange(scheduleEmit)
+
 	const cleanup = () => {
+		unsubscribeStatusTracker()
 		if (debounce) {
 			clearTimeout(debounce)
 		}
+
 		for (const watcher of watchers) {
 			try {
 				watcher.close()

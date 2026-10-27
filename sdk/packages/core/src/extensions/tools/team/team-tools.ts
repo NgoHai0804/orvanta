@@ -71,8 +71,10 @@ import {
 	TeamTaskToolResultSchema,
 	type TeamTeammateSpec,
 	validateWithZod,
+	wrapToolWithPurposeLock,
 	zodToJsonSchema,
 } from "@cline/shared";
+
 import {
 	buildDelegatedAgentConfig,
 	type DelegatedAgentConfigProvider,
@@ -173,6 +175,7 @@ export interface CreateAgentTeamsToolsOptions {
 	allowSpawn?: boolean;
 	includeSpawnTool?: boolean;
 	includeManagementTools?: boolean;
+	allowedAgentIds?: string[];
 	onLeadToolsUnlocked?: (tools: AgentTool[]) => void;
 }
 
@@ -185,8 +188,10 @@ export interface BootstrapAgentTeamsOptions {
 	restoredFromPersistence?: boolean;
 	includeLeadSpawnTool?: boolean;
 	includeLeadManagementTools?: boolean;
+	allowedAgentIds?: string[];
 	onLeadToolsUnlocked?: (tools: AgentTool[]) => void;
 }
+
 
 export interface BootstrapAgentTeamsResult {
 	tools: AgentTool[];
@@ -238,6 +243,13 @@ function spawnTeamTeammate(
 			includeSpawnTool: false,
 		}),
 	);
+	const cwd = options.teammateConfigProvider.getRuntimeConfig().cwd;
+	const wrappedTeammateTools = teammateTools.map((tool) =>
+		wrapToolWithPurposeLock(tool, {
+			requesterId: options.spec.agentId,
+			workspaceRoot: cwd,
+		}),
+	);
 	options.runtime.spawnTeammate({
 		agentId: options.spec.agentId,
 		config: buildDelegatedAgentConfig({
@@ -245,11 +257,12 @@ function spawnTeamTeammate(
 			prompt: options.spec.rolePrompt,
 			role: options.spec.rolePrompt,
 			configProvider: options.teammateConfigProvider,
-			tools: teammateTools,
+			tools: wrappedTeammateTools,
 			maxIterations: options.spec.maxIterations,
-			cwd: options.teammateConfigProvider.getRuntimeConfig().cwd,
+			cwd,
 		}),
 	});
+
 }
 
 export function bootstrapAgentTeams(
@@ -266,8 +279,10 @@ export function bootstrapAgentTeams(
 		allowSpawn: true,
 		includeSpawnTool: options.includeLeadSpawnTool,
 		includeManagementTools: options.includeLeadManagementTools,
+		allowedAgentIds: options.allowedAgentIds,
 		onLeadToolsUnlocked: options.onLeadToolsUnlocked,
 	});
+
 
 	const restoredTeammates: string[] = [];
 	for (const spec of options.restoredTeammates ?? []) {
@@ -315,6 +330,14 @@ export function createAgentTeamsTools(
 					}
 					if (!allowSpawn) {
 						throw new Error("Spawning teammates is disabled in this context.");
+					}
+					if (
+						options.allowedAgentIds &&
+						!options.allowedAgentIds.includes(validatedInput.agentId)
+					) {
+						throw new Error(
+							`Spawning agent "${validatedInput.agentId}" is not allowed: agent is not in the roster.`,
+						);
 					}
 					const spec: TeamTeammateSpec = {
 						agentId: validatedInput.agentId,

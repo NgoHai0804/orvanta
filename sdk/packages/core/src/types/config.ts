@@ -14,7 +14,9 @@ import type {
 	SessionExecutionConfig,
 	SessionPromptConfig,
 	SessionWorkspaceConfig,
+	TeamTeammateSpec,
 } from "@cline/shared";
+
 import type { ToolRoutingRule } from "../extensions/tools/model-tool-routing";
 import type { TeamEvent } from "../extensions/tools/team";
 import type { ProviderConfig } from "./provider-settings";
@@ -264,6 +266,8 @@ export interface CoreSessionConfig
 	systemPrompt: string;
 	teamName?: string;
 	teamDir?: string;
+	teammates?: TeamTeammateSpec[];
+	includeLeadSpawnTool?: boolean;
 	missionLogIntervalSteps?: number;
 	missionLogIntervalMs?: number;
 	hooks?: AgentHooks;

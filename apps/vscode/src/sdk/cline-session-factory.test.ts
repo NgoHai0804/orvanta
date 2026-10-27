@@ -37,6 +37,8 @@ const mocks = vi.hoisted(() => {
 		getProviderSettingsManager: vi.fn(() => providerSettingsManager),
 		providerSettingsManager,
 		loadCompany: vi.fn(() => Promise.resolve({ status: "missing" })),
+		listAgentProfiles: vi.fn(() => Promise.resolve([])),
+		getAgentProfile: vi.fn(() => Promise.resolve(undefined)),
 		stateManager: {
 			getApiConfiguration: vi.fn(() => ({
 				actModeApiProvider: "anthropic",
@@ -64,6 +66,8 @@ vi.mock("@/core/storage/StateManager", () => ({
 
 vi.mock("@/orvanta/workspace-store", () => ({
 	loadCompany: mocks.loadCompany,
+	listAgentProfiles: mocks.listAgentProfiles,
+	getAgentProfile: mocks.getAgentProfile,
 }))
 
 vi.mock("@/services/logging/distinctId", () => ({
@@ -1603,9 +1607,35 @@ describe("buildSessionConfig", () => {
 				schemaVersion: 1,
 				coordinatorAgentId: "coordinator",
 			},
-			purpose: "Build software",
-			roster: { version: 1, agents: [] },
+			purpose: "Build software to automate tasks",
+			roster: {
+				schemaVersion: 1,
+				agents: [
+					{
+						id: "implementer",
+						displayName: "Implementer",
+						role: "teammate",
+						status: "idle",
+						agentFile: "org/agents/implementer/profile.md",
+						hiredAt: "2026-10-27T10:00:00.000Z",
+						hiredBy: "ceo",
+						modelId: "anthropic:claude-3-5-sonnet",
+						maxIterations: 40,
+					},
+				],
+			},
 		} as any)
+
+		mocks.listAgentProfiles.mockResolvedValueOnce([
+			{
+				id: "implementer",
+				displayName: "Implementer",
+				role: "teammate",
+				instructions: "Write clean code",
+				modelId: "anthropic:claude-3-5-sonnet",
+				maxIterations: 40,
+			},
+		] as any)
 
 		const config = await buildSessionConfig({
 			cwd: workspaceRoot,
@@ -1616,6 +1646,13 @@ describe("buildSessionConfig", () => {
 		expect(config.teamName).toBe("acme-corp-team")
 		expect(config.teamDir).toBe(path.join(workspaceRoot, ".orvanta", "state", "team"))
 		expect(fs.existsSync(path.join(workspaceRoot, ".orvanta", "state", "team"))).toBe(true)
+		expect(config.includeLeadSpawnTool).toBe(false)
+		expect(config.teammates).toHaveLength(1)
+		expect(config.teammates?.[0].agentId).toBe("implementer")
+		expect(config.teammates?.[0].rolePrompt).toBe("Write clean code")
+		expect(config.systemPrompt).toContain('# Khối Orvanta\n\nBạn là thành viên của công ty "Acme Corp".')
+		expect(config.systemPrompt).toContain("Build software to automate tasks")
+		expect(typeof config.onTeamEvent).toBe("function")
 	})
 
 	it("disables agent teams and omits teamName and teamDir when company is missing", async () => {

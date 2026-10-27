@@ -165,6 +165,43 @@ describe("createAgentTeamsTools schema surface", () => {
 			unlockedTools?.some((tool) => tool.name === "team_spawn_teammate"),
 		).toBe(false);
 	});
+	it("omits team_spawn_teammate when includeSpawnTool is false", () => {
+		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
+		const tools = createAgentTeamsTools({
+			runtime,
+			requesterId: "lead",
+			teammateConfigProvider: makeTeammateConfigProvider(),
+			includeSpawnTool: false,
+		});
+		expect(tools.some((t) => t.name === "team_spawn_teammate")).toBe(false);
+	});
+
+	it("rejects unknown agent ID when allowedAgentIds roster restriction is active", async () => {
+		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
+		const tools = createAgentTeamsTools({
+			runtime,
+			requesterId: "lead",
+			teammateConfigProvider: makeTeammateConfigProvider(),
+			allowedAgentIds: ["implementer", "reviewer"],
+		});
+		const spawn = tools.find((t) => t.name === "team_spawn_teammate");
+		expect(spawn).toBeDefined();
+
+		await expect(
+			spawn?.execute(
+				{
+					agentId: "unknown-hacker",
+					rolePrompt: "Do unknown things",
+				},
+				{
+					agentId: "lead",
+					conversationId: "conv-1",
+					iteration: 1,
+				},
+			),
+		).rejects.toThrow('Spawning agent "unknown-hacker" is not allowed');
+	});
+
 
 	it("rejects non-object payloads for task tools", async () => {
 		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });

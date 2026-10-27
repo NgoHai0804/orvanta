@@ -70,6 +70,15 @@ export function useOrvantaCompany() {
 			unsubscribe()
 		}
 	}, [])
+	// Fallback poll (1s) when any agent is running to ensure UI never gets stuck
+	useEffect(() => {
+		const hasRunning = (company.agents ?? []).some((a) => a.status === "running")
+		if (!hasRunning) return
+		const interval = setInterval(() => {
+			void refresh()
+		}, 1000)
+		return () => clearInterval(interval)
+	}, [company.agents])
 
 	const createCompany = async (name: string, purpose: string) => {
 		setCreating(true)
