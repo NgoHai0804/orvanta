@@ -3,6 +3,7 @@ import { WebviewProvider } from "@core/webview"
 import * as vscode from "vscode"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "@/core/controller/grpc-handler"
 import { HostProvider } from "@/hosts/host-provider"
+import { globalInboxBadgeTracker } from "@/orvanta/inbox-badge-tracker"
 import { ExtensionRegistryInfo } from "@/registry"
 import { telemetryService } from "@/services/telemetry"
 import type { ExtensionMessage } from "@/shared/ExtensionMessage"
@@ -74,6 +75,19 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		// and executes code based on the message that is received
 		this.setWebviewMessageListener(webviewView.webview)
 		telemetryService.capturePanelOpened("sidebar_resolved")
+
+		const unregisterBadge = globalInboxBadgeTracker.registerUpdater((count) => {
+			if (webviewView && "badge" in webviewView) {
+				webviewView.badge =
+					count > 0
+						? {
+								value: count,
+								tooltip: `${count} quyết định chờ`,
+							}
+						: undefined
+			}
+		})
+		this.disposables.push({ dispose: unregisterBadge })
 
 		// Logs show up in bottom panel > Debug Console
 		//Logger.log("registering listener")

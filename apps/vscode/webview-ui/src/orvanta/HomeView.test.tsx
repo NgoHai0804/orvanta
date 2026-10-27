@@ -185,4 +185,71 @@ describe("HomeView", () => {
 		fireEvent.click(toggleBtn)
 		expect(screen.getByRole("button", { name: "Thu gọn" })).toBeInTheDocument()
 	})
+	it("renders inbox teaser with pending count and items", () => {
+		const onOpenInbox = vi.fn()
+		const company: OrvantaCompanyResponse = {
+			status: "ready",
+			errors: [],
+			id: "orvanta-123",
+			name: "Acme Corp",
+			purpose: "Mục đích",
+			teamName: "acme-corp",
+			agents: [],
+		}
+		const inboxPending = [
+			{
+				id: "dec-1",
+				type: "hire_agent",
+				status: "pending",
+				createdAt: "",
+				createdBy: "coord",
+				title: "Tuyển tester",
+				summary: "Need QA",
+				payloadJson: "{}",
+				urgency: "normal",
+			},
+		]
+		render(<HomeView {...defaultProps} company={company} inboxPending={inboxPending} onOpenInbox={onOpenInbox} />)
+		expect(screen.getByText("Quyết định chờ")).toBeInTheDocument()
+		expect(screen.getByText("Tuyển tester")).toBeInTheDocument()
+
+		fireEvent.click(screen.getByRole("button", { name: "Mở Inbox →" }))
+		expect(onOpenInbox).toHaveBeenCalledWith()
+
+		fireEvent.click(screen.getByText("Tuyển tester"))
+		expect(onOpenInbox).toHaveBeenCalledWith("dec-1")
+	})
+
+	it("opens Edit Purpose modal and requests decision", async () => {
+		const onRequestDecision = vi.fn().mockResolvedValue({ id: "dec-purpose" })
+		const company: OrvantaCompanyResponse = {
+			status: "ready",
+			errors: [],
+			id: "orvanta-123",
+			name: "Acme Corp",
+			purpose: "Mục đích cũ của công ty",
+			teamName: "acme-corp",
+			agents: [],
+		}
+		render(<HomeView {...defaultProps} company={company} onRequestDecision={onRequestDecision} />)
+
+		fireEvent.click(screen.getByRole("button", { name: "Sửa Purpose" }))
+		expect(screen.getByText("Đề xuất đổi Purpose công ty")).toBeInTheDocument()
+
+		const textarea = screen.getByPlaceholderText("Nhập purpose mới cho công ty...")
+		fireEvent.change(textarea, { target: { value: "Mục đích mới đã được cập nhật dài hơn 20 ký tự" } })
+
+		fireEvent.click(screen.getByRole("button", { name: "Gửi đề xuất vào Inbox" }))
+
+		expect(onRequestDecision).toHaveBeenCalledWith(
+			"change_purpose",
+			"Đề xuất đổi Purpose",
+			"Cập nhật purpose công ty",
+			expect.objectContaining({
+				from: "Mục đích cũ của công ty",
+				to: "Mục đích mới đã được cập nhật dài hơn 20 ký tự",
+			}),
+			"high",
+		)
+	})
 })

@@ -149,8 +149,8 @@ export const TeamSidebar: React.FC<TeamSidebarProps> = ({
 									<div className="flex items-center gap-1 shrink-0 text-[10px]">
 										{isRunning && (
 											<span
-												aria-label="Đang chạy"
 												className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse"
+												title="Đang chạy"
 											/>
 										)}
 										<span className="opacity-70">{agent.status}</span>

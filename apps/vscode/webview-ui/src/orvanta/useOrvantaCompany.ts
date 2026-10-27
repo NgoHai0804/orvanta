@@ -71,6 +71,7 @@ export function useOrvantaCompany() {
 		}
 	}, [])
 	// Fallback poll (1s) when any agent is running to ensure UI never gets stuck
+	// biome-ignore lint/correctness/useExhaustiveDependencies: polling fallback
 	useEffect(() => {
 		const hasRunning = (company.agents ?? []).some((a) => a.status === "running")
 		if (!hasRunning) return

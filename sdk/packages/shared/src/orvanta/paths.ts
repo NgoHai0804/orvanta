@@ -12,3 +12,6 @@ export const SCHEMA_VERSION = 1;
 export const VERSION_FILE_CONTENTS = "1\n";
 export const MIN_PURPOSE_LENGTH = 20;
 export const MAX_COMPANY_NAME_LENGTH = 64;
+export const INBOX_DIRNAME = "inbox";
+export const INBOX_PENDING_FILE = "inbox/pending.json";
+export const INBOX_HISTORY_FILE = "inbox/history.jsonl";

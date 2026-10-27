@@ -97,6 +97,48 @@ export {
 	listAgentProfiles,
 	getAgentProfile,
 } from "./workspace-store";
+export {
+	CannotFireCoordinatorError,
+	DecisionNotFoundError,
+	type DecisionItem,
+	DecisionItemSchema,
+	type DecisionStatus,
+	DecisionStatusSchema,
+	type DecisionType,
+	DecisionTypeSchema,
+	type DecisionUrgency,
+	DecisionUrgencySchema,
+	type FireAgentPayload,
+	FireAgentPayloadSchema,
+	type HireAgentPayload,
+	HireAgentPayloadSchema,
+	type ChangePurposePayload,
+	ChangePurposePayloadSchema,
+	type HistoryInboxEntry,
+	HistoryInboxEntrySchema,
+	type PendingInbox,
+	PendingInboxSchema,
+} from "./inbox-schema";
+export {
+	appendHistoryInbox,
+	type CreateDecisionInput,
+	getHistoryInboxPath,
+	getPendingInboxPath,
+	loadHistoryInbox,
+	loadPendingInbox,
+	requestDecision,
+	resolveDecision,
+	type ResolveDecisionInput,
+	savePendingInbox,
+} from "./inbox-store";
+export {
+	createOrvantaRequestDecisionTool,
+	OrvantaRequestDecisionInputSchema,
+	type OrvantaRequestDecisionInput,
+	type RequestDecisionToolOutput,
+} from "./request-decision-tool";
+
+
 
 
 

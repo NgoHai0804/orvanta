@@ -1,8 +1,9 @@
 import { watch } from "node:fs"
 import { join } from "node:path"
-import { WORKSPACE_DIRNAME } from "@cline/shared"
+import { loadPendingInbox, WORKSPACE_DIRNAME } from "@cline/shared"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OrvantaCompanyResponse } from "@shared/proto/cline/orvanta"
+import { globalInboxBadgeTracker } from "@/orvanta/inbox-badge-tracker"
 import { resolveOrvantaWorkspaceRoot } from "@/orvanta/resolve-workspace"
 import { globalTeamStatusTracker } from "@/orvanta/team-status-tracker"
 import { Logger } from "@/shared/services/Logger"
@@ -39,6 +40,12 @@ export async function subscribeCompany(
 			const root = await resolveOrvantaWorkspaceRoot()
 			if (root) {
 				tryAttachOrvantaWatcher(root)
+				try {
+					const pending = await loadPendingInbox(root)
+					globalInboxBadgeTracker.setBadge(pending.items.filter((i) => i.status === "pending").length)
+				} catch {
+					// ignore
+				}
 			}
 			const snapshot = await getCompany(controller, request)
 			await responseStream(snapshot, false)

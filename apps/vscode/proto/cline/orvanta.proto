@@ -19,6 +19,9 @@ service OrvantaService {
   rpc saveCompanyToLibrary(OrvantaSaveLibraryRequest) returns (OrvantaLibraryList);
   rpc loadCompanyFromLibrary(OrvantaLoadLibraryRequest) returns (OrvantaCompanyResponse);
   rpc deleteLibraryCompany(StringRequest) returns (OrvantaLibraryList);
+  rpc listInbox(EmptyRequest) returns (OrvantaInboxResponse);
+  rpc resolveDecision(OrvantaResolveDecisionRequest) returns (OrvantaResolveDecisionResponse);
+  rpc requestDecision(OrvantaRequestDecisionRequest) returns (OrvantaDecisionItem);
 }
 
 message OrvantaCreateCompanyRequest {
@@ -95,4 +98,60 @@ message OrvantaLoadLibraryRequest {
   string slug = 1;
   bool replace = 2;
 }
+
+message OrvantaDecisionItem {
+  string id = 1;
+  string type = 2;
+  string status = 3;
+  string created_at = 4;
+  string created_by = 5;
+  string title = 6;
+  string summary = 7;
+  string payload_json = 8;
+  string urgency = 9;
+}
+
+message OrvantaHistoryEntry {
+  string id = 1;
+  string type = 2;
+  string status = 3;
+  string resolved_at = 4;
+  string resolved_by = 5;
+  string note = 6;
+  string title = 7;
+  string summary = 8;
+  string payload_json = 9;
+  string urgency = 10;
+  string created_at = 11;
+  string created_by = 12;
+}
+
+message OrvantaInboxResponse {
+  repeated OrvantaDecisionItem pending = 1;
+  repeated OrvantaDecisionItem deferred = 2;
+  repeated OrvantaHistoryEntry history = 3;
+  int32 pending_count = 4;
+}
+
+message OrvantaResolveDecisionRequest {
+  string id = 1;
+  string action = 2;
+  string note = 3;
+}
+
+message OrvantaResolveDecisionResponse {
+  bool success = 1;
+  string error = 2;
+  optional OrvantaHistoryEntry resolved = 3;
+  optional OrvantaDecisionItem item = 4;
+}
+
+message OrvantaRequestDecisionRequest {
+  string type = 1;
+  string title = 2;
+  string summary = 3;
+  string payload_json = 4;
+  optional string urgency = 5;
+}
+
 

@@ -32,6 +32,7 @@ import {
 import {
 	buildClineSystemPrompt,
 	buildTeammateSpecs,
+	createOrvantaRequestDecisionTool,
 	injectOrvantaSystemPrompt,
 	isClineProvider,
 	type TeamTeammateSpec,
@@ -1188,6 +1189,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	let teamDir: string | undefined
 	let teammates: TeamTeammateSpec[] | undefined
 	let includeLeadSpawnTool: boolean | undefined
+	const orvantaExtraTools: any[] = []
 
 	try {
 		const companyLoad = await loadCompany(workspaceRoot)
@@ -1222,6 +1224,9 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 
 			// 3. Lead tools: omit team_spawn_teammate for lead (agents only from roster)
 			includeLeadSpawnTool = false
+
+			// 4. Lead tools: add orvanta_request_decision for coordinator decisions
+			orvantaExtraTools.push(createOrvantaRequestDecisionTool({ workspaceRoot }))
 		}
 	} catch (error) {
 		Logger.warn("[SessionFactory] Failed to load Orvanta company:", error)
@@ -1250,6 +1255,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		...(teamDir ? { teamDir } : {}),
 		...(teammates ? { teammates } : {}),
 		...(includeLeadSpawnTool !== undefined ? { includeLeadSpawnTool } : {}),
+		...(orvantaExtraTools.length > 0 ? { extraTools: orvantaExtraTools } : {}),
 		onTeamEvent: (event) => {
 			globalTeamStatusTracker.handleTeamEvent(event)
 		},

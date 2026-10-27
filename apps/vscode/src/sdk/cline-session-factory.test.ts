@@ -1653,6 +1653,7 @@ describe("buildSessionConfig", () => {
 		expect(config.systemPrompt).toContain('# Khối Orvanta\n\nBạn là thành viên của công ty "Acme Corp".')
 		expect(config.systemPrompt).toContain("Build software to automate tasks")
 		expect(typeof config.onTeamEvent).toBe("function")
+		expect(config.extraTools?.some((t) => t.name === "orvanta_request_decision")).toBe(true)
 	})
 
 	it("disables agent teams and omits teamName and teamDir when company is missing", async () => {

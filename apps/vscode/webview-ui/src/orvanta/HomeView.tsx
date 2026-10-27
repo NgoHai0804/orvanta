@@ -1,10 +1,11 @@
 import { AGENT_TEMPLATES, COORDINATOR_PROFILE_TEMPLATE, PURPOSE_TEMPLATE, parseAgentProfile } from "@cline/shared/orvanta"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
-import { OrvantaAgentProfile, type OrvantaCompanyResponse } from "@shared/proto/cline/orvanta"
+import { OrvantaAgentProfile, type OrvantaCompanyResponse, type OrvantaDecisionItem } from "@shared/proto/cline/orvanta"
 import { useState } from "react"
 import MarkdownBlock from "@/components/common/MarkdownBlock"
 import { OrvantaServiceClient } from "@/services/grpc-client"
 import AgentEditor from "./AgentEditor"
+import EditPurposeModal from "./EditPurposeModal"
 import LibraryDialog, { type LibraryDialogMode } from "./LibraryDialog"
 
 const emptyRequest = {} as EmptyRequest
@@ -55,6 +56,16 @@ type HomeViewProps = {
 	agentProfiles?: Record<string, OrvantaAgentProfile>
 	onSaveAgentProfile?: (profile: OrvantaAgentProfile) => Promise<boolean>
 	onDeleteAgentProfile?: (agentId: string) => Promise<boolean>
+	inboxPending?: OrvantaDecisionItem[]
+	onOpenInbox?: (focusId?: string) => void
+	onRequestDecision?: (
+		type: string,
+		title: string,
+		summary: string,
+		payload: Record<string, unknown>,
+		urgency?: string,
+	) => Promise<unknown>
+	isTeamSessionActive?: boolean
 }
 
 const HomeView = ({
@@ -66,6 +77,10 @@ const HomeView = ({
 	onRefresh,
 	onSaveAgentProfile,
 	onDeleteAgentProfile,
+	inboxPending,
+	onOpenInbox,
+	onRequestDecision,
+	isTeamSessionActive,
 }: HomeViewProps) => {
 	const [expandedPurpose, setExpandedPurpose] = useState(false)
 	const [showTemplatePicker, setShowTemplatePicker] = useState(false)
@@ -73,6 +88,9 @@ const HomeView = ({
 	const [isEditorNew, setIsEditorNew] = useState(false)
 	const [showMenu, setShowMenu] = useState(false)
 	const [libraryDialogMode, setLibraryDialogMode] = useState<LibraryDialogMode | undefined>()
+	const [showEditPurposeModal, setShowEditPurposeModal] = useState(false)
+	const [purposeSubmitting, setPurposeSubmitting] = useState(false)
+	const [noticeMessage, setNoticeMessage] = useState<string | null>(null)
 
 	const handleSelectTemplate = (templateKey: string) => {
 		const tmpl = AGENT_TEMPLATES.find((t) => t.id === templateKey)
@@ -114,6 +132,34 @@ const HomeView = ({
 	}
 
 	const handleSaveAgent = async (profile: OrvantaAgentProfile): Promise<boolean> => {
+		const isLive = isTeamSessionActive || company.roster?.agents?.some((a) => a.status === "running")
+		if (isEditorNew && isLive && onRequestDecision) {
+			try {
+				await onRequestDecision(
+					"hire_agent",
+					`Tuyển agent '${profile.displayName || profile.id}'`,
+					profile.description || "CEO tạo agent mới khi team đang hoạt động",
+					{
+						agentId: profile.id,
+						displayName: profile.displayName,
+						modelId: profile.modelId,
+						maxIterations: profile.maxIterations,
+						instructions: profile.instructions,
+						tools: profile.tools,
+					},
+					"normal",
+				)
+				setNoticeMessage(
+					`Phiên làm việc đang chạy: Đã gửi đề xuất tuyển agent '${profile.id}' vào Inbox để CEO phê duyệt.`,
+				)
+				return true
+			} catch (err: unknown) {
+				const msg = err instanceof Error ? err.message : String(err)
+				setNoticeMessage(`Lỗi tạo đề xuất tuyển agent: ${msg}`)
+				return false
+			}
+		}
+
 		if (onSaveAgentProfile) {
 			return onSaveAgentProfile(profile)
 		}
@@ -130,6 +176,27 @@ const HomeView = ({
 	}
 
 	const handleDeleteAgent = async (agentId: string): Promise<boolean> => {
+		if (agentId === company.coordinatorAgentId || agentId === "coordinator") {
+			setNoticeMessage("Không thể sa thải coordinator/lead.")
+			return false
+		}
+		if (onRequestDecision) {
+			try {
+				await onRequestDecision(
+					"fire_agent",
+					`Sa thải agent '${agentId}'`,
+					"Yêu cầu sa thải agent từ CEO",
+					{ agentId, reason: "CEO yêu cầu sa thải từ trang Home" },
+					"normal",
+				)
+				setNoticeMessage(`Đã gửi đề xuất sa thải agent '${agentId}' vào Inbox để CEO phê duyệt.`)
+				return true
+			} catch (err: unknown) {
+				const msg = err instanceof Error ? err.message : String(err)
+				setNoticeMessage(`Lỗi tạo đề xuất sa thải: ${msg}`)
+				return false
+			}
+		}
 		if (onDeleteAgentProfile) {
 			return onDeleteAgentProfile(agentId)
 		}
@@ -232,15 +299,76 @@ const HomeView = ({
 						)}
 					</div>
 				</header>
+
+				{noticeMessage && (
+					<div className="flex items-center justify-between rounded bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 text-xs text-blue-300">
+						<span>{noticeMessage}</span>
+						<button
+							className="ml-2 opacity-60 hover:opacity-100"
+							onClick={() => setNoticeMessage(null)}
+							type="button">
+							✕
+						</button>
+					</div>
+				)}
+
+				{inboxPending !== undefined && onOpenInbox && (
+					<section className="rounded border border-border-panel bg-surface-secondary/20 p-2.5">
+						<div className="flex items-center justify-between mb-1.5">
+							<div className="flex items-center gap-1.5 font-semibold text-xs">
+								<span>Quyết định chờ</span>
+								<span className="rounded-full bg-(--vscode-badge-background) px-1.5 py-0.2 text-[10px] text-(--vscode-badge-foreground)">
+									{inboxPending.length}
+								</span>
+							</div>
+							<button
+								className="text-xs text-(--vscode-textLink-foreground) hover:underline"
+								onClick={() => onOpenInbox()}
+								type="button">
+								Mở Inbox →
+							</button>
+						</div>
+						{inboxPending.length === 0 ? (
+							<div className="text-xs text-muted-foreground">Không có quyết định chờ.</div>
+						) : (
+							<div className="space-y-1">
+								{inboxPending.slice(0, 3).map((item) => (
+									<button
+										className="w-full text-left rounded p-1.5 text-xs hover:bg-surface-secondary flex items-center justify-between transition-colors"
+										key={item.id}
+										onClick={() => onOpenInbox(item.id)}
+										type="button">
+										<div className="flex items-center gap-1.5 truncate">
+											<span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
+											<span className="font-medium truncate">{item.title}</span>
+										</div>
+										<span className="text-[10px] opacity-60 shrink-0 capitalize">{item.urgency}</span>
+									</button>
+								))}
+							</div>
+						)}
+					</section>
+				)}
+
 				<section className="flex flex-col gap-1">
 					<div className="flex items-center justify-between">
 						<h3 className="text-xs font-bold uppercase tracking-wide opacity-70">Purpose</h3>
-						<button
-							className="text-xs text-(--vscode-textLink-foreground) hover:underline"
-							onClick={() => setExpandedPurpose((prev) => !prev)}
-							type="button">
-							{expandedPurpose ? "Thu gọn" : "Xem thêm"}
-						</button>
+						<div className="flex items-center gap-2">
+							{onRequestDecision && (
+								<button
+									className="text-xs text-(--vscode-textLink-foreground) hover:underline"
+									onClick={() => setShowEditPurposeModal(true)}
+									type="button">
+									Sửa Purpose
+								</button>
+							)}
+							<button
+								className="text-xs text-(--vscode-textLink-foreground) hover:underline"
+								onClick={() => setExpandedPurpose((prev) => !prev)}
+								type="button">
+								{expandedPurpose ? "Thu gọn" : "Xem thêm"}
+							</button>
+						</div>
 					</div>
 					<div className={expandedPurpose ? "" : "max-h-48 overflow-hidden line-clamp-8"}>
 						<MarkdownBlock markdown={purpose} />
@@ -335,6 +463,34 @@ const HomeView = ({
 								await onRefresh()
 							}
 						}}
+					/>
+				)}
+				{/* Edit Purpose Modal */}
+				{showEditPurposeModal && (
+					<EditPurposeModal
+						currentPurpose={purpose}
+						onClose={() => setShowEditPurposeModal(false)}
+						onSubmit={async (newPurpose, reason) => {
+							if (!onRequestDecision) return
+							setPurposeSubmitting(true)
+							try {
+								await onRequestDecision(
+									"change_purpose",
+									"Đề xuất đổi Purpose",
+									reason,
+									{ from: purpose, to: newPurpose },
+									"high",
+								)
+								setShowEditPurposeModal(false)
+								setNoticeMessage("Đã gửi đề xuất đổi Purpose vào Inbox để CEO phê duyệt.")
+							} catch (err: unknown) {
+								const msg = err instanceof Error ? err.message : String(err)
+								setNoticeMessage(`Lỗi: ${msg}`)
+							} finally {
+								setPurposeSubmitting(false)
+							}
+						}}
+						submitting={purposeSubmitting}
 					/>
 				)}
 			</div>
