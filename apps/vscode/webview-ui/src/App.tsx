@@ -104,9 +104,67 @@ const AppContent = () => {
 		return () => window.removeEventListener("message", handleMessage)
 	}, [])
 
+	const [chatBannerDismissed, setChatBannerDismissed] = useState(() => {
+		if (typeof window !== "undefined") {
+			const until = localStorage.getItem("orvanta_chat_banner_dismissed_until")
+			if (until && Number(until) > Date.now()) {
+				return true
+			}
+		}
+		return false
+	})
+
+	const dismissChatBanner = () => {
+		setChatBannerDismissed(true)
+		if (typeof window !== "undefined") {
+			const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
+			localStorage.setItem("orvanta_chat_banner_dismissed_until", String(Date.now() + sevenDaysMs))
+		}
+	}
+
 	useEffect(() => {
-		if (typeof window !== "undefined" && window.location.search) {
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+				if (e.key === "1") {
+					e.preventDefault()
+					setOrvantaTab("home")
+				} else if (e.key === "2") {
+					if (hasCompany) {
+						e.preventDefault()
+						setOrvantaTab("inbox")
+					}
+				} else if (e.key === "3") {
+					e.preventDefault()
+					setOrvantaTab("chat")
+				} else if (e.key === "4") {
+					if (hasCompany) {
+						e.preventDefault()
+						setOrvantaTab("war-room")
+					}
+				}
+			}
+		}
+		window.addEventListener("keydown", handleKeyDown)
+		return () => window.removeEventListener("keydown", handleKeyDown)
+	}, [hasCompany])
+
+	useEffect(() => {
+		if (typeof window !== "undefined") {
 			const params = new URLSearchParams(window.location.search)
+			const hash = window.location.hash || ""
+			let viewParam = params.get("view")
+			if (!viewParam && hash.includes("orvanta://view/")) {
+				viewParam = hash.split("orvanta://view/")[1]?.split("?")[0]
+			} else if (!viewParam && hash.includes("view=")) {
+				viewParam = new URLSearchParams(hash.replace(/^#/, "")).get("view")
+			}
+			if (viewParam) {
+				const clean = viewParam.trim().toLowerCase()
+				if (clean === "home" || clean === "inbox" || clean === "chat" || clean === "war-room") {
+					setOrvantaTab(clean as OrvantaTab)
+				}
+			}
+
 			const agent = params.get("agent")
 			const task = params.get("task")
 			const decision = params.get("decision")
@@ -175,7 +233,27 @@ const AppContent = () => {
 						onSelectAgent={setFocusAgentId}
 					/>
 				)}
-				<div className="flex-1 min-w-0 h-full relative">
+				<div className="flex-1 min-w-0 h-full relative flex flex-col">
+					{!hasCompany && orvantaTab === "chat" && !chatBannerDismissed && (
+						<div className="flex items-center justify-between border-b border-border-panel bg-surface-secondary/40 px-3 py-1.5 text-xs text-muted-foreground shrink-0">
+							<span>Lập công ty trên Home để quản lý đội.</span>
+							<div className="flex items-center gap-2">
+								<button
+									className="text-(--vscode-textLink-foreground) hover:underline"
+									onClick={() => setOrvantaTab("home")}
+									type="button">
+									Lập công ty →
+								</button>
+								<button
+									aria-label="Dismiss banner"
+									className="opacity-60 hover:opacity-100"
+									onClick={dismissChatBanner}
+									type="button">
+									✕
+								</button>
+							</div>
+						</div>
+					)}
 					<ChatView
 						contextDecision={contextDecision}
 						contextTask={contextTask}

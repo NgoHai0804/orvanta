@@ -40,11 +40,26 @@ export function normalizeTargetPath(
 	return normalized;
 }
 
+export function validateMemoryPath(targetPath: string): boolean {
+	const normalized = targetPath.replace(/\\/g, "/");
+	if (normalized.includes("..")) return false;
+	return normalized.endsWith(".md");
+}
+
 export function checkPurposeLockPath(
 	options: CheckPurposeLockOptions,
 ): PurposeLockCheckResult {
 	const relPath = normalizeTargetPath(options.targetPath, options.workspaceRoot);
 	const lower = relPath.toLowerCase();
+
+	if (relPath.includes("..") || relPath.split("/").includes("..")) {
+		return {
+			allowed: false,
+			code: "purpose_lock_denied",
+			reason: "Path traversal (..) bị cấm bởi Purpose-lock.",
+			path: relPath,
+		};
+	}
 
 	const isInsideOrvanta =
 		lower === WORKSPACE_DIRNAME || lower.startsWith(`${WORKSPACE_DIRNAME}/`);
@@ -54,6 +69,20 @@ export function checkPurposeLockPath(
 	}
 
 	const subPath = lower.slice(WORKSPACE_DIRNAME.length + 1);
+
+	// Memory folder: .orvanta/memory/** - must not contain ".." and must end with .md
+	if (subPath === "memory" || subPath.startsWith("memory/")) {
+		if (relPath.includes("..") || !subPath.endsWith(".md")) {
+			return {
+				allowed: false,
+				code: "purpose_lock_denied",
+				reason:
+					"Thư mục memory/ chỉ chấp nhận file .md và chặn path traversal (..).",
+				path: relPath,
+			};
+		}
+		return { allowed: true, path: relPath };
+	}
 
 	// Agent's own space: org/agents/<requesterId>/workspace/**
 	if (options.requesterId) {

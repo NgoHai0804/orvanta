@@ -11,6 +11,7 @@ option java_package = "bot.cline.proto";
 service OrvantaService {
   rpc getCompany(EmptyRequest) returns (OrvantaCompanyResponse);
   rpc createCompany(OrvantaCreateCompanyRequest) returns (OrvantaCompanyResponse);
+  rpc deleteCompany(StringRequest) returns (OrvantaCompanyResponse);
   rpc subscribeCompany(EmptyRequest) returns (stream OrvantaCompanyResponse);
   rpc listAgentProfiles(EmptyRequest) returns (OrvantaAgentProfileList);
   rpc upsertAgentProfile(OrvantaAgentProfile) returns (OrvantaAgentProfile);
@@ -45,6 +46,7 @@ message OrvantaCompanyResponse {
   string purpose = 5;
   string team_name = 6;
   repeated OrvantaRosterAgent agents = 7;
+  string tasks_json = 8;
 }
 
 message OrvantaAgentTools {

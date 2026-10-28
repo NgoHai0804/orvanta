@@ -8,14 +8,14 @@ Cách dùng: làm theo [ROADMAP.md](./ROADMAP.md). Vision đủ A–D nằm hế
 
 ## Agent profile (P2)
 
-- [ ] Mỗi agent một `org/agents/<id>/profile.md` đúng Zod
-- [ ] `workspace/` tách khỏi profile; agent không ghi profile
-- [ ] Nộp bài bằng `orvanta_submit_handoff`, reviewer không `write_to_file`
-- [ ] Editor Lưu ghi workspace, không ghi user library
-- [ ] Template implementer/reviewer/researcher/skeptic
-- [ ] Một lead; không xóa coordinator
-- [ ] denyWrite bắt buộc 3 path
-- [ ] Reload còn config
+- [x] Mỗi agent một `org/agents/<id>/profile.md` đúng Zod
+- [x] `workspace/` tách khỏi profile; agent không ghi profile
+- [x] Nộp bài bằng `orvanta_submit_handoff`, reviewer không `write_to_file`
+- [x] Editor Lưu ghi workspace, không ghi user library
+- [x] Template implementer/reviewer/researcher/skeptic
+- [x] Một lead; không xóa coordinator
+- [x] denyWrite bắt buộc 3 path
+- [x] Reload còn config
 
 ## Company library (P3)
 
@@ -31,42 +31,42 @@ Cách dùng: làm theo [ROADMAP.md](./ROADMAP.md). Vision đủ A–D nằm hế
 
 ### Schema & đĩa
 
-- [ ] `.orvanta/` có trong `.gitignore` gốc
-- [ ] Tạo công ty atomic (tmp + rename), không nửa cây khi fail giữa chừng
-- [ ] `company.json` validate: schemaVersion, id, name, teamName, policies, coordinatorAgentId
-- [ ] `purpose.md` bắt buộc sau create
-- [ ] `VERSION` = 1
-- [ ] `org/roster.json` đúng một lead
-- [ ] `org/agents/<id>/profile.md` frontmatter + body + `workspace/`
-- [ ] `inbox/pending.json` + `inbox/history.jsonl`
-- [ ] `state/snapshot.json` + `last-sync.json` là chiếu, không phải nguồn ghi purpose/roster
-- [ ] `memory/` chặn `..` và non-`.md`
-- [ ] Loader: không folder → empty; thiếu file → broken; schema lạ → refuse
-- [ ] Hai lead → broken
-- [ ] Thiếu coordinator → broken
-- [ ] `teamName` qua `sanitizeTeamName`
-- [ ] Không ghi API key vào `.orvanta/`
-- [ ] Không đưa `.orvanta/` vào telemetry
+- [x] `.orvanta/` có trong `.gitignore` gốc
+- [x] Tạo công ty atomic (tmp + rename), không nửa cây khi fail giữa chừng
+- [x] `company.json` validate: schemaVersion, id, name, teamName, policies, coordinatorAgentId
+- [x] `purpose.md` bắt buộc sau create
+- [x] `VERSION` = 1
+- [x] `org/roster.json` đúng một lead
+- [x] `org/agents/<id>/profile.md` frontmatter + body + `workspace/`
+- [x] `inbox/pending.json` + `inbox/history.jsonl`
+- [x] `state/snapshot.json` + `last-sync.json` là chiếu, không phải nguồn ghi purpose/roster
+- [x] `memory/` chặn `..` và non-`.md`
+- [x] Loader: không folder → empty; thiếu file → broken; schema lạ → refuse
+- [x] Hai lead → broken
+- [x] Thiếu coordinator → broken
+- [x] `teamName` qua `sanitizeTeamName`
+- [x] Không ghi API key vào `.orvanta/`
+- [x] Không đưa `.orvanta/` vào telemetry
 
 ### Persistence
 
-- [ ] Khi company valid: TeamStore `teamDir` dưới `.orvanta/`, không `~/.cline/data/teams`
-- [ ] `teamName` session = `company.teamName`
-- [ ] Restore teammates từ roster (idle/stopped không spawn nhầm pending_hire)
-- [ ] Run `interrupted` sau khi host chết, còn đó lúc mở lại
-- [ ] Sync Home ghi snapshot từ TeamStore, không đè purpose
-- [ ] Import một chiều `.cline/agents/` → pending_hire (nếu policy)
+- [x] Khi company valid: TeamStore `teamDir` dưới `.orvanta/`, không `~/.cline/data/teams`
+- [x] `teamName` session = `company.teamName`
+- [x] Restore teammates từ roster (idle/stopped không spawn nhầm pending_hire)
+- [x] Run `interrupted` sau khi host chết, còn đó lúc mở lại
+- [x] Sync Home ghi snapshot từ TeamStore, không đè purpose
+- [x] Import một chiều `.cline/agents/` → pending_hire (nếu policy)
 
 ### Brand shell
 
-- [ ] Icon Activity Bar Orvanta (Indigo)
-- [ ] Top bar 4 tab: Home, Inbox, Chat, War room
-- [ ] Tab active Indigo; nền Navy; accent Violet
-- [ ] Shortcut Alt+1..4 (hoặc tương đương đã ghi keymap)
-- [ ] Deep-link `orvanta://view/{home|inbox|chat|war-room}`
-- [ ] ChatView không unmount khi đổi tab
-- [ ] Overlay Settings/History/MCP/Account/Worktrees Cline vẫn hoạt động
-- [ ] Onboarding Cline không bị thay bằng Orvanta
+- [x] Icon Activity Bar Orvanta (Indigo)
+- [x] Top bar 4 tab: Home, Inbox, Chat, War room
+- [x] Tab active Indigo; nền Navy; accent Violet
+- [x] Shortcut Alt+1..4 (hoặc tương đương đã ghi keymap)
+- [x] Deep-link `orvanta://view/{home|inbox|chat|war-room}`
+- [x] ChatView không unmount khi đổi tab
+- [x] Overlay Settings/History/MCP/Account/Worktrees Cline vẫn hoạt động
+- [x] Onboarding Cline không bị thay bằng Orvanta
 
 ---
 
@@ -74,59 +74,59 @@ Cách dùng: làm theo [ROADMAP.md](./ROADMAP.md). Vision đủ A–D nằm hế
 
 ### First-run
 
-- [ ] No folder: không form, bảo Open Folder
-- [ ] Empty: form name + purpose template + model coordinator
-- [ ] Submit tạo đủ file tối thiểu
-- [ ] Không tự hire teammate thứ hai
-- [ ] Secondary: nhập preset `.cline/agents/` nếu có
-- [ ] Fail ghi đĩa: banner, không folder vỡ
+- [x] No folder: không form, bảo Open Folder
+- [x] Empty: form name + purpose template + model coordinator
+- [x] Submit tạo đủ file tối thiểu
+- [x] Không tự hire teammate thứ hai
+- [x] Secondary: nhập preset `.cline/agents/` nếu có
+- [x] Fail ghi đĩa: banner, không folder vỡ
 
 ### Header & purpose
 
-- [ ] Tên công ty + one-liner purpose
-- [ ] Purpose markdown render, clamp 8 dòng, expand/collapse
-- [ ] Sửa purpose = draft UI, Save → decision `change_purpose`
-- [ ] Chưa approve: `purpose.md` trên đĩa không đổi
-- [ ] Menu: mở explorer `.orvanta/`, copy purpose, xóa công ty (gõ tên), xem company.json
-- [ ] Sync: spinner, toast, error banner stale
+- [x] Tên công ty + one-liner purpose
+- [x] Purpose markdown render, clamp 8 dòng, expand/collapse
+- [x] Sửa purpose = draft UI, Save → decision `change_purpose`
+- [x] Chưa approve: `purpose.md` trên đĩa không đổi
+- [x] Menu: mở explorer `.orvanta/`, copy purpose, xóa công ty (gõ tên), xem company.json
+- [x] Sync: spinner, toast, error banner stale
 
 ### Roster
 
-- [ ] Card: name, id, role, status, model, task hiện tại
-- [ ] Sort: lead → running → idle → pending → stopped
-- [ ] Hire form: id regex, template role, tools preview, maxIterations
-- [ ] Hire → file + pending_hire + decision, **không** spawn
-- [ ] Fire → decision, pending_fire, không shutdown trước approve
-- [ ] Không fire coordinator (ẩn/disable)
-- [ ] Sửa role → decision `change_role`
-- [ ] Menu card: Chat / War room / Sửa role / Fire
-- [ ] Status có chữ, không chỉ màu
+- [x] Card: name, id, role, status, model, task hiện tại
+- [x] Sort: lead → running → idle → pending → stopped
+- [x] Hire form: id regex, template role, tools preview, maxIterations
+- [x] Hire → file + pending_hire + decision, **không** spawn
+- [x] Fire → decision, pending_fire, không shutdown trước approve
+- [x] Không fire coordinator (ẩn/disable)
+- [x] Sửa role → decision `change_role`
+- [x] Menu card: Chat / War room / Sửa role / Fire
+- [x] Status có chữ, không chỉ màu
 
 ### Work now
 
-- [ ] Nhóm in_progress, blocked, queue
-- [ ] Hàng: title, assignee, time, depends/chờ
-- [ ] Action: Chat context task, War room filter, Escalate nếu blocked
-- [ ] Empty copy đúng
-- [ ] Trần 20 + xem tất cả
-- [ ] `isReady` / blockedBy hiện đúng
+- [x] Nhóm in_progress, blocked, queue
+- [x] Hàng: title, assignee, time, depends/chờ
+- [x] Action: Chat context task, War room filter, Escalate nếu blocked
+- [x] Empty copy đúng
+- [x] Trần 20 + xem tất cả
+- [x] `isReady` / blockedBy hiện đúng
 
 ### Inbox teaser & health
 
-- [ ] Số pending + 3 item, click focus Inbox
-- [ ] 0 pending vẫn hiện vùng
-- [ ] Banner interrupted + CTA Tiếp tục (steer coordinator)
-- [ ] Broken list lỗi + khôi phục / xóa lập lại
-- [ ] last-sync lệch (dot) khi > 10 phút
-- [ ] (Optional) số purpose-lock deny hôm nay
+- [x] Số pending + 3 item, click focus Inbox
+- [x] 0 pending vẫn hiện vùng
+- [x] Banner interrupted + CTA Tiếp tục (steer coordinator)
+- [x] Broken list lỗi + khôi phục / xóa lập lại
+- [x] last-sync lệch (dot) khi > 10 phút
+- [x] (Optional) số purpose-lock deny hôm nay
 
 ### Home chất lượng
 
-- [ ] Reload window giữ purpose + roster
-- [ ] 320px không overflow ngang
-- [ ] Skeleton loading, không flash empty
-- [ ] Running pill cập nhật ≤ 1s khi session live
-- [ ] Multi-root: chọn folder chứa `.orvanta/` hoặc folder đầu — hành vi đã ghi và test
+- [x] Reload window giữ purpose + roster
+- [x] 320px không overflow ngang
+- [x] Skeleton loading, không flash empty
+- [x] Running pill cập nhật ≤ 1s khi session live
+- [x] Multi-root: chọn folder chứa `.orvanta/` hoặc folder đầu — hành vi đã ghi và test
 
 ---
 
@@ -190,8 +190,8 @@ Cách dùng: làm theo [ROADMAP.md](./ROADMAP.md). Vision đủ A–D nằm hế
 
 ### Empty
 
-- [ ] Chưa công ty: tab disabled + tooltip
-- [ ] 0 pending: copy “đội không cần bạn”
+- [x] Chưa công ty: tab disabled + tooltip
+- [x] 0 pending: copy “đội không cần bạn”
 
 ---
 
@@ -199,16 +199,16 @@ Cách dùng: làm theo [ROADMAP.md](./ROADMAP.md). Vision đủ A–D nằm hế
 
 ### Chat Cline giữ nguyên
 
-- [ ] Mọi tool, approval, history Cline còn
-- [ ] Đổi tab A/B/D về C: input còn, ask-promise còn
-- [ ] Không có công ty: full width, không sidebar
-- [ ] Banner lập công ty, dismiss 7 ngày, không chặn chat
+- [x] Mọi tool, approval, history Cline còn
+- [x] Đổi tab A/B/D về C: input còn, ask-promise còn
+- [x] Không có công ty: full width, không sidebar
+- [x] Banner lập công ty, dismiss 7 ngày, không chặn chat
 
 ### Teams flag
 
-- [ ] Company valid → `enableAgentTeams: true`, `teamName` đúng, teamDir `.orvanta/`
-- [ ] Không company → teams flag giữ false
-- [ ] `/team` dùng `company.teamName`, không tạo team rời
+- [x] Company valid → `enableAgentTeams: true`, `teamName` đúng, teamDir `.orvanta/`
+- [x] Không company → teams flag giữ false
+- [x] `/team` dùng `company.teamName`, không tạo team rời
 
 ### Sidebar
 
@@ -306,33 +306,33 @@ Cách dùng: làm theo [ROADMAP.md](./ROADMAP.md). Vision đủ A–D nằm hế
 
 ## Journeys (E2E tay hoặc test)
 
-- [ ] J1 Lập công ty
-- [ ] J2 Hire implementer + reviewer (approve)
-- [ ] J2b Reject hire
-- [ ] J3 Giao mục tiêu, đội chia việc trong purpose
+- [x] J1 Lập công ty
+- [x] J2 Hire implementer + reviewer (approve)
+- [x] J2b Reject hire
+- [x] J3 Giao mục tiêu, đội chia việc trong purpose
 - [x] J3b Task ngoài purpose → inbox scope
-- [ ] J4 Tắt giữa run → interrupted → Tiếp tục
+- [x] J4 Tắt giữa run → interrupted → Tiếp tục
 - [x] J5 Merge approve / reject + note
-- [ ] J6 Fire teammate, task unassign
+- [x] J6 Fire teammate, task unassign
 - [x] J7 Chat 1 agent rồi về coordinator
 
-- [ ] J8 War room nhìn + nói
-- [ ] J9 Broken purpose → khôi phục
-- [ ] J10 Ngày thường: inbox 0, home đúng, không babysit
+- [x] J8 War room nhìn + nói
+- [x] J9 Broken purpose → khôi phục
+- [x] J10 Ngày thường: inbox 0, home đúng, không babysit
 
 ---
 
 ## Chất lượng cắt ngang
 
-- [ ] Không orchestrator thứ hai
-- [ ] Không commit `.orvanta/` (CI hoặc test gitcheck nếu cần)
-- [ ] Contrast 4.5:1 trên Navy
-- [ ] Status luôn có text
-- [ ] Một workspace một công ty
-- [ ] Docs cập nhật nếu đổi schema/type
-- [ ] Unit: validate schema, policy deny, dedup decision
-- [ ] Integration: create company, approve hire, teams dir
-- [ ] Webview: home empty → create → reload (khi có browser/test host)
+- [x] Không orchestrator thứ hai
+- [x] Không commit `.orvanta/` (CI hoặc test gitcheck nếu cần)
+- [x] Contrast 4.5:1 trên Navy
+- [x] Status luôn có text
+- [x] Một workspace một công ty
+- [x] Docs cập nhật nếu đổi schema/type
+- [x] Unit: validate schema, policy deny, dedup decision
+- [x] Integration: create company, approve hire, teams dir
+- [x] Webview: home empty → create → reload (khi có browser/test host)
 
 ---
 

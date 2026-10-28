@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import type { AgentProfile } from "./agent-profile";
 import type { RosterJson } from "./company-schema";
 import { buildTeammateSpecs } from "./teammate-specs";

@@ -6,7 +6,9 @@ import { MANDATORY_DENY_WRITE_PATHS, PURPOSE_FILE, WORKSPACE_DIRNAME, WORKSPACE_
 import {
 	CannotDeleteCoordinatorError,
 	CompanyAlreadyExistsError,
+	CompanyNameMismatchError,
 	createCompany,
+	deleteCompany,
 	getAgent,
 	listAgentProfiles,
 	loadCompany,
@@ -89,6 +91,17 @@ describe("workspace-store", () => {
 		await createCompany(root, { name: "Orvanta", purpose: PURPOSE })
 		expect(await pathExists(join(root, WORKSPACE_TMP_DIRNAME))).toBe(false)
 		expect(await pathExists(join(root, WORKSPACE_DIRNAME))).toBe(true)
+	})
+
+	it("deletes company when confirmed name matches, rejects mismatch", async () => {
+		const root = await tempWorkspace()
+		await createCompany(root, { name: "Acme Corp", purpose: PURPOSE })
+		await expect(deleteCompany(root, "Wrong Name")).rejects.toBeInstanceOf(CompanyNameMismatchError)
+		expect((await loadCompany(root)).status).toBe("ready")
+
+		await deleteCompany(root, "Acme Corp")
+		expect((await loadCompany(root)).status).toBe("missing")
+		expect(await pathExists(join(root, WORKSPACE_DIRNAME))).toBe(false)
 	})
 	it("upserts a new teammate agent, creates profile.md and memory.md, and adds to roster", async () => {
 		const root = await tempWorkspace()

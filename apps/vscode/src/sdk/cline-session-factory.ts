@@ -33,6 +33,7 @@ import {
 	buildClineSystemPrompt,
 	buildTeammateSpecs,
 	createOrvantaRequestDecisionTool,
+	createOrvantaSubmitHandoffTool,
 	EphemeralTracker,
 	injectOrvantaSystemPrompt,
 	isClineProvider,
@@ -1232,6 +1233,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 
 			// 4. Lead tools: add orvanta_request_decision for coordinator decisions
 			orvantaExtraTools.push(createOrvantaRequestDecisionTool({ workspaceRoot }))
+			orvantaExtraTools.push(createOrvantaSubmitHandoffTool({ workspaceRoot }))
 		}
 	} catch (error) {
 		Logger.warn("[SessionFactory] Failed to load Orvanta company:", error)

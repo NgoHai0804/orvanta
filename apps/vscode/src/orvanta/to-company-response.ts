@@ -5,6 +5,7 @@ export function toCompanyResponse(
 	load: CompanyLoad,
 	extraErrors: string[] = [],
 	runningAgentIds: string[] | Set<string> = [],
+	tasksJson: string = "",
 ): OrvantaCompanyResponse {
 	if (load.status === "missing") {
 		return OrvantaCompanyResponse.create({
@@ -15,6 +16,7 @@ export function toCompanyResponse(
 			purpose: "",
 			teamName: "",
 			agents: [],
+			tasksJson: "",
 		})
 	}
 	if (load.status === "broken") {
@@ -26,6 +28,7 @@ export function toCompanyResponse(
 			purpose: "",
 			teamName: "",
 			agents: [],
+			tasksJson: "",
 		})
 	}
 
@@ -50,5 +53,6 @@ export function toCompanyResponse(
 				status,
 			}
 		}),
+		tasksJson,
 	})
 }

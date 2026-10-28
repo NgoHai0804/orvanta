@@ -42,6 +42,12 @@ export class CannotDeleteCoordinatorError extends Error {
 		this.name = "CannotDeleteCoordinatorError"
 	}
 }
+export class CompanyNameMismatchError extends Error {
+	constructor(expected: string, actual: string) {
+		super(`Tên công ty xác nhận không khớp: nhập '${actual}', cần '${expected}'`)
+		this.name = "CompanyNameMismatchError"
+	}
+}
 
 export interface AgentDetail {
 	profile: AgentProfile
@@ -156,6 +162,18 @@ export async function createCompany(workspaceRoot: string, input: CreateCompanyI
 	}
 
 	return loadCompany(workspaceRoot)
+}
+
+export async function deleteCompany(workspaceRoot: string, confirmedName: string): Promise<void> {
+	const loaded = await loadCompany(workspaceRoot)
+	if (loaded.status !== "ready") {
+		throw new Error("Không có công ty hợp lệ để xóa")
+	}
+	if (loaded.company.name.trim() !== confirmedName.trim()) {
+		throw new CompanyNameMismatchError(loaded.company.name, confirmedName)
+	}
+	const dest = join(workspaceRoot, WORKSPACE_DIRNAME)
+	await rm(dest, { recursive: true, force: true })
 }
 
 export async function listAgentProfiles(workspaceRoot: string): Promise<AgentProfile[]> {

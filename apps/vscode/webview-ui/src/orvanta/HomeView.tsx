@@ -1,12 +1,32 @@
 import { AGENT_TEMPLATES, COORDINATOR_PROFILE_TEMPLATE, PURPOSE_TEMPLATE, parseAgentProfile } from "@cline/shared/orvanta"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { OrvantaAgentProfile, type OrvantaCompanyResponse, type OrvantaDecisionItem } from "@shared/proto/cline/orvanta"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import MarkdownBlock from "@/components/common/MarkdownBlock"
 import { OrvantaServiceClient } from "@/services/grpc-client"
 import AgentEditor from "./AgentEditor"
 import EditPurposeModal from "./EditPurposeModal"
 import LibraryDialog, { type LibraryDialogMode } from "./LibraryDialog"
+
+interface WorkTask {
+	id: string
+	title: string
+	description?: string
+	status: "pending" | "in_progress" | "blocked" | "completed" | "canceled"
+	assignee?: string
+	dependsOn?: string[]
+	updatedAt?: string
+	reason?: string
+}
+
+function getStatusRank(status: string): number {
+	const s = status.toLowerCase()
+	if (s === "running") return 1
+	if (s === "idle") return 2
+	if (s.startsWith("pending")) return 3
+	if (s === "stopped") return 4
+	return 5
+}
 
 const emptyRequest = {} as EmptyRequest
 
@@ -91,8 +111,66 @@ const HomeView = ({
 	const [showEditPurposeModal, setShowEditPurposeModal] = useState(false)
 	const [purposeSubmitting, setPurposeSubmitting] = useState(false)
 	const [noticeMessage, setNoticeMessage] = useState<string | null>(null)
+	const [syncing, setSyncing] = useState(false)
+	const [showViewCompanyJson, setShowViewCompanyJson] = useState(false)
+	const [showDeleteCompanyModal, setShowDeleteCompanyModal] = useState(false)
+	const [deleteConfirmName, setDeleteConfirmName] = useState("")
+	const [deletingCompany, setDeletingCompany] = useState(false)
+	const [showAllTasks, setShowAllTasks] = useState(false)
+	const [activeAgentMenuId, setActiveAgentMenuId] = useState<string | null>(null)
 
 	const coordinatorAgent = company.agents?.find((a) => a.role === "lead" || a.id === "coordinator")
+
+	const handleSync = async () => {
+		setSyncing(true)
+		try {
+			if (onRefresh) {
+				await onRefresh()
+			}
+			setNoticeMessage("Đã đồng bộ công ty.")
+		} catch (err: unknown) {
+			const msg = err instanceof Error ? err.message : String(err)
+			setNoticeMessage(`Lỗi đồng bộ: ${msg}`)
+		} finally {
+			setSyncing(false)
+		}
+	}
+
+	const handleCopyPurpose = () => {
+		setShowMenu(false)
+		if (navigator.clipboard) {
+			navigator.clipboard
+				.writeText(purpose)
+				.then(() => {
+					setNoticeMessage("Đã sao chép Purpose vào clipboard.")
+				})
+				.catch(() => {
+					setNoticeMessage("Không thể sao chép Purpose.")
+				})
+		}
+	}
+
+	const handleDeleteCompany = async () => {
+		if (deleteConfirmName.trim() !== company.name.trim()) {
+			setNoticeMessage("Tên công ty xác nhận không đúng.")
+			return
+		}
+		setDeletingCompany(true)
+		try {
+			await OrvantaServiceClient.deleteCompany(StringRequest.create({ value: deleteConfirmName.trim() }))
+			setShowDeleteCompanyModal(false)
+			setDeleteConfirmName("")
+			setNoticeMessage("Đã xóa công ty thành công.")
+			if (onRefresh) {
+				await onRefresh()
+			}
+		} catch (err: unknown) {
+			const msg = err instanceof Error ? err.message : String(err)
+			setNoticeMessage(`Lỗi xóa công ty: ${msg}`)
+		} finally {
+			setDeletingCompany(false)
+		}
+	}
 
 	const handleSelectTemplate = (templateKey: string) => {
 		const tmpl = AGENT_TEMPLATES.find((t) => t.id === templateKey)
@@ -218,6 +296,37 @@ const HomeView = ({
 	const agents = company.agents ?? []
 	const purpose = company.purpose ?? ""
 
+	const sortedAgents = useMemo(() => {
+		return [...(company.agents ?? [])].sort((a, b) => {
+			const aIsLead = a.role === "lead" || a.id === "coordinator"
+			const bIsLead = b.role === "lead" || b.id === "coordinator"
+			if (aIsLead && !bIsLead) return -1
+			if (!aIsLead && bIsLead) return 1
+			const rankA = getStatusRank(a.status)
+			const rankB = getStatusRank(b.status)
+			if (rankA !== rankB) return rankA - rankB
+			return a.displayName.localeCompare(b.displayName)
+		})
+	}, [company.agents])
+
+	const workTasks: WorkTask[] = useMemo(() => {
+		if (!company.tasksJson) return []
+		try {
+			const parsed = JSON.parse(company.tasksJson)
+			return Array.isArray(parsed.tasks) ? parsed.tasks : []
+		} catch {
+			return []
+		}
+	}, [company.tasksJson])
+
+	const inProgressTasks = useMemo(() => workTasks.filter((t) => t.status === "in_progress"), [workTasks])
+	const blockedTasks = useMemo(() => workTasks.filter((t) => t.status === "blocked"), [workTasks])
+	const queueTasks = useMemo(() => workTasks.filter((t) => t.status === "pending"), [workTasks])
+
+	const hasInterrupted = useMemo(() => {
+		return (company.agents ?? []).some((a) => a.status === "interrupted")
+	}, [company.agents])
+
 	if (loading && company.status === "missing" && !company.id) {
 		return (
 			<div className="flex flex-1 items-center justify-center p-4 text-xs opacity-70">
@@ -269,36 +378,80 @@ const HomeView = ({
 						<h2 className="text-base font-semibold">{company.name}</h2>
 						{purposeTagline && <p className="text-xs opacity-75">{purposeTagline}</p>}
 					</div>
-					<div className="relative">
+					<div className="flex items-center gap-1.5">
 						<button
-							className="rounded px-2 py-0.5 text-xs font-bold opacity-70 hover:bg-white/10 hover:opacity-100"
-							onClick={() => setShowMenu((prev) => !prev)}
-							title="Tùy chọn thư viện"
+							className="rounded px-1.5 py-0.5 text-xs opacity-70 hover:bg-white/10 hover:opacity-100 disabled:opacity-40"
+							disabled={syncing}
+							onClick={handleSync}
+							title="Đồng bộ công ty"
 							type="button">
-							···
+							<span className={`codicon codicon-sync ${syncing ? "codicon-modifier-spin" : ""}`} />
 						</button>
-						{showMenu && (
-							<div className="absolute right-0 top-full z-20 mt-1 min-w-36 rounded border border-border-panel bg-(--vscode-editor-background) p-1 shadow-xl">
-								<button
-									className="w-full rounded px-2.5 py-1 text-left text-xs hover:bg-white/5"
-									onClick={() => {
-										setShowMenu(false)
-										setLibraryDialogMode("save")
-									}}
-									type="button">
-									Lưu công ty…
-								</button>
-								<button
-									className="w-full rounded px-2.5 py-1 text-left text-xs hover:bg-white/5"
-									onClick={() => {
-										setShowMenu(false)
-										setLibraryDialogMode("load")
-									}}
-									type="button">
-									Tải công ty…
-								</button>
-							</div>
-						)}
+						<div className="relative">
+							<button
+								className="rounded px-2 py-0.5 text-xs font-bold opacity-70 hover:bg-white/10 hover:opacity-100"
+								onClick={() => setShowMenu((prev) => !prev)}
+								title="Tùy chọn công ty"
+								type="button">
+								···
+							</button>
+							{showMenu && (
+								<div className="absolute right-0 top-full z-20 mt-1 min-w-40 rounded border border-border-panel bg-(--vscode-editor-background) p-1 shadow-xl">
+									<button
+										className="w-full rounded px-2.5 py-1 text-left text-xs hover:bg-white/5"
+										onClick={() => {
+											setShowMenu(false)
+											setNoticeMessage("Thư mục cấu hình công ty: .orvanta/")
+										}}
+										type="button">
+										Mở thư mục .orvanta
+									</button>
+									<button
+										className="w-full rounded px-2.5 py-1 text-left text-xs hover:bg-white/5"
+										onClick={handleCopyPurpose}
+										type="button">
+										Sao chép Purpose
+									</button>
+									<button
+										className="w-full rounded px-2.5 py-1 text-left text-xs hover:bg-white/5"
+										onClick={() => {
+											setShowMenu(false)
+											setShowViewCompanyJson(true)
+										}}
+										type="button">
+										Xem company.json
+									</button>
+									<button
+										className="w-full rounded px-2.5 py-1 text-left text-xs hover:bg-white/5"
+										onClick={() => {
+											setShowMenu(false)
+											setLibraryDialogMode("save")
+										}}
+										type="button">
+										Lưu vào thư viện…
+									</button>
+									<button
+										className="w-full rounded px-2.5 py-1 text-left text-xs hover:bg-white/5"
+										onClick={() => {
+											setShowMenu(false)
+											setLibraryDialogMode("load")
+										}}
+										type="button">
+										Tải từ thư viện…
+									</button>
+									<div className="my-1 border-t border-border-panel" />
+									<button
+										className="w-full rounded px-2.5 py-1 text-left text-xs text-red-400 hover:bg-red-500/10"
+										onClick={() => {
+											setShowMenu(false)
+											setShowDeleteCompanyModal(true)
+										}}
+										type="button">
+										Xóa công ty…
+									</button>
+								</div>
+							)}
+						</div>
 					</div>
 				</header>
 
@@ -310,6 +463,30 @@ const HomeView = ({
 							onClick={() => setNoticeMessage(null)}
 							type="button">
 							✕
+						</button>
+					</div>
+				)}
+
+				{hasInterrupted && (
+					<div className="flex items-center justify-between rounded bg-amber-500/10 border border-amber-500/30 p-2.5 text-xs text-amber-300">
+						<div className="flex items-center gap-2">
+							<span className="codicon codicon-warning text-amber-400" />
+							<span>Phiên làm việc trước bị gián đoạn (interrupted).</span>
+						</div>
+						<button
+							className="rounded bg-amber-600 px-2.5 py-1 text-xs text-white hover:bg-amber-500 font-medium"
+							onClick={() => {
+								window.postMessage(
+									{
+										type: "orvanta_switch_tab",
+										tab: "chat",
+										focusAgentId: coordinatorAgent?.id || "coordinator",
+									},
+									"*",
+								)
+							}}
+							type="button">
+							Tiếp tục →
 						</button>
 					</div>
 				)}
@@ -352,6 +529,54 @@ const HomeView = ({
 					</section>
 				)}
 
+				<section className="flex flex-col gap-2 rounded border border-border-panel p-2.5">
+					<div className="flex items-center justify-between">
+						<h3 className="text-xs font-bold uppercase tracking-wide opacity-70">Work now</h3>
+						{workTasks.length > 5 && (
+							<button
+								className="text-xs text-(--vscode-textLink-foreground) hover:underline"
+								onClick={() => setShowAllTasks((prev) => !prev)}
+								type="button">
+								{showAllTasks ? "Thu gọn" : "Xem tất cả"}
+							</button>
+						)}
+					</div>
+					{workTasks.length === 0 ? (
+						<div className="text-xs text-muted-foreground">Chưa có việc. Nói với coordinator trên Chat.</div>
+					) : (
+						<div className="space-y-2">
+							{inProgressTasks.length > 0 && (
+								<div className="space-y-1">
+									<div className="font-semibold text-[11px] opacity-75">
+										In progress ({inProgressTasks.length})
+									</div>
+									{inProgressTasks.slice(0, showAllTasks ? 100 : 20).map((task) => (
+										<TaskRow key={task.id} onRequestDecision={onRequestDecision} task={task} />
+									))}
+								</div>
+							)}
+							{blockedTasks.length > 0 && (
+								<div className="space-y-1">
+									<div className="font-semibold text-[11px] text-amber-400">
+										Blocked ({blockedTasks.length})
+									</div>
+									{blockedTasks.slice(0, showAllTasks ? 100 : 20).map((task) => (
+										<TaskRow key={task.id} onRequestDecision={onRequestDecision} task={task} />
+									))}
+								</div>
+							)}
+							{queueTasks.length > 0 && (
+								<div className="space-y-1">
+									<div className="font-semibold text-[11px] opacity-75">Queue ({queueTasks.length})</div>
+									{queueTasks.slice(0, showAllTasks ? 100 : 20).map((task) => (
+										<TaskRow key={task.id} onRequestDecision={onRequestDecision} task={task} />
+									))}
+								</div>
+							)}
+						</div>
+					)}
+				</section>
+
 				<section className="flex flex-col gap-1">
 					<div className="flex items-center justify-between">
 						<h3 className="text-xs font-bold uppercase tracking-wide opacity-70">Purpose</h3>
@@ -387,16 +612,17 @@ const HomeView = ({
 						</button>
 					</div>
 					<div className="flex flex-col gap-2">
-						{agents.map((agent) => (
-							<button
-								className="flex w-full cursor-pointer items-center justify-between rounded border border-border-panel bg-(--vscode-editor-background) px-2.5 py-2 text-left hover:border-(--vscode-focusBorder)"
-								key={agent.id}
-								onClick={() => handleOpenAgent(agent.id)}
-								type="button">
-								<div>
+						{sortedAgents.map((agent) => (
+							<div
+								className="flex w-full items-center justify-between rounded border border-border-panel bg-(--vscode-editor-background) px-2.5 py-2 text-left"
+								key={agent.id}>
+								<button
+									className="flex-1 cursor-pointer text-left"
+									onClick={() => handleOpenAgent(agent.id)}
+									type="button">
 									<div className="font-medium text-xs">{agent.displayName}</div>
 									<div className="text-[11px] opacity-60">@{agent.id}</div>
-								</div>
+								</button>
 								<div className="flex items-center gap-1.5 text-xs">
 									<span className="rounded bg-(--vscode-badge-background) px-1.5 py-0.5 text-[10px] font-semibold uppercase text-(--vscode-badge-foreground)">
 										{agent.role}
@@ -404,9 +630,60 @@ const HomeView = ({
 									<span className="rounded border border-border-panel px-1.5 py-0.5 text-[10px] opacity-80">
 										{agent.status}
 									</span>
-									<span className="text-[11px] opacity-50 hover:opacity-100">Sửa →</span>
+									<button
+										className="text-[11px] opacity-70 hover:opacity-100 px-1"
+										onClick={() => handleOpenAgent(agent.id)}
+										title="Sửa cấu hình agent"
+										type="button">
+										Sửa
+									</button>
+									<div className="relative">
+										<button
+											className="rounded px-1 text-xs opacity-60 hover:opacity-100"
+											onClick={() => setActiveAgentMenuId((prev) => (prev === agent.id ? null : agent.id))}
+											title="Tùy chọn"
+											type="button">
+											···
+										</button>
+										{activeAgentMenuId === agent.id && (
+											<div className="absolute right-0 top-full z-20 mt-1 min-w-28 rounded border border-border-panel bg-(--vscode-editor-background) p-1 shadow-xl">
+												<button
+													className="w-full rounded px-2.5 py-1 text-left text-xs hover:bg-white/5"
+													onClick={() => {
+														setActiveAgentMenuId(null)
+														window.postMessage(
+															{ type: "orvanta_switch_tab", tab: "chat", focusAgentId: agent.id },
+															"*",
+														)
+													}}
+													type="button">
+													Chat
+												</button>
+												<button
+													className="w-full rounded px-2.5 py-1 text-left text-xs hover:bg-white/5"
+													onClick={() => {
+														setActiveAgentMenuId(null)
+														window.postMessage({ type: "orvanta_switch_tab", tab: "war-room" }, "*")
+													}}
+													type="button">
+													War room
+												</button>
+												{agent.role !== "lead" && agent.id !== "coordinator" && (
+													<button
+														className="w-full rounded px-2.5 py-1 text-left text-xs text-red-400 hover:bg-red-500/10"
+														onClick={() => {
+															setActiveAgentMenuId(null)
+															void handleDeleteAgent(agent.id)
+														}}
+														type="button">
+														Sa thải
+													</button>
+												)}
+											</div>
+										)}
+									</div>
 								</div>
-							</button>
+							</div>
 						))}
 					</div>
 				</section>
@@ -494,6 +771,86 @@ const HomeView = ({
 						}}
 						submitting={purposeSubmitting}
 					/>
+				)}
+
+				{/* View company.json Modal */}
+				{showViewCompanyJson && (
+					<div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 p-4">
+						<div className="flex max-w-md w-full flex-col gap-3 rounded border border-border-panel bg-(--vscode-editor-background) p-4 shadow-xl">
+							<div className="flex items-center justify-between">
+								<h3 className="font-semibold text-sm">company.json</h3>
+								<button
+									className="text-xs opacity-60 hover:opacity-100"
+									onClick={() => setShowViewCompanyJson(false)}
+									type="button">
+									✕
+								</button>
+							</div>
+							<pre className="overflow-auto max-h-64 rounded border border-border-panel bg-black/40 p-2 font-mono text-[11px]">
+								{JSON.stringify(
+									{
+										id: company.id,
+										name: company.name,
+										teamName: company.teamName,
+										purpose: company.purpose,
+										agentsCount: company.agents?.length,
+									},
+									null,
+									2,
+								)}
+							</pre>
+							<div className="flex justify-end">
+								<button
+									className="rounded border border-border-panel px-3 py-1 text-xs hover:bg-white/5"
+									onClick={() => setShowViewCompanyJson(false)}
+									type="button">
+									Đóng
+								</button>
+							</div>
+						</div>
+					</div>
+				)}
+
+				{/* Delete Company Modal */}
+				{showDeleteCompanyModal && (
+					<div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 p-4">
+						<div className="flex max-w-sm w-full flex-col gap-3 rounded border border-red-500/40 bg-(--vscode-editor-background) p-4 shadow-xl">
+							<div className="flex items-center justify-between">
+								<h3 className="font-semibold text-sm text-red-400">Xóa công ty</h3>
+								<button
+									className="text-xs opacity-60 hover:opacity-100"
+									onClick={() => setShowDeleteCompanyModal(false)}
+									type="button">
+									✕
+								</button>
+							</div>
+							<p className="text-xs opacity-80">
+								Hành động này sẽ xóa hoàn toàn thư mục <code className="text-red-300">.orvanta/</code>. Để xác
+								nhận, vui lòng gõ tên công ty <strong>{company.name}</strong>:
+							</p>
+							<input
+								className="rounded border border-border-panel bg-input-background px-2 py-1 text-xs"
+								onChange={(e) => setDeleteConfirmName(e.target.value)}
+								placeholder={company.name}
+								value={deleteConfirmName}
+							/>
+							<div className="flex items-center justify-end gap-2">
+								<button
+									className="rounded border border-border-panel px-2.5 py-1 text-xs hover:bg-white/5"
+									onClick={() => setShowDeleteCompanyModal(false)}
+									type="button">
+									Hủy
+								</button>
+								<button
+									className="rounded bg-red-600 px-2.5 py-1 text-xs text-white hover:bg-red-500 disabled:opacity-50 font-medium"
+									disabled={deletingCompany || deleteConfirmName.trim() !== company.name.trim()}
+									onClick={handleDeleteCompany}
+									type="button">
+									{deletingCompany ? "Đang xóa…" : "Xác nhận xóa"}
+								</button>
+							</div>
+						</div>
+					</div>
 				)}
 			</div>
 		)
@@ -602,6 +959,93 @@ const CreateCompanyForm = ({
 				</button>
 			</div>
 		</form>
+	)
+}
+
+const TaskRow = ({
+	task,
+	onRequestDecision,
+}: {
+	task: WorkTask
+	onRequestDecision?: (
+		type: string,
+		title: string,
+		summary: string,
+		payload: Record<string, unknown>,
+		urgency?: string,
+	) => Promise<unknown>
+}) => {
+	const handleChatTask = () => {
+		window.postMessage(
+			{
+				type: "orvanta_switch_tab",
+				tab: "chat",
+				contextTask: { id: task.id, title: task.title },
+			},
+			"*",
+		)
+	}
+
+	const handleWarRoom = () => {
+		window.postMessage({ type: "orvanta_switch_tab", tab: "war-room" }, "*")
+	}
+
+	const handleEscalate = async () => {
+		if (onRequestDecision) {
+			await onRequestDecision(
+				"escalate_blocked",
+				`Task '${task.title}' bị block`,
+				task.reason || "Yêu cầu tháo gỡ tắc nghẽn từ CEO",
+				{ taskId: task.id, reason: task.reason },
+				"high",
+			)
+		}
+	}
+
+	return (
+		<div className="flex items-center justify-between rounded border border-border-panel bg-(--vscode-editor-background) p-1.5 text-xs">
+			<div className="flex items-center gap-2 truncate">
+				<span
+					className={`h-2 w-2 rounded-full shrink-0 ${
+						task.status === "in_progress"
+							? "bg-green-500"
+							: task.status === "blocked"
+								? "bg-amber-500"
+								: "bg-blue-400"
+					}`}
+				/>
+				<span className="font-medium truncate">{task.title}</span>
+				<span className="text-[10px] opacity-60 shrink-0">{task.assignee ? `@${task.assignee}` : "unassigned"}</span>
+				{task.dependsOn && task.dependsOn.length > 0 && (
+					<span className="text-[10px] text-amber-300/80 shrink-0">chờ {task.dependsOn.length}</span>
+				)}
+			</div>
+			<div className="flex items-center gap-1.5 shrink-0 ml-2">
+				<button
+					className="text-[11px] text-(--vscode-textLink-foreground) hover:underline"
+					onClick={handleChatTask}
+					title="Chat về task này"
+					type="button">
+					Chat
+				</button>
+				<button
+					className="text-[11px] opacity-70 hover:opacity-100"
+					onClick={handleWarRoom}
+					title="Mở War room"
+					type="button">
+					War room
+				</button>
+				{task.status === "blocked" && onRequestDecision && (
+					<button
+						className="text-[11px] text-amber-400 hover:underline"
+						onClick={handleEscalate}
+						title="Escalate quyết định cho CEO"
+						type="button">
+						Escalate
+					</button>
+				)}
+			</div>
+		</div>
 	)
 }
 

@@ -100,6 +100,7 @@ export {
 	EphemeralTracker,
 	extractNegativePurposeMarkers,
 	classifyTaskScope,
+	validateMemoryPath,
 
 } from "./purpose-lock";
 export {
@@ -162,6 +163,13 @@ export {
 	type OrvantaRequestDecisionInput,
 	type RequestDecisionToolOutput,
 } from "./request-decision-tool";
+export {
+	createOrvantaSubmitHandoffTool,
+	OrvantaSubmitHandoffInputSchema,
+	type OrvantaSubmitHandoffInput,
+	type SubmitHandoffToolOutput,
+} from "./submit-handoff-tool";
+
 
 
 

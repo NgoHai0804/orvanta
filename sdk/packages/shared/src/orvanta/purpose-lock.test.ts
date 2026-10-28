@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import type { AgentBeforeToolContext, AgentTool, AgentToolContext } from "../agent";
 import { parseAgentProfile } from "./agent-profile";
 import {
@@ -110,6 +110,26 @@ describe("checkPurposeLockPath", () => {
 	it("allows write to normal files outside .orvanta", () => {
 		expect(checkPurposeLockPath({ targetPath: "src/index.ts" }).allowed).toBe(true);
 		expect(checkPurposeLockPath({ targetPath: "package.json" }).allowed).toBe(true);
+	});
+
+	it("blocks path traversal containing '..'", () => {
+		const res = checkPurposeLockPath({ targetPath: ".orvanta/org/agents/../../secret.txt" });
+		expect(res.allowed).toBe(false);
+		expect(res.code).toBe("purpose_lock_denied");
+		expect(res.reason).toContain("Path traversal");
+	});
+
+	it("memory/ checks: allows .md without '..', denies non-.md, denies '..'", () => {
+		expect(checkPurposeLockPath({ targetPath: ".orvanta/memory/notes.md" }).allowed).toBe(true);
+		expect(checkPurposeLockPath({ targetPath: ".orvanta/memory/project/handoff.md" }).allowed).toBe(true);
+
+		const nonMd = checkPurposeLockPath({ targetPath: ".orvanta/memory/script.sh" });
+		expect(nonMd.allowed).toBe(false);
+		expect(nonMd.code).toBe("purpose_lock_denied");
+
+		const traversal = checkPurposeLockPath({ targetPath: ".orvanta/memory/../outside.md" });
+		expect(traversal.allowed).toBe(false);
+		expect(traversal.code).toBe("purpose_lock_denied");
 	});
 });
 

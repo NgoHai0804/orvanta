@@ -62,14 +62,14 @@ const OrvantaShell = ({ activeTab, onTabChange }: OrvantaShellProps) => {
 
 	return (
 		<div className={isFullView ? "flex h-full min-h-0 flex-1 flex-col overflow-hidden" : "shrink-0"}>
-			<nav className="flex shrink-0 gap-1 border-b border-border-panel px-2 py-1">
+			<nav className="flex shrink-0 gap-1 border-b border-border-panel bg-[#0b1021] px-2 py-1">
 				{tabs.map((tab) => (
 					<button
 						aria-label={tab.id === "inbox" && tab.badge && tab.badge > 0 ? `Inbox, ${tab.badge} pending` : tab.label}
-						className={`rounded px-2 py-1 text-xs flex items-center gap-1 ${
+						className={`rounded px-2.5 py-1 text-xs flex items-center gap-1.5 font-medium transition-colors ${
 							activeTab === tab.id
-								? "bg-(--vscode-button-background) text-(--vscode-button-foreground)"
-								: "opacity-80 hover:opacity-100"
+								? "bg-indigo-600 text-white shadow-xs"
+								: "text-slate-300 hover:text-white hover:bg-white/5"
 						} disabled:cursor-not-allowed disabled:opacity-40`}
 						disabled={!tab.enabled}
 						key={tab.id}
@@ -83,7 +83,7 @@ const OrvantaShell = ({ activeTab, onTabChange }: OrvantaShellProps) => {
 						type="button">
 						<span>{tab.label}</span>
 						{tab.badge !== undefined && tab.badge > 0 && (
-							<span className="rounded-full bg-(--vscode-badge-background) px-1.5 py-0.2 text-[10px] text-(--vscode-badge-foreground) font-medium">
+							<span className="rounded-full bg-violet-600 px-1.5 py-0.2 text-[10px] text-white font-semibold">
 								{tab.badge > 99 ? "99+" : tab.badge}
 							</span>
 						)}
