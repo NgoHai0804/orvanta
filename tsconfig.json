@@ -1,0 +1,7 @@
+{
+	"files": [],
+	"references": [
+		{ "path": "./apps/vscode" },
+		{ "path": "./apps/vscode/webview-ui" }
+	]
+}

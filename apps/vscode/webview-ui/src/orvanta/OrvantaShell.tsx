@@ -3,6 +3,8 @@ import HomeView from "./HomeView"
 import InboxView from "./InboxView"
 import { useOrvantaCompany } from "./useOrvantaCompany"
 import { useOrvantaInbox } from "./useOrvantaInbox"
+import { useWarRoom } from "./useWarRoom"
+import WarRoomView from "./WarRoomView"
 
 export type OrvantaTab = "home" | "inbox" | "chat" | "war-room"
 
@@ -26,9 +28,11 @@ const OrvantaShell = ({ activeTab, onTabChange }: OrvantaShellProps) => {
 		refresh: refreshInbox,
 	} = useOrvantaInbox(company?.status)
 
-	const [inboxFocusId, setInboxFocusId] = useState<string | undefined>()
-
 	const isCompanyReady = company?.status === "ready"
+
+	const warRoom = useWarRoom(activeTab === "war-room" && isCompanyReady)
+
+	const [inboxFocusId, setInboxFocusId] = useState<string | undefined>()
 
 	const tabs: Array<{
 		id: OrvantaTab
@@ -46,10 +50,15 @@ const OrvantaShell = ({ activeTab, onTabChange }: OrvantaShellProps) => {
 			badge: pendingCount,
 		},
 		{ id: "chat", label: "Chat", enabled: true },
-		{ id: "war-room", label: "War room", enabled: false, title: "Pha sau" },
+		{
+			id: "war-room",
+			label: "War room",
+			enabled: isCompanyReady,
+			title: isCompanyReady ? undefined : "Lập công ty trên Home để mở War room",
+		},
 	]
 
-	const isFullView = activeTab === "home" || activeTab === "inbox"
+	const isFullView = activeTab === "home" || activeTab === "inbox" || activeTab === "war-room"
 
 	return (
 		<div className={isFullView ? "flex h-full min-h-0 flex-1 flex-col overflow-hidden" : "shrink-0"}>
@@ -108,6 +117,20 @@ const OrvantaShell = ({ activeTab, onTabChange }: OrvantaShellProps) => {
 					onRefresh={refreshInbox}
 					onResolve={resolveDecision}
 					pending={pending}
+				/>
+			)}
+			{activeTab === "war-room" && (
+				<WarRoomView
+					filter={warRoom.filter}
+					onFilterChange={warRoom.setFilter}
+					onPauseToggle={warRoom.setPaused}
+					onTalkToAgent={(agentId) => {
+						// Deep-link to chat tab focusing the agent
+						window.postMessage({ type: "orvanta_switch_tab", tab: "chat", focusAgentId: agentId }, "*")
+						onTabChange("chat")
+					}}
+					paused={warRoom.paused}
+					snapshot={warRoom.snapshot}
 				/>
 			)}
 		</div>

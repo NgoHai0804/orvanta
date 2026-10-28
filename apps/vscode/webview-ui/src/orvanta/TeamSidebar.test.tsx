@@ -74,4 +74,22 @@ describe("TeamSidebar", () => {
 		fireEvent.click(hireButton)
 		expect(onHire).toHaveBeenCalled()
 	})
+
+	it("enables war room button when onOpenWarRoom is provided and triggers callback", () => {
+		const onOpenWarRoom = vi.fn()
+		render(
+			<TeamSidebar
+				agents={mockAgents}
+				focusAgentId="coordinator"
+				onHire={vi.fn()}
+				onOpenWarRoom={onOpenWarRoom}
+				onSelectAgent={vi.fn()}
+			/>,
+		)
+
+		const warRoomButton = screen.getByRole("button", { name: /mở war room/i })
+		expect(warRoomButton).toBeEnabled()
+		fireEvent.click(warRoomButton)
+		expect(onOpenWarRoom).toHaveBeenCalled()
+	})
 })

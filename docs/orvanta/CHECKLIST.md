@@ -246,30 +246,30 @@ Cách dùng: làm theo [ROADMAP.md](./ROADMAP.md). Vision đủ A–D nằm hế
 
 ### D-min
 
-- [ ] Card cho mọi roster + guest
-- [ ] Status ≤ 1s khớp run
-- [ ] Task title đúng
-- [ ] Buffer 20: progress, tool, deny, error
-- [ ] Không render secrets
-- [ ] Expand: transcript persist ≤ 3 run
-- [ ] Nói → Chat focus
-- [ ] Đóng tab không cancel run
-- [ ] Pause dừng append, runtime sống
-- [ ] Ẩn tab: không vẽ; buffer còn khi quay
-- [ ] Filter All / Running / Idle / Failed
-- [ ] Filter theo task
-- [ ] Empty no-company / idle / filter trống
-- [ ] Không nút approve/hire/fire trên card
-- [ ] Header purpose one-liner
-- [ ] aria-live chỉ khi running + tab visible; pause tắt live
+- [x] Card cho mọi roster + guest
+- [x] Status ≤ 1s khớp run
+- [x] Task title đúng
+- [x] Buffer 20: progress, tool, deny, error
+- [x] Không render secrets
+- [x] Expand: transcript persist ≤ 3 run
+- [x] Nói → Chat focus
+- [x] Đóng tab không cancel run
+- [x] Pause dừng append, runtime sống
+- [x] Ẩn tab: không vẽ; buffer còn khi quay
+- [x] Filter All / Running / Idle / Failed
+- [x] Filter theo task
+- [x] Empty no-company / idle / filter trống
+- [x] Không nút approve/hire/fire trên card
+- [x] Header purpose one-liner
+- [x] aria-live chỉ khi running + tab visible; pause tắt live
 
 ### D-full
 
-- [ ] Token stream live trên card
-- [ ] Virtualize > 12
-- [ ] Search tên agent
-- [ ] Layout 1/2/3 cột theo width
-- [ ] Cost/token trên expand nếu có
+- [x] Token stream live trên card
+- [x] Virtualize > 12
+- [x] Search tên agent
+- [x] Layout 1/2/3 cột theo width
+- [x] Cost/token trên expand nếu có
 - [ ] (Optional) pop-out editor group
 
 ---

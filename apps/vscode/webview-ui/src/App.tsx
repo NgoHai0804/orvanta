@@ -89,8 +89,8 @@ const AppContent = () => {
 		const handleMessage = (e: MessageEvent) => {
 			if (e.data?.type === "orvanta_switch_tab" && e.data?.tab) {
 				setOrvantaTab(e.data.tab)
-				if (e.data.focusAgentId) {
-					setFocusAgentId(e.data.focusAgentId)
+				if (e.data.focusAgentId || e.data.focusAgent) {
+					setFocusAgentId(e.data.focusAgentId || e.data.focusAgent)
 				}
 				if (e.data.contextTask) {
 					setContextTask(e.data.contextTask)
@@ -171,6 +171,7 @@ const AppContent = () => {
 						agents={company.agents}
 						focusAgentId={effectiveFocusAgentId}
 						onHire={() => setOrvantaTab("home")}
+						onOpenWarRoom={() => setOrvantaTab("war-room")}
 						onSelectAgent={setFocusAgentId}
 					/>
 				)}

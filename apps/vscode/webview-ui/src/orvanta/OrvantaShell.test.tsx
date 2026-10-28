@@ -45,6 +45,16 @@ vi.mock("./useOrvantaInbox", () => ({
 	}),
 }))
 
+vi.mock("./useWarRoom", () => ({
+	useWarRoom: () => ({
+		snapshot: null,
+		paused: false,
+		filter: "all",
+		setPaused: vi.fn(),
+		setFilter: vi.fn(),
+	}),
+}))
+
 describe("OrvantaShell", () => {
 	it("renders 4 tabs: Home, Inbox, Chat, War room", () => {
 		mockCompanyStatus = "missing"
@@ -56,7 +66,7 @@ describe("OrvantaShell", () => {
 		expect(screen.getByRole("button", { name: "War room" })).toBeInTheDocument()
 	})
 
-	it("disables Inbox when company missing and War room tabs with tooltip", () => {
+	it("disables Inbox when company missing; war-room disabled without company", () => {
 		mockCompanyStatus = "missing"
 		render(<OrvantaShell activeTab="home" onTabChange={vi.fn()} />)
 		const inboxBtn = screen.getByRole("button", { name: "Inbox" })
@@ -66,7 +76,7 @@ describe("OrvantaShell", () => {
 		expect(inboxBtn).toHaveAttribute("title", "Lập công ty trên Home để mở Inbox")
 
 		expect(warRoomBtn).toBeDisabled()
-		expect(warRoomBtn).toHaveAttribute("title", "Pha sau")
+		expect(warRoomBtn).toHaveAttribute("title", "Lập công ty trên Home để mở War room")
 	})
 
 	it("enables Inbox tab and displays badge when company is ready and has pending decisions", () => {

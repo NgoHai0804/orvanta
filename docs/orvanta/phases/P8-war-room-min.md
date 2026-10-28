@@ -16,10 +16,10 @@
 
 ## Tasks
 
-- [ ] Task: map events → card model + test  
-- [ ] Task: WarRoomView grid  
-- [ ] Verify J8; ẩn tab không cancel run
+- [x] Task: map events → card model + test  
+- [x] Task: WarRoomView grid  
+- [x] Verify J8; ẩn tab không cancel run
 
 ## Done P8
 
-- [ ] Checklist D-min
+- [x] Checklist D-min

@@ -53,6 +53,7 @@ import { stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { globalTeamStatusTracker } from "@/orvanta/team-status-tracker"
+import { globalWarRoomTracker } from "@/orvanta/war-room-tracker"
 import { getAgentProfile, listAgentProfiles, loadCompany } from "@/orvanta/workspace-store"
 import { ExtensionRegistryInfo } from "@/registry"
 
@@ -1288,6 +1289,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 
 		onTeamEvent: (event) => {
 			globalTeamStatusTracker.handleTeamEvent(event)
+			globalWarRoomTracker.handleTeamEvent(event)
 		},
 
 		...(useAutoCondense
