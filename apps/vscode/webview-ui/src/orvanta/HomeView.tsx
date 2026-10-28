@@ -92,6 +92,8 @@ const HomeView = ({
 	const [purposeSubmitting, setPurposeSubmitting] = useState(false)
 	const [noticeMessage, setNoticeMessage] = useState<string | null>(null)
 
+	const coordinatorAgent = company.agents?.find((a) => a.role === "lead" || a.id === "coordinator")
+
 	const handleSelectTemplate = (templateKey: string) => {
 		const tmpl = AGENT_TEMPLATES.find((t) => t.id === templateKey)
 		if (!tmpl) return
@@ -132,7 +134,7 @@ const HomeView = ({
 	}
 
 	const handleSaveAgent = async (profile: OrvantaAgentProfile): Promise<boolean> => {
-		const isLive = isTeamSessionActive || company.roster?.agents?.some((a) => a.status === "running")
+		const isLive = isTeamSessionActive || Boolean(company.agents?.some((a) => a.status === "running"))
 		if (isEditorNew && isLive && onRequestDecision) {
 			try {
 				await onRequestDecision(
@@ -176,7 +178,7 @@ const HomeView = ({
 	}
 
 	const handleDeleteAgent = async (agentId: string): Promise<boolean> => {
-		if (agentId === company.coordinatorAgentId || agentId === "coordinator") {
+		if (agentId === coordinatorAgent?.id || agentId === "coordinator") {
 			setNoticeMessage("Không thể sa thải coordinator/lead.")
 			return false
 		}

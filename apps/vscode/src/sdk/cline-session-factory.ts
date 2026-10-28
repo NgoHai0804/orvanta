@@ -33,8 +33,10 @@ import {
 	buildClineSystemPrompt,
 	buildTeammateSpecs,
 	createOrvantaRequestDecisionTool,
+	EphemeralTracker,
 	injectOrvantaSystemPrompt,
 	isClineProvider,
+	requestDecision,
 	type TeamTeammateSpec,
 } from "@cline/shared"
 
@@ -1190,6 +1192,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	let teammates: TeamTeammateSpec[] | undefined
 	let includeLeadSpawnTool: boolean | undefined
 	const orvantaExtraTools: any[] = []
+	let ephemeralTracker: EphemeralTracker | undefined
 
 	try {
 		const companyLoad = await loadCompany(workspaceRoot)
@@ -1222,8 +1225,9 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			const profilesMap = new Map(profiles.map((p) => [p.id, p]))
 			teammates = buildTeammateSpecs(companyLoad.roster, profilesMap)
 
-			// 3. Lead tools: omit team_spawn_teammate for lead (agents only from roster)
-			includeLeadSpawnTool = false
+			// 3. Lead tools: allow team_spawn_teammate with Orvanta policy (ephemeral max 3, persistent -> hire_agent decision)
+			includeLeadSpawnTool = true
+			ephemeralTracker = new EphemeralTracker(3)
 
 			// 4. Lead tools: add orvanta_request_decision for coordinator decisions
 			orvantaExtraTools.push(createOrvantaRequestDecisionTool({ workspaceRoot }))
@@ -1256,6 +1260,32 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		...(teammates ? { teammates } : {}),
 		...(includeLeadSpawnTool !== undefined ? { includeLeadSpawnTool } : {}),
 		...(orvantaExtraTools.length > 0 ? { extraTools: orvantaExtraTools } : {}),
+		...(ephemeralTracker ? { ephemeralTracker } : {}),
+		onPersistentSpawnDenied: (info) => {
+			if (workspaceRoot) {
+				requestDecision(workspaceRoot, {
+					type: "hire_agent",
+					title: `Tuyển ${info.agentId}`,
+					summary: "Coordinator yêu cầu spawn teammate bền mới",
+					payload: { agentId: info.agentId, rolePromptPreview: info.rolePrompt },
+				}).catch((err) => {
+					Logger.warn("[SessionFactory] Failed to create hire_agent decision:", err)
+				})
+			}
+		},
+		onOverEphemeral: (info) => {
+			if (workspaceRoot) {
+				requestDecision(workspaceRoot, {
+					type: "over_ephemeral",
+					title: "Vượt giới hạn guest ephemeral",
+					summary: "Coordinator cố gắng spawn vượt quá giới hạn 3 guest ephemeral",
+					payload: { count: info.count, limit: info.limit },
+				}).catch((err) => {
+					Logger.warn("[SessionFactory] Failed to create over_ephemeral decision:", err)
+				})
+			}
+		},
+
 		onTeamEvent: (event) => {
 			globalTeamStatusTracker.handleTeamEvent(event)
 		},

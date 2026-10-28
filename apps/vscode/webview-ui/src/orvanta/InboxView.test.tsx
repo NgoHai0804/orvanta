@@ -158,4 +158,77 @@ describe("InboxView", () => {
 
 		expect(onResolve).toHaveBeenCalledWith("dec-def", "reopen")
 	})
+
+	it("renders change_scope item and displays outside purpose reason", () => {
+		const scopePending: OrvantaDecisionItem[] = [
+			{
+				id: "dec-scope",
+				type: "change_scope",
+				status: "pending",
+				createdAt: "2026-10-28T02:00:00.000Z",
+				createdBy: "coordinator",
+				title: "Mở rộng scope sang Docker",
+				summary: "Cần docker",
+				payloadJson: JSON.stringify({
+					taskId: "task-infra-1",
+					title: "Setup Docker",
+					whyOutsidePurpose: "Purpose không bao gồm docker infrastructure",
+					proposedScope: "Dockerfile, compose.yml",
+				}),
+				urgency: "normal",
+			},
+		]
+
+		render(<InboxView deferred={[]} history={[]} onRefresh={vi.fn()} onResolve={vi.fn()} pending={scopePending} />)
+
+		expect(screen.getAllByText("Mở rộng scope sang Docker").length).toBeGreaterThanOrEqual(1)
+		expect(screen.getByText("Purpose không bao gồm docker infrastructure")).toBeInTheDocument()
+		expect(screen.getByText("Dockerfile, compose.yml")).toBeInTheDocument()
+	})
+
+	it("requires note >= 8 chars when rejecting merge decision", () => {
+		const mergePending: OrvantaDecisionItem[] = [
+			{
+				id: "dec-merge",
+				type: "merge",
+				status: "pending",
+				createdAt: "2026-10-28T03:00:00.000Z",
+				createdBy: "implementer",
+				title: "Duyệt merge Auth v2",
+				summary: "PR #12",
+				payloadJson: JSON.stringify({
+					outcomeId: "out-auth-12",
+					authorAgentId: "implementer",
+					diffSummary: "+200 -50 lines in auth.ts",
+					files: ["src/auth.ts"],
+				}),
+				urgency: "high",
+			},
+		]
+
+		render(<InboxView deferred={[]} history={[]} onRefresh={vi.fn()} onResolve={vi.fn()} pending={mergePending} />)
+
+		expect(screen.getAllByText("Duyệt merge Auth v2").length).toBeGreaterThanOrEqual(1)
+		expect(screen.getByText("out-auth-12")).toBeInTheDocument()
+
+		// Click Từ chối
+		const rejectBtn = screen.getByRole("button", { name: /Từ chối/ })
+		fireEvent.click(rejectBtn)
+
+		// Modal opens
+		expect(screen.getByRole("heading", { name: /Từ chối Merge/ })).toBeInTheDocument()
+		const confirmRejectBtn = screen.getByRole("button", { name: "Xác nhận từ chối" })
+		// Disabled because note is empty (< 8 chars)
+		expect(confirmRejectBtn).toBeDisabled()
+
+		// Type short note < 8 chars
+		const noteInput = screen.getByLabelText(/Lý do từ chối/)
+		fireEvent.change(noteInput, { target: { value: "Short" } })
+		expect(confirmRejectBtn).toBeDisabled()
+		expect(screen.getByText(/Lý do cần tối thiểu 8 ký tự/)).toBeInTheDocument()
+
+		// Type valid note >= 8 chars
+		fireEvent.change(noteInput, { target: { value: "Thiếu unit test cho auth module" } })
+		expect(confirmRejectBtn).not.toBeDisabled()
+	})
 })

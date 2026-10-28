@@ -162,7 +162,7 @@ export const BrowserSettingsMenu = () => {
 						<div className="flex-none w-[90px] font-medium">Status:</div>
 						{/* InfoValue - Flexible value container */}
 						<div
-							className="flex-1 break-words"
+							className="flex-1 wrap-break-word"
 							style={{
 								color: connectionInfo.isConnected
 									? "var(--vscode-charts-green)"
@@ -177,7 +177,7 @@ export const BrowserSettingsMenu = () => {
 							{/* InfoLabel - Fixed-width label */}
 							<div className="flex-none w-[90px] font-medium">Type:</div>
 							{/* InfoValue - Flexible value container */}
-							<div className="flex-1 break-words">{connectionInfo.isRemote ? "Remote" : "Local"}</div>
+							<div className="flex-1 wrap-break-word">{connectionInfo.isRemote ? "Remote" : "Local"}</div>
 						</div>
 					)}
 					{connectionInfo.isConnected && connectionInfo.isRemote && connectionInfo.host && (
@@ -186,7 +186,7 @@ export const BrowserSettingsMenu = () => {
 							{/* InfoLabel - Fixed-width label */}
 							<div className="flex-none w-[90px] font-medium">Remote Host:</div>
 							{/* InfoValue - Flexible value container */}
-							<div className="flex-1 break-words">{connectionInfo.host}</div>
+							<div className="flex-1 wrap-break-word">{connectionInfo.host}</div>
 						</div>
 					)}
 				</div>

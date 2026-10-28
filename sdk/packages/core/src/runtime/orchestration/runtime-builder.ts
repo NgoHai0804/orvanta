@@ -803,6 +803,10 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					restoredTeammates: Array.from(teammateSpecs.values()),
 					includeLeadSpawnTool: config.includeLeadSpawnTool ?? true,
 					includeLeadManagementTools: true,
+					ephemeralTracker: config.ephemeralTracker,
+					onPersistentSpawnDenied: config.onPersistentSpawnDenied,
+					onOverEphemeral: config.onOverEphemeral,
+
 					onLeadToolsUnlocked: (teamTools) => {
 						pendingLeadTeamTools = teamTools;
 						leadAgentInstance?.addTools(teamTools);

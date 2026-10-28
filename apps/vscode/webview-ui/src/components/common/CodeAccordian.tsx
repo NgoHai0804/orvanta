@@ -53,7 +53,7 @@ const CodeAccordian = ({
 			{(path || isFeedback || isConsoleLogs) && (
 				<Button
 					aria-label={isExpanded ? "Collapse code block" : "Expand code block"}
-					className={cn("text-description flex items-center cursor-pointer select-none w-full py-[9px] px-2.5", {
+					className={cn("text-description flex items-center cursor-pointer select-none w-full py-2.25 px-2.5", {
 						"cursor-wait opacity-70": isLoading,
 					})}
 					onClick={isLoading ? undefined : onToggleExpand}

@@ -1,5 +1,7 @@
 import { join } from "node:path";
 import { resolveTeamDataDir } from "@cline/shared/storage";
+import { EphemeralTracker } from "@cline/shared";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDelegatedAgentConfigProvider } from "./delegated-agent";
 import { AgentTeamsRuntime } from "./multi-agent";
@@ -201,6 +203,45 @@ describe("createAgentTeamsTools schema surface", () => {
 			),
 		).rejects.toThrow('Spawning agent "unknown-hacker" is not allowed');
 	});
+	it("allows ephemeral guests up to 3 and blocks on 4th with over_ephemeral", async () => {
+		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
+		const tracker = new EphemeralTracker(3);
+		let overEphemeralNotified = false;
+
+		const tools = createAgentTeamsTools({
+			runtime,
+			requesterId: "lead",
+			teammateConfigProvider: makeTeammateConfigProvider(),
+			allowedAgentIds: ["implementer"],
+			ephemeralTracker: tracker,
+			onOverEphemeral: () => {
+				overEphemeralNotified = true;
+			},
+		});
+		const spawn = tools.find((t) => t.name === "team_spawn_teammate");
+		expect(spawn).toBeDefined();
+
+		const ctx = { agentId: "lead", conversationId: "conv-1", iteration: 1 };
+
+		// Guest 1
+		const g1 = await spawn?.execute({ agentId: "guest-1", rolePrompt: "G1", ephemeral: true }, ctx);
+		expect((g1 as any).status).toBe("spawned");
+
+		// Guest 2
+		const g2 = await spawn?.execute({ agentId: "guest-2", rolePrompt: "G2", ephemeral: true }, ctx);
+		expect((g2 as any).status).toBe("spawned");
+
+		// Guest 3
+		const g3 = await spawn?.execute({ agentId: "guest-3", rolePrompt: "G3", ephemeral: true }, ctx);
+		expect((g3 as any).status).toBe("spawned");
+
+		// Guest 4 -> over_ephemeral
+		await expect(
+			spawn?.execute({ agentId: "guest-4", rolePrompt: "G4", ephemeral: true }, ctx),
+		).rejects.toThrow("over_ephemeral");
+		expect(overEphemeralNotified).toBe(true);
+	});
+
 
 
 	it("rejects non-object payloads for task tools", async () => {
@@ -455,28 +496,12 @@ describe("createAgentTeamsTools schema surface", () => {
 				iteration: 1,
 			},
 		);
+		const outcomeId = (createdResult as any).outcomeId;
 		expect(createdResult).toMatchObject({
 			outcomeId: expect.stringMatching(/^out_/),
 			status: "draft",
 		});
-		const isCreatedOutcome = (
-			value: unknown,
-		): value is { outcomeId: string; status: string } => {
-			if (typeof value !== "object" || value === null) {
-				return false;
-			}
-			const record = value as Record<string, unknown>;
-			return (
-				typeof record.outcomeId === "string" &&
-				typeof record.status === "string"
-			);
-		};
-		if (!isCreatedOutcome(createdResult)) {
-			throw new Error(
-				"Expected createOutcome result to include outcomeId and status",
-			);
-		}
-		const created = createdResult;
+		const created = { outcomeId, status: (createdResult as any).status };
 
 		await expect(
 			attachFragment.execute(

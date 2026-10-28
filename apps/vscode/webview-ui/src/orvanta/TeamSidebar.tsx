@@ -12,6 +12,7 @@ export type TeamSidebarProps = {
 	onSelectAgent: (agentId: string) => void
 	onHire: () => void
 	onOpenWarRoom?: () => void
+	lockDeniedAgentIds?: string[]
 	width?: number
 	onWidthChange?: (width: number) => void
 }
@@ -44,6 +45,7 @@ export const TeamSidebar: React.FC<TeamSidebarProps> = ({
 	onSelectAgent,
 	onHire,
 	onOpenWarRoom,
+	lockDeniedAgentIds = [],
 	width: controlledWidth,
 	onWidthChange,
 }) => {
@@ -105,6 +107,64 @@ export const TeamSidebar: React.FC<TeamSidebarProps> = ({
 	)
 
 	const sortedAgents = useMemo(() => sortAgents(agents), [agents])
+	const [showStopped, setShowStopped] = useState(false)
+
+	const { persistentAgents, ephemeralAgents, stoppedAgents } = useMemo(() => {
+		const persistent: OrvantaRosterAgent[] = []
+		const ephemeral: OrvantaRosterAgent[] = []
+		const stopped: OrvantaRosterAgent[] = []
+
+		for (const a of sortedAgents) {
+			if (a.status.toLowerCase() === "stopped") {
+				stopped.push(a)
+			} else if (a.id.startsWith("guest-") || a.id.startsWith("ephemeral-") || (a as any).ephemeral) {
+				ephemeral.push(a)
+			} else {
+				persistent.push(a)
+			}
+		}
+
+		return { persistentAgents: persistent, ephemeralAgents: ephemeral, stoppedAgents: stopped }
+	}, [sortedAgents])
+
+	const renderAgentRow = (agent: OrvantaRosterAgent) => {
+		const isSelected = focusAgentId === agent.id
+		const isLead = agent.role === "lead" || agent.id === "coordinator"
+		const isRunning = agent.status.toLowerCase() === "running"
+
+		return (
+			<button
+				aria-current={isSelected ? "true" : undefined}
+				className={`group relative flex w-full cursor-pointer flex-col rounded px-2 py-1.5 text-left text-xs transition-colors ${
+					isSelected
+						? "border-l-2 border-indigo-500 bg-(--vscode-list-activeSelectionBackground) text-(--vscode-list-activeSelectionForeground)"
+						: "border-l-2 border-transparent hover:bg-(--vscode-list-hoverBackground) hover:text-(--vscode-list-hoverForeground)"
+				}`}
+				data-testid={`agent-row-${agent.id}`}
+				key={agent.id}
+				onClick={() => onSelectAgent(agent.id)}
+				type="button">
+				<div className="flex w-full items-center justify-between gap-1">
+					<div className="flex items-center gap-1 min-w-0 font-medium truncate">
+						<span className="truncate">{agent.displayName}</span>
+						{isLead && (
+							<span className="text-amber-400 shrink-0" title="Coordinator">
+								★
+							</span>
+						)}
+					</div>
+					<div className="flex items-center gap-1 shrink-0 text-[10px]">
+						{lockDeniedAgentIds.includes(agent.id) && (
+							<span className="h-1.5 w-1.5 rounded-full bg-rose-500" title="Bị chặn bởi Purpose Lock" />
+						)}
+						{isRunning && <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse" title="Đang chạy" />}
+						<span className="opacity-70">{agent.status}</span>
+					</div>
+				</div>
+				<div className="text-[10px] opacity-50 truncate">@{agent.id}</div>
+			</button>
+		)
+	}
 
 	return (
 		<aside
@@ -120,56 +180,43 @@ export const TeamSidebar: React.FC<TeamSidebarProps> = ({
 			{/* Agent List */}
 			<nav aria-label="Danh sách agent" className="flex-1 overflow-y-auto p-1">
 				<div className="flex flex-col gap-0.5">
-					{sortedAgents.map((agent) => {
-						const isSelected = focusAgentId === agent.id
-						const isLead = agent.role === "lead" || agent.id === "coordinator"
-						const isRunning = agent.status.toLowerCase() === "running"
+					{persistentAgents.map(renderAgentRow)}
 
-						return (
+					{ephemeralAgents.length > 0 && (
+						<div className="mt-2 border-t border-border-panel/40 pt-1.5">
+							<div className="px-2 py-0.5 text-[10px] font-semibold text-description uppercase tracking-wider flex items-center justify-between">
+								<span>Tạm thời ({ephemeralAgents.length})</span>
+								<span className="text-[9px] lowercase opacity-60">hết khi đóng session</span>
+							</div>
+							<div className="flex flex-col gap-0.5 mt-0.5">{ephemeralAgents.map(renderAgentRow)}</div>
+						</div>
+					)}
+
+					{stoppedAgents.length > 0 && (
+						<div className="mt-2 border-t border-border-panel/40 pt-1.5">
 							<button
-								aria-current={isSelected ? "true" : undefined}
-								className={`group relative flex w-full cursor-pointer flex-col rounded px-2 py-1.5 text-left text-xs transition-colors ${
-									isSelected
-										? "border-l-2 border-indigo-500 bg-(--vscode-list-activeSelectionBackground) text-(--vscode-list-activeSelectionForeground)"
-										: "border-l-2 border-transparent hover:bg-(--vscode-list-hoverBackground) hover:text-(--vscode-list-hoverForeground)"
-								}`}
-								data-testid={`agent-row-${agent.id}`}
-								key={agent.id}
-								onClick={() => onSelectAgent(agent.id)}
+								className="w-full px-2 py-0.5 text-[10px] font-semibold text-description uppercase tracking-wider flex items-center justify-between hover:text-foreground cursor-pointer"
+								onClick={() => setShowStopped(!showStopped)}
 								type="button">
-								<div className="flex w-full items-center justify-between gap-1">
-									<div className="flex items-center gap-1 min-w-0 font-medium truncate">
-										<span className="truncate">{agent.displayName}</span>
-										{isLead && (
-											<span className="text-amber-400 shrink-0" title="Coordinator">
-												★
-											</span>
-										)}
-									</div>
-									<div className="flex items-center gap-1 shrink-0 text-[10px]">
-										{isRunning && (
-											<span
-												className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse"
-												title="Đang chạy"
-											/>
-										)}
-										<span className="opacity-70">{agent.status}</span>
-									</div>
-								</div>
-								<div className="text-[10px] opacity-50 truncate">@{agent.id}</div>
+								<span>Đã dừng ({stoppedAgents.length})</span>
+								<span className="text-[10px]">{showStopped ? "▲" : "▼"}</span>
 							</button>
-						)
-					})}
+							{showStopped && (
+								<div className="flex flex-col gap-0.5 mt-0.5 opacity-60">{stoppedAgents.map(renderAgentRow)}</div>
+							)}
+						</div>
+					)}
 				</div>
 			</nav>
 
 			{/* Footer */}
 			<div className="flex flex-col gap-1 border-t border-border-panel p-2">
 				<button
-					className="w-full rounded border border-border-panel px-2 py-1 text-center text-xs opacity-40 cursor-not-allowed"
-					disabled
+					className={`w-full rounded border border-border-panel px-2 py-1 text-center text-xs ${
+						onOpenWarRoom ? "hover:bg-surface-secondary cursor-pointer" : "opacity-40 cursor-not-allowed"
+					}`}
+					disabled={!onOpenWarRoom}
 					onClick={onOpenWarRoom}
-					title="Pha sau"
 					type="button">
 					Mở War room
 				</button>

@@ -157,7 +157,7 @@ export default defineConfig({
 		dedupe: ["react", "react-dom"],
 		alias: {
 			// Isomorphic Orvanta schema/templates only — never the Node @cline/shared barrel (vcr/fs).
-			"@cline/shared/orvanta": resolve(__dirname, "../../../sdk/packages/shared/src/orvanta/index.ts"),
+			"@cline/shared/orvanta": resolve(__dirname, "../../../sdk/packages/shared/src/orvanta/browser.ts"),
 			react: resolve(__dirname, "node_modules/react"),
 			"react-dom": resolve(__dirname, "node_modules/react-dom"),
 			"@": resolve(__dirname, "./src"),

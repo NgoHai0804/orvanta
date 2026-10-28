@@ -373,7 +373,10 @@ export const OpenAICompatibleProvider = ({
 								<VSCodeOption value="">{selectedModelId} (not in current list)</VSCodeOption>
 							)}
 							{availableOpenAiModels.map((modelId) => (
-								<VSCodeOption className="break-words whitespace-normal max-w-full" key={modelId} value={modelId}>
+								<VSCodeOption
+									className="wrap-break-word whitespace-normal max-w-full"
+									key={modelId}
+									value={modelId}>
 									{modelId}
 								</VSCodeOption>
 							))}

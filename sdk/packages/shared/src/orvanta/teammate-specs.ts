@@ -63,11 +63,14 @@ export function buildTeammateSpecs(
 		const maxIterations =
 			profile?.maxIterations ?? agent.maxIterations ?? undefined;
 
+		const tools = profile?.tools;
+
 		specs.push({
 			agentId: agent.id,
 			rolePrompt,
 			...(modelId ? { modelId } : {}),
 			...(maxIterations !== undefined ? { maxIterations } : {}),
+			...(tools ? { tools } : {}),
 		});
 	}
 

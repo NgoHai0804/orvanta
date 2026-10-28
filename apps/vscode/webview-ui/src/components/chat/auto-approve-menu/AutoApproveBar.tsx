@@ -62,7 +62,7 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 
 	return (
 		<div
-			className="mx-3.5 select-none break-words relative"
+			className="mx-3.5 select-none wrap-break-word relative"
 			style={{
 				borderTop: `0.5px solid ${borderColor}`,
 				borderRadius: "4px 4px 0 0",

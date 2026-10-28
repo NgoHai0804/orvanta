@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import {
 	CannotFireCoordinatorError,
 	DecisionNotFoundError,
+	MergeRejectNoteRequiredError,
 	type DecisionItem,
 	type DecisionType,
 	type DecisionUrgency,
@@ -11,6 +12,8 @@ import {
 	type PendingInbox,
 	PendingInboxSchema,
 } from "./inbox-schema";
+export { MergeRejectNoteRequiredError } from "./inbox-schema";
+
 import {
 	COORDINATOR_AGENT_ID,
 	INBOX_HISTORY_FILE,
@@ -137,9 +140,57 @@ export async function requestDecision(
 				i.type === "fire_agent" &&
 				String(i.payload.agentId || "") === agentId,
 		);
+	} else if (input.type === "change_role") {
+		const agentId = String(input.payload.agentId || "");
+		duplicate = pending.items.find(
+			(i) =>
+				i.status === "pending" &&
+				i.type === "change_role" &&
+				String(i.payload.agentId || "") === agentId,
+		);
 	} else if (input.type === "change_purpose") {
 		duplicate = pending.items.find(
 			(i) => i.status === "pending" && i.type === "change_purpose",
+		);
+	} else if (input.type === "change_scope") {
+		const taskId = String(input.payload.taskId || "");
+		duplicate = pending.items.find(
+			(i) =>
+				i.status === "pending" &&
+				i.type === "change_scope" &&
+				String(i.payload.taskId || "") === taskId,
+		);
+	} else if (input.type === "merge") {
+		const outcomeId = String(input.payload.outcomeId || input.payload.diffSummary || "");
+		duplicate = pending.items.find(
+			(i) =>
+				i.status === "pending" &&
+				i.type === "merge" &&
+				String(i.payload.outcomeId || i.payload.diffSummary || "") === outcomeId,
+		);
+	} else if (input.type === "over_budget") {
+		duplicate = pending.items.find(
+			(i) => i.status === "pending" && i.type === "over_budget",
+		);
+	} else if (input.type === "over_ephemeral") {
+		duplicate = pending.items.find(
+			(i) => i.status === "pending" && i.type === "over_ephemeral",
+		);
+	} else if (input.type === "escalate_blocked") {
+		const taskId = String(input.payload.taskId || "");
+		duplicate = pending.items.find(
+			(i) =>
+				i.status === "pending" &&
+				i.type === "escalate_blocked" &&
+				String(i.payload.taskId || "") === taskId,
+		);
+	} else if (input.type === "change_policy") {
+		const key = String(input.payload.key || "");
+		duplicate = pending.items.find(
+			(i) =>
+				i.status === "pending" &&
+				i.type === "change_policy" &&
+				String(i.payload.key || "") === key,
 		);
 	}
 
@@ -147,8 +198,20 @@ export async function requestDecision(
 		return { item: duplicate, isDuplicate: true };
 	}
 
-	const defaultUrgency: DecisionUrgency =
-		input.type === "change_purpose" ? "high" : "normal";
+	let defaultUrgency: DecisionUrgency = "normal";
+	if (
+		input.type === "change_purpose" ||
+		input.type === "merge" ||
+		input.type === "over_budget"
+	) {
+		defaultUrgency = "high";
+	} else if (
+		input.type === "change_role" ||
+		input.type === "escalate_blocked" ||
+		input.type === "over_ephemeral"
+	) {
+		defaultUrgency = "low";
+	}
 
 	const newItem: DecisionItem = {
 		id: `dec_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
@@ -179,6 +242,12 @@ export async function resolveDecision(
 	}
 
 	const item = pending.items[index];
+
+	if (item.type === "merge" && input.action === "reject") {
+		if (!input.note || input.note.trim().length < 8) {
+			throw new MergeRejectNoteRequiredError();
+		}
+	}
 
 	if (input.action === "defer") {
 		item.status = "deferred";

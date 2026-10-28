@@ -74,7 +74,7 @@ export function QueuedPrompts({ items = [] }: QueuedPromptsProps) {
 							className="flex items-start gap-2 rounded-[3px] bg-input-background/40 px-2 py-1.5 text-xs"
 							key={item.id}>
 							<span aria-hidden="true" className="mt-1.75 size-1.5 shrink-0 rounded-full bg-description/70" />
-							<span className="min-w-0 flex-1 break-words text-foreground">{truncatePrompt(item.prompt)}</span>
+							<span className="min-w-0 flex-1 wrap-break-word text-foreground">{truncatePrompt(item.prompt)}</span>
 							{isSteer && (
 								<span className="flex h-5 shrink-0 items-center rounded-[3px] border border-editor-group-border px-1.5 text-[10px] leading-none text-description">
 									Steer

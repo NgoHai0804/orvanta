@@ -332,7 +332,7 @@ export const ChatRowContent = memo(
 						) : (
 							<span className="codicon codicon-server text-foreground mb-[-1.5px]" />
 						),
-						<span className="ph-no-capture font-bold text-foreground break-words">
+						<span className="ph-no-capture font-bold text-foreground wrap-break-word">
 							Cline wants to {mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on the{" "}
 							<code className="break-all">{mcpServerUse.serverName}</code> MCP server:
 						</span>,
@@ -385,7 +385,7 @@ export const ChatRowContent = memo(
 			return (
 				<div className={HEADER_CLASSNAMES}>
 					<span style={{ fontWeight: "bold" }}>Conditional rules applied:</span>
-					<span className="ph-no-capture break-words whitespace-pre-wrap">{names}</span>
+					<span className="ph-no-capture wrap-break-word whitespace-pre-wrap">{names}</span>
 				</div>
 			)
 		}
@@ -408,7 +408,7 @@ export const ChatRowContent = memo(
 				/>
 			)
 
-			switch (tool.tool) {
+			switch (tool.tool as string) {
 				case "editedExistingFile":
 					const content = tool?.content || ""
 					const isApplyingPatch = content?.startsWith("%%bash") && !content.endsWith("*** End Patch\nEOF")
@@ -638,7 +638,9 @@ export const ChatRowContent = memo(
 												<div className="grow" />
 												<ChevronDownIcon className="my-0.5 shrink-0 size-4" />
 											</div>
-											<span className="ph-no-capture break-words whitespace-pre-wrap">{tool.content}</span>
+											<span className="ph-no-capture wrap-break-word whitespace-pre-wrap">
+												{tool.content}
+											</span>
 										</div>
 									) : (
 										<div className="flex items-center">
@@ -694,7 +696,7 @@ export const ChatRowContent = memo(
 										: "Cline searched the web for:"}
 								</span>
 							</div>
-							<div className="bg-code border border-editor-group-border overflow-hidden rounded-xs select-text py-[9px] px-2.5">
+							<div className="bg-code border border-editor-group-border overflow-hidden rounded-xs select-text py-2.25 px-2.5">
 								<span className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis mr-2 text-left [direction:rtl]">
 									{`${tool.path}\u200E`}
 								</span>
@@ -708,13 +710,91 @@ export const ChatRowContent = memo(
 								<LightbulbIcon className="size-2" />
 								<span className="font-bold">Cline loaded the skill:</span>
 							</div>
-							<div className="bg-code border border-editor-group-border overflow-hidden rounded-xs py-[9px] px-2.5">
+							<div className="bg-code border border-editor-group-border overflow-hidden rounded-xs py-2.25 px-2.5">
 								<span className="ph-no-capture font-medium">{tool.path}</span>
 							</div>
 						</div>
 					)
-				default:
+				case "team_run_task": {
+					let parsed: any = {}
+					try {
+						parsed = JSON.parse(tool.content || "{}")
+					} catch {}
+					const taskName = parsed.task || parsed.taskId || tool.path || "nhiệm vụ"
+					const agentName = parsed.agentId || parsed.assignee || "agent"
+					return (
+						<div className="rounded border border-indigo-500/30 bg-indigo-500/10 p-2 text-xs flex items-center justify-between gap-2 my-1">
+							<div className="flex items-center gap-1.5 min-w-0">
+								<span className="text-indigo-400">📋</span>
+								<span className="truncate">
+									Đã giao <strong>{taskName}</strong> →{" "}
+									<span className="font-mono text-indigo-300">@{agentName}</span>
+								</span>
+							</div>
+							<button
+								className="rounded bg-indigo-500/20 px-2 py-0.5 text-[11px] text-indigo-300 hover:bg-indigo-500/30 shrink-0 cursor-pointer"
+								onClick={() => {
+									window.postMessage({ type: "orvanta_switch_tab", tab: "war-room", filterTask: taskName }, "*")
+								}}
+								type="button">
+								War room
+							</button>
+						</div>
+					)
+				}
+				case "orvanta_request_decision": {
+					let parsed: any = {}
+					try {
+						parsed = JSON.parse(tool.content || "{}")
+					} catch {}
+					const decTitle = parsed.title || tool.path || "Quyết định mới"
+					return (
+						<div className="rounded border border-amber-500/30 bg-amber-500/10 p-2 text-xs flex items-center justify-between gap-2 my-1">
+							<div className="flex items-center gap-1.5 min-w-0">
+								<span className="text-amber-400">📬</span>
+								<span className="truncate">
+									Xin CEO: <strong>{decTitle}</strong>
+								</span>
+							</div>
+							<button
+								className="rounded bg-amber-500/20 px-2 py-0.5 text-[11px] text-amber-300 hover:bg-amber-500/30 shrink-0 cursor-pointer"
+								onClick={() => {
+									window.postMessage(
+										{
+											type: "orvanta_switch_tab",
+											tab: "inbox",
+											focusDecision: parsed.decisionId || tool.path,
+										},
+										"*",
+									)
+								}}
+								type="button">
+								Xem Inbox
+							</button>
+						</div>
+					)
+				}
+				default: {
+					if (tool.content?.includes("purpose_lock_denied") || tool.diff?.includes("purpose_lock_denied")) {
+						let reason = ""
+						try {
+							const parsed = JSON.parse(tool.content || "{}")
+							reason = parsed.reason || ""
+						} catch {}
+						return (
+							<div className="rounded border border-rose-500/30 bg-rose-500/10 p-2 text-xs flex items-center justify-between gap-2 my-1">
+								<div className="flex items-center gap-1.5 min-w-0">
+									<span className="text-rose-400">🔒</span>
+									<span className="truncate">
+										Bị khóa: <strong>{tool.tool}</strong> {tool.path ? `· ${tool.path}` : ""}
+									</span>
+								</div>
+								{reason && <span className="text-[11px] text-muted-foreground truncate">{reason}</span>}
+							</div>
+						)
+					}
 					return <InvisibleSpacer />
+				}
 			}
 		}
 
@@ -853,7 +933,7 @@ export const ChatRowContent = memo(
 						return (
 							<div className="flex items-start gap-2 py-2.5 px-3 bg-quote rounded-sm text-base text-foreground opacity-90 mb-2">
 								<BellIcon className="mt-0.5 size-2 text-notification-foreground shrink-0" />
-								<div className="break-words flex-1">
+								<div className="wrap-break-word flex-1">
 									<span className="font-medium">MCP Notification: </span>
 									<span className="ph-no-capture">{message.text}</span>
 								</div>

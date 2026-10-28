@@ -220,7 +220,7 @@ const ServerRow = ({
 						})}
 					/>
 				)}
-				<span className="flex-1 min-w-0 overflow-hidden break-words whitespace-normal">
+				<span className="flex-1 min-w-0 overflow-hidden wrap-break-word whitespace-normal">
 					<span className="block font-medium">{marketplaceMetadata?.name || server.name}</span>
 					{marketplaceMetadata?.description && (
 						<span className="block mt-0.5 text-xs text-description">{marketplaceMetadata.description}</span>
@@ -284,7 +284,7 @@ const ServerRow = ({
 
 			{server.error ? (
 				<div className="text-sm bg-text-block-background rounded-b-sm">
-					<div className="text-failed-icon mb-2 px-2.5 break-words">{server.error}</div>
+					<div className="text-failed-icon mb-2 px-2.5 wrap-break-word">{server.error}</div>
 					{server.oauthRequired && server.oauthAuthStatus === "unauthenticated" ? (
 						<Button
 							className="m-2.5 mt-0 max-w-[calc(100%-20px)]"

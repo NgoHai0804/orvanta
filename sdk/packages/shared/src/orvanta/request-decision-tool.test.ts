@@ -93,4 +93,54 @@ describe("orvanta_request_decision tool", () => {
 			await rm(ws, { recursive: true, force: true });
 		}
 	});
+
+	it("executes change_scope and returns pending decisionId", async () => {
+		const ws = await tempWorkspace();
+		try {
+			const tool = createOrvantaRequestDecisionTool({ workspaceRoot: ws });
+			const result = await tool.execute(
+				{
+					type: "change_scope",
+					title: "Out of scope task: migrate to Postgres",
+					summary: "Postgres outside company purpose",
+					payload: { taskId: "task-db-1", whyOutsidePurpose: "Not in purpose" },
+				},
+				{} as any,
+			);
+
+			expect(result.decisionId).toBeDefined();
+			expect(result.status).toBe("pending");
+
+			const pending = await loadPendingInbox(ws);
+			expect(pending.items).toHaveLength(1);
+			expect(pending.items[0].type).toBe("change_scope");
+		} finally {
+			await rm(ws, { recursive: true, force: true });
+		}
+	});
+
+	it("executes merge and returns pending decisionId with high urgency", async () => {
+		const ws = await tempWorkspace();
+		try {
+			const tool = createOrvantaRequestDecisionTool({ workspaceRoot: ws });
+			const result = await tool.execute(
+				{
+					type: "merge",
+					title: "Merge PR #42",
+					summary: "Auth changes",
+					payload: { outcomeId: "outcome-42", files: ["src/auth.ts"] },
+				},
+				{} as any,
+			);
+
+			expect(result.decisionId).toBeDefined();
+			expect(result.status).toBe("pending");
+
+			const pending = await loadPendingInbox(ws);
+			expect(pending.items).toHaveLength(1);
+			expect(pending.items[0].urgency).toBe("high");
+		} finally {
+			await rm(ws, { recursive: true, force: true });
+		}
+	});
 });

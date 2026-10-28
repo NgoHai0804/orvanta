@@ -154,7 +154,7 @@ function SubagentPromptText({ prompt, isExpanded, onShowMore }: SubagentPromptTe
 	return (
 		<div className="relative">
 			<div
-				className={`text-xs font-medium text-foreground whitespace-pre-wrap break-words ${!isExpanded ? "overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]" : ""}`}
+				className={`text-xs font-medium text-foreground whitespace-pre-wrap wrap-break-word ${!isExpanded ? "overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]" : ""}`}
 				ref={promptRef}>
 				"{prompt}"
 			</div>
@@ -247,7 +247,7 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 								</div>
 							</div>
 							{shouldShowStats && (
-								<div className="mt-1 text-[11px] opacity-70 min-w-0 whitespace-pre-wrap break-words">
+								<div className="mt-1 text-[11px] opacity-70 min-w-0 whitespace-pre-wrap wrap-break-word">
 									<span>{statsText}</span>
 								</div>
 							)}
@@ -274,7 +274,7 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 								</div>
 							)}
 							{isExpanded && entry.error && entry.status === "failed" && (
-								<div className="mt-2 text-xs text-error whitespace-pre-wrap break-words">{entry.error}</div>
+								<div className="mt-2 text-xs text-error whitespace-pre-wrap wrap-break-word">{entry.error}</div>
 							)}
 						</div>
 					)

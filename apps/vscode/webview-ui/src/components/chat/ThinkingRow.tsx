@@ -103,7 +103,7 @@ export const ThinkingRow = memo(
 						<div className="relative flex-1">
 							<div
 								className={cn(
-									"flex max-h-[150px] overflow-y-auto text-description leading-normal truncated whitespace-pre-wrap break-words pl-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [direction:ltr]",
+									"flex max-h-[150px] overflow-y-auto text-description leading-normal truncated whitespace-pre-wrap wrap-break-word pl-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [direction:ltr]",
 								)}
 								onScroll={checkScrollable}
 								ref={scrollRef}>

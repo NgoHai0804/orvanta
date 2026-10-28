@@ -134,59 +134,59 @@ Cách dùng: làm theo [ROADMAP.md](./ROADMAP.md). Vision đủ A–D nằm hế
 
 ### Hàng đợi
 
-- [ ] Tab Pending / Deferred / History
-- [ ] Filter type + urgency
-- [ ] Sort high → normal → low → mới trước
-- [ ] List + detail (narrow: push detail + back)
-- [ ] Deep-link `?focus=` mở đúng item
+- [x] Tab Pending / Deferred / History
+- [x] Filter type + urgency
+- [x] Sort high → normal → low → mới trước
+- [x] List + detail (narrow: push detail + back)
+- [x] Deep-link `?focus=` mở đúng item
 
 ### Types — tạo đúng payload
 
-- [ ] `hire_agent`
-- [ ] `fire_agent`
-- [ ] `change_role`
-- [ ] `change_purpose`
-- [ ] `change_scope`
-- [ ] `merge`
-- [ ] `over_budget`
-- [ ] `over_ephemeral`
-- [ ] `escalate_blocked`
-- [ ] `change_policy`
-- [ ] Type lạ / payload thiếu → reject, không ghi pending
-- [ ] Không có type FYI/info
+- [x] `hire_agent`
+- [x] `fire_agent`
+- [x] `change_role`
+- [x] `change_purpose`
+- [x] `change_scope`
+- [x] `merge`
+- [x] `over_budget`
+- [x] `over_ephemeral`
+- [x] `escalate_blocked`
+- [x] `change_policy`
+- [x] Type lạ / payload thiếu → reject, không ghi pending
+- [x] Không có type FYI/info
 
 ### Actors & tool
 
-- [ ] Tool `orvanta_request_decision` (coordinator: hire/fire/scope/merge/escalate)
-- [ ] Teammate chỉ escalate_blocked
-- [ ] Host tạo over_budget, over_ephemeral, change_scope từ lock
-- [ ] Tool không approve được
-- [ ] Dedup cùng type + khóa nghiệp vụ
+- [x] Tool `orvanta_request_decision` (coordinator: hire/fire/scope/merge/escalate)
+- [x] Teammate chỉ escalate_blocked
+- [x] Host tạo over_budget, over_ephemeral, change_scope từ lock
+- [x] Tool không approve được
+- [x] Dedup cùng type + khóa nghiệp vụ
 
 ### Hành động
 
-- [ ] Approve thực thi đúng bảng SPEC-B
-- [ ] Reject thực thi đúng bảng SPEC-B
-- [ ] Reject merge: note ≥ 8 ký tự → mailbox
-- [ ] Defer: ra khỏi badge, nhóm Deferred
-- [ ] Re-open deferred → pending
-- [ ] Không Approve all
-- [ ] Confirm 2 bước: change_purpose, nới policy `allow`, fire (không phải lead)
-- [ ] Không fire coordinator
-- [ ] Approve hire → A/C/D hiện agent
-- [ ] Reject hire → không member runtime
-- [ ] Approve purpose → đĩa đổi; reject → không
-- [ ] Reject change_scope → task canceled
-- [ ] Reject over_budget → không run mới
+- [x] Approve thực thi đúng bảng SPEC-B
+- [x] Reject thực thi đúng bảng SPEC-B
+- [x] Reject merge: note ≥ 8 ký tự → mailbox
+- [x] Defer: ra khỏi badge, nhóm Deferred
+- [x] Re-open deferred → pending
+- [x] Không Approve all
+- [x] Confirm 2 bước: change_purpose, nới policy `allow`, fire (không phải lead)
+- [x] Không fire coordinator
+- [x] Approve hire → A/C/D hiện agent
+- [x] Reject hire → không member runtime
+- [x] Approve purpose → đĩa đổi; reject → không
+- [x] Reject change_scope → task canceled
+- [x] Reject over_budget → không run mới
 
 ### Badge & history
 
-- [ ] Badge tab + Activity Bar = pending only
-- [ ] `99+`
-- [ ] aria-label có số
-- [ ] history.jsonl append-only, reload còn
-- [ ] History filter type/status/ngày
-- [ ] Deferred không trộn history
+- [x] Badge tab + Activity Bar = pending only
+- [x] `99+`
+- [x] aria-label có số
+- [x] history.jsonl append-only, reload còn
+- [x] History filter type/status/ngày
+- [x] Deferred không trộn history
 
 ### Empty
 
@@ -212,33 +212,33 @@ Cách dùng: làm theo [ROADMAP.md](./ROADMAP.md). Vision đủ A–D nằm hế
 
 ### Sidebar
 
-- [ ] Width kéo 140–280, nhớ state
-- [ ] Hàng: name, status, task, lock-dot, ★ lead
-- [ ] Sort như spec
-- [ ] Guest nhóm “Tạm thời”
-- [ ] Stopped collapsed mặc định
-- [ ] Footer: War room, Hire (deep-link)
-- [ ] Click set focus + ring
-- [ ] nav + aria
+- [x] Width kéo 140–280, nhớ state
+- [x] Hàng: name, status, task, lock-dot, ★ lead
+- [x] Sort như spec
+- [x] Guest nhóm “Tạm thời”
+- [x] Stopped collapsed mặc định
+- [x] Footer: War room, Hire (deep-link)
+- [x] Click set focus + ring
+- [x] nav + aria
 
 ### Nhắm agent
 
-- [ ] Default focus coordinator
-- [ ] Chip “Nói với {name}” + X
-- [ ] Gửi lead = chat Cline
-- [ ] Gửi teammate = mailbox/run, bubble “→ agent”
-- [ ] Stopped / pending_hire disable composer
-- [ ] Đổi focus khi buffer > 0: confirm
-- [ ] Không đổi lead runtime thành user
+- [x] Default focus coordinator
+- [x] Chip “Nói với {name}” + X
+- [x] Gửi lead = chat Cline
+- [x] Gửi teammate = mailbox/run, bubble “→ agent”
+- [x] Stopped / pending_hire disable composer
+- [x] Đổi focus khi buffer > 0: confirm
+- [x] Không đổi lead runtime thành user
 
 ### Deep-link & cards
 
-- [ ] `?task=` chip task
-- [ ] `?decision=` chip decision
-- [ ] `?agent=` focus
-- [ ] Card `team_run_task` → War room filter
-- [ ] Card `orvanta_request_decision` → Inbox
-- [ ] Card purpose-lock deny hiện trên transcript lead
+- [x] `?task=` chip task
+- [x] `?decision=` chip decision
+- [x] `?agent=` focus
+- [x] Card `team_run_task` → War room filter
+- [x] Card `orvanta_request_decision` → Inbox
+- [x] Card purpose-lock deny hiện trên transcript lead
 
 ---
 
@@ -278,29 +278,29 @@ Cách dùng: làm theo [ROADMAP.md](./ROADMAP.md). Vision đủ A–D nằm hế
 
 ### Lớp 1
 
-- [ ] Prompt order: orvanta khối → purpose → constraints → role → task → Cline
-- [ ] Mọi agent kể cả lead nhận purpose đầy đủ
+- [x] Prompt order: orvanta khối → purpose → constraints → role → task → Cline
+- [x] Mọi agent kể cả lead nhận purpose đầy đủ
 
 ### Lớp 2
 
-- [ ] Deny thắng allow
-- [ ] Default policy theo template role (implementer/reviewer/researcher/skeptic/coordinator)
-- [ ] `write`/`apply_diff` tôn trọng denyWrite
-- [ ] Cấm agent ghi purpose.md, company.json, roster.json
-- [ ] Reviewer không write/apply/execute (default)
-- [ ] Structured error `purpose_lock_denied`, không throw
-- [ ] Mission log kind blocked/decision khi deny
+- [x] Deny thắng allow
+- [x] Default policy theo template role (implementer/reviewer/researcher/skeptic/coordinator)
+- [x] `write`/`apply_diff` tôn trọng denyWrite
+- [x] Cấm agent ghi purpose.md, company.json, roster.json
+- [x] Reviewer không write/apply/execute (default)
+- [x] Structured error `purpose_lock_denied`, không throw
+- [x] Mission log kind blocked/decision khi deny
 
 ### Lớp 3
 
-- [ ] `team_spawn_teammate` bền + policy ceo_approve → hire decision, không spawn
-- [ ] Shutdown → fire decision
-- [ ] Task ngoài purpose → blocked + change_scope
-- [ ] Merge/finalize + ceo_approve → merge decision
-- [ ] Ephemeral: lead_only, max 3, vượt → over_ephemeral
-- [ ] Guest không vào roster Home
-- [ ] Approve purpose → steer agent đang chạy
-- [ ] firstHireFast: auto-approve hire đầu, vẫn có history
+- [x] `team_spawn_teammate` bền + policy ceo_approve → hire decision, không spawn
+- [x] Shutdown → fire decision
+- [x] Task ngoài purpose → blocked + change_scope
+- [x] Merge/finalize + ceo_approve → merge decision
+- [x] Ephemeral: lead_only, max 3, vượt → over_ephemeral
+- [x] Guest không vào roster Home
+- [x] Approve purpose → steer agent đang chạy
+- [x] firstHireFast: auto-approve hire đầu, vẫn có history
 
 ---
 
@@ -310,11 +310,12 @@ Cách dùng: làm theo [ROADMAP.md](./ROADMAP.md). Vision đủ A–D nằm hế
 - [ ] J2 Hire implementer + reviewer (approve)
 - [ ] J2b Reject hire
 - [ ] J3 Giao mục tiêu, đội chia việc trong purpose
-- [ ] J3b Task ngoài purpose → inbox scope
+- [x] J3b Task ngoài purpose → inbox scope
 - [ ] J4 Tắt giữa run → interrupted → Tiếp tục
-- [ ] J5 Merge approve / reject + note
+- [x] J5 Merge approve / reject + note
 - [ ] J6 Fire teammate, task unassign
-- [ ] J7 Chat 1 agent rồi về coordinator
+- [x] J7 Chat 1 agent rồi về coordinator
+
 - [ ] J8 War room nhìn + nói
 - [ ] J9 Broken purpose → khôi phục
 - [ ] J10 Ngày thường: inbox 0, home đúng, không babysit

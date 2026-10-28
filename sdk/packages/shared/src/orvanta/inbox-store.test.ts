@@ -5,6 +5,7 @@ import { describe, expect, it } from "bun:test";
 import {
 	CannotFireCoordinatorError,
 	DecisionNotFoundError,
+	MergeRejectNoteRequiredError,
 } from "./inbox-schema";
 import {
 	loadHistoryInbox,
@@ -140,7 +141,7 @@ describe("inbox-store", () => {
 			await rm(ws, { recursive: true, force: true });
 		}
 	});
-});
+
 	it("deduplicates change_purpose when another is already pending", async () => {
 		const ws = await tempWorkspace();
 		try {
@@ -291,4 +292,123 @@ describe("inbox-store", () => {
 			await rm(ws, { recursive: true, force: true });
 		}
 	});
+
+	it("deduplicates change_scope by taskId", async () => {
+		const ws = await tempWorkspace();
+		try {
+			const first = await requestDecision(ws, {
+				type: "change_scope",
+				title: "Expand database scope",
+				summary: "Need migration",
+				payload: { taskId: "task-101", title: "DB", whyOutsidePurpose: "Need DB" },
+			});
+			expect(first.isDuplicate).toBe(false);
+
+			const second = await requestDecision(ws, {
+				type: "change_scope",
+				title: "Expand database scope duplicate",
+				summary: "Duplicate",
+				payload: { taskId: "task-101", title: "DB", whyOutsidePurpose: "Need DB again" },
+			});
+			expect(second.isDuplicate).toBe(true);
+			expect(second.item.id).toBe(first.item.id);
+		} finally {
+			await rm(ws, { recursive: true, force: true });
+		}
+	});
+
+	it("deduplicates merge by outcomeId", async () => {
+		const ws = await tempWorkspace();
+		try {
+			const first = await requestDecision(ws, {
+				type: "merge",
+				title: "Merge PR #1",
+				summary: "Feature auth",
+				payload: { outcomeId: "outcome-auth-1", files: ["src/auth.ts"] },
+			});
+			expect(first.isDuplicate).toBe(false);
+
+			const second = await requestDecision(ws, {
+				type: "merge",
+				title: "Merge PR #1 again",
+				summary: "Duplicate merge",
+				payload: { outcomeId: "outcome-auth-1", files: ["src/auth.ts"] },
+			});
+			expect(second.isDuplicate).toBe(true);
+			expect(second.item.id).toBe(first.item.id);
+		} finally {
+			await rm(ws, { recursive: true, force: true });
+		}
+	});
+
+	it("deduplicates change_policy by key and sets urgency normal", async () => {
+		const ws = await tempWorkspace();
+		try {
+			const first = await requestDecision(ws, {
+				type: "change_policy",
+				title: "Allow spawn",
+				summary: "Relax policy",
+				payload: { key: "spawn_teammate", from: "ceo_approve", to: "allow" },
+			});
+			expect(first.isDuplicate).toBe(false);
+			expect(first.item.urgency).toBe("normal");
+
+			const second = await requestDecision(ws, {
+				type: "change_policy",
+				title: "Allow spawn dup",
+				summary: "Relax policy dup",
+				payload: { key: "spawn_teammate", from: "ceo_approve", to: "allow" },
+			});
+			expect(second.isDuplicate).toBe(true);
+		} finally {
+			await rm(ws, { recursive: true, force: true });
+		}
+	});
+
+	it("requires at least 8 characters in note when rejecting merge", async () => {
+		const ws = await tempWorkspace();
+		try {
+			const { item } = await requestDecision(ws, {
+				type: "merge",
+				title: "Merge code",
+				summary: "Feature X",
+				payload: { outcomeId: "out-1", files: ["index.ts"] },
+			});
+
+			await expect(
+				resolveDecision(ws, {
+					id: item.id,
+					action: "reject",
+					note: "Too short", // 9 chars, let's test < 8 chars
+				}),
+			).resolves.toBeDefined();
+
+			// Test another item with short note < 8 chars
+			const { item: item2 } = await requestDecision(ws, {
+				type: "merge",
+				title: "Merge code 2",
+				summary: "Feature Y",
+				payload: { outcomeId: "out-2", files: ["y.ts"] },
+			});
+
+			await expect(
+				resolveDecision(ws, {
+					id: item2.id,
+					action: "reject",
+					note: "No", // < 8 chars
+				}),
+			).rejects.toThrow(MergeRejectNoteRequiredError);
+
+			await expect(
+				resolveDecision(ws, {
+					id: item2.id,
+					action: "reject",
+					note: "", // empty
+				}),
+			).rejects.toThrow(MergeRejectNoteRequiredError);
+		} finally {
+			await rm(ws, { recursive: true, force: true });
+		}
+	});
+});
 

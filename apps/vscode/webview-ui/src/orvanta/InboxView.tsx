@@ -45,7 +45,12 @@ export default function InboxView({ pending, deferred, history, loading, error, 
 
 	const handleAction = async (action: "approve" | "reject" | "defer" | "reopen") => {
 		if (!selectedItem) return
-		if (action === "approve" && (selectedItem.type === "fire_agent" || selectedItem.type === "change_purpose")) {
+		if (
+			action === "approve" &&
+			(selectedItem.type === "fire_agent" ||
+				selectedItem.type === "change_purpose" ||
+				selectedItem.type === "change_policy")
+		) {
 			setConfirmAction("approve")
 			return
 		}
@@ -130,7 +135,14 @@ export default function InboxView({ pending, deferred, history, loading, error, 
 						<option value="all">Tất cả loại</option>
 						<option value="hire_agent">Tuyển Agent</option>
 						<option value="fire_agent">Sa thải Agent</option>
+						<option value="change_role">Đổi Role Agent</option>
 						<option value="change_purpose">Đổi Purpose</option>
+						<option value="change_scope">Đổi Scope Task</option>
+						<option value="merge">Duyệt Merge</option>
+						<option value="over_budget">Vượt Budget</option>
+						<option value="over_ephemeral">Vượt Ephemeral</option>
+						<option value="escalate_blocked">Bế tắc (Blocker)</option>
+						<option value="change_policy">Đổi Chính sách</option>
 					</select>
 				</div>
 				<div className="flex items-center gap-1">

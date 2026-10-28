@@ -227,7 +227,7 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 							</Button>
 							{/* Expanded content for folders/search/definitions - file lists only */}
 							{isExpandable && isItemExpanded && content && (
-								<pre className="m-1 ml-4 text-xs opacity-80 whitespace-pre-wrap break-words p-2 max-h-40 overflow-auto rounded-xs">
+								<pre className="m-1 ml-4 text-xs opacity-80 whitespace-pre-wrap wrap-break-word p-2 max-h-40 overflow-auto rounded-xs">
 									{content}
 								</pre>
 							)}

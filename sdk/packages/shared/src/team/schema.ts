@@ -50,6 +50,12 @@ export const TeamTeammateSpecSchema = z.object({
 	rolePrompt: z.string(),
 	modelId: z.string().optional(),
 	maxIterations: z.number().optional(),
+	tools: z
+		.object({
+			allow: z.array(z.string()).optional(),
+			deny: z.array(z.string()).optional(),
+		})
+		.optional(),
 });
 
 function nullableOptional<T extends z.ZodTypeAny>(schema: T) {
@@ -66,6 +72,10 @@ export const TeamSpawnTeammateInputSchema = z
 			.string()
 			.min(1)
 			.describe("System prompt describing teammate role"),
+		ephemeral: z
+			.boolean()
+			.optional()
+			.describe("Whether this teammate is ephemeral (guest for this session only, max 3)"),
 	})
 	.strict();
 

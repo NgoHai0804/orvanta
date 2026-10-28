@@ -34,7 +34,7 @@ export function createOrvantaRequestDecisionTool(options: {
 	>({
 		name: "orvanta_request_decision",
 		description:
-			"Request a CEO decision in the Orvanta Inbox. Allowed types for P6: 'hire_agent', 'fire_agent', 'change_purpose'. Returns the decisionId and pending status.",
+			"Request a CEO decision in the Orvanta Inbox. Returns the decisionId and pending status.",
 		inputSchema: OrvantaRequestDecisionInputSchema,
 		execute: async (input) => {
 			try {

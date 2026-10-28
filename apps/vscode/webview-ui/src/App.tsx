@@ -49,6 +49,9 @@ const AppContent = () => {
 	const [orvantaTab, setOrvantaTab] = useState<OrvantaTab>("home")
 	const [focusAgentId, setFocusAgentId] = useState<string>("coordinator")
 
+	const [contextTask, setContextTask] = useState<{ id: string; title: string } | undefined>()
+	const [contextDecision, setContextDecision] = useState<{ id: string; title: string } | undefined>()
+
 	const hasCompany = company.status === "ready" && company.agents.length > 0
 	const coordinatorAgent = company.agents.find((a) => a.role === "lead" || a.id === "coordinator") ?? company.agents[0]
 	const effectiveFocusAgentId = company.agents.some((a) => a.id === focusAgentId)
@@ -82,6 +85,42 @@ const AppContent = () => {
 			openClinePassSubscriptionIfPending(clineUser.appBaseUrl)
 		}
 	}, [clineUser?.uid, clineUser?.appBaseUrl])
+	useEffect(() => {
+		const handleMessage = (e: MessageEvent) => {
+			if (e.data?.type === "orvanta_switch_tab" && e.data?.tab) {
+				setOrvantaTab(e.data.tab)
+				if (e.data.focusAgentId) {
+					setFocusAgentId(e.data.focusAgentId)
+				}
+				if (e.data.contextTask) {
+					setContextTask(e.data.contextTask)
+				}
+				if (e.data.contextDecision) {
+					setContextDecision(e.data.contextDecision)
+				}
+			}
+		}
+		window.addEventListener("message", handleMessage)
+		return () => window.removeEventListener("message", handleMessage)
+	}, [])
+
+	useEffect(() => {
+		if (typeof window !== "undefined" && window.location.search) {
+			const params = new URLSearchParams(window.location.search)
+			const agent = params.get("agent")
+			const task = params.get("task")
+			const decision = params.get("decision")
+			if (agent) {
+				setFocusAgentId(agent)
+			}
+			if (task) {
+				setContextTask({ id: task, title: task })
+			}
+			if (decision) {
+				setContextDecision({ id: decision, title: decision })
+			}
+		}
+	}, [])
 
 	if (!didHydrateState) {
 		return (
@@ -137,9 +176,13 @@ const AppContent = () => {
 				)}
 				<div className="flex-1 min-w-0 h-full relative">
 					<ChatView
+						contextDecision={contextDecision}
+						contextTask={contextTask}
 						focusAgent={hasCompany ? focusedAgent : undefined}
 						hideAnnouncement={hideAnnouncement}
 						isHidden={overlayOpen || orvantaTab !== "chat" || showWelcome}
+						onClearContextDecision={() => setContextDecision(undefined)}
+						onClearContextTask={() => setContextTask(undefined)}
 						onResetFocusAgent={() => setFocusAgentId(coordinatorAgent?.id ?? "coordinator")}
 						showAnnouncement={showAnnouncement}
 						showHistoryView={navigateToHistory}

@@ -15,12 +15,12 @@
 
 ## Tasks
 
-- [ ] Task: policy engine + test từng role template  
-- [ ] Task: 7 type còn + resolve side effects + test  
-- [ ] Task: mailbox focus agent  
-- [ ] Task: Chat cards  
-- [ ] Verify: J3b, J5, J7 trong [07-user-journeys.md](../07-user-journeys.md)
+- [x] Task: policy engine + test từng role template  
+- [x] Task: 7 type còn + resolve side effects + test  
+- [x] Task: mailbox focus agent  
+- [x] Task: Chat cards  
+- [x] Verify: J3b, J5, J7 trong [07-user-journeys.md](../07-user-journeys.md)
 
 ## Done P7
 
-- [ ] Checklist B + purpose-lock + C nhắm agent (trừ session riêng)
+- [x] Checklist B + purpose-lock + C nhắm agent (trừ session riêng)

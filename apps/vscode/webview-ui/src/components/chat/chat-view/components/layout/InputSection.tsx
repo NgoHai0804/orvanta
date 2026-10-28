@@ -15,6 +15,10 @@ interface InputSectionProps {
 	selectFilesAndImages: () => Promise<void>
 	focusAgent?: OrvantaRosterAgent
 	onResetFocusAgent?: () => void
+	contextTask?: { id: string; title: string }
+	contextDecision?: { id: string; title: string }
+	onClearContextTask?: () => void
+	onClearContextDecision?: () => void
 }
 
 /**
@@ -29,6 +33,10 @@ export const InputSection: React.FC<InputSectionProps> = ({
 	selectFilesAndImages,
 	focusAgent,
 	onResetFocusAgent,
+	contextTask,
+	contextDecision,
+	onClearContextTask,
+	onClearContextDecision,
 }) => {
 	const {
 		activeQuote,
@@ -64,11 +72,35 @@ export const InputSection: React.FC<InputSectionProps> = ({
 	// rather than silently dropping the attachments from the request.
 	const cloudFilesUnsupported = cloudSelectedForNewTask && selectedFiles.length > 0
 	// A provisioning sandbox has no session to queue a follow-up on yet; the draft stays in the composer.
+	const isStopped = focusAgent?.status === "stopped"
+	const isPendingHire = focusAgent?.status?.startsWith("pending_")
+	const isAgentDisabled = isStopped || isPendingHire
+	const effectivePlaceholderText = isStopped
+		? "Agent đã dừng. Hire lại từ Home."
+		: isPendingHire
+			? "Chờ duyệt hire."
+			: placeholderText
+
 	const submitDisabled =
+		isAgentDisabled ||
 		(sendingDisabled && !allowSubmitWhileDisabled) ||
 		cloudTargetIncomplete ||
 		cloudFilesUnsupported ||
 		currentCloudTask?.status === "provisioning"
+
+	const handleSendWithContext = () => {
+		let prefix = ""
+		if (contextTask) {
+			prefix += `[CEO đang nói về task ${contextTask.id}: ${contextTask.title}]\n`
+		}
+		if (contextDecision) {
+			prefix += `[CEO đang nói về decision ${contextDecision.id}: ${contextDecision.title}]\n`
+		}
+		if (focusAgent && focusAgent.role !== "lead" && focusAgent.id !== "coordinator") {
+			prefix += `[CEO to @${focusAgent.id} (${focusAgent.displayName}) via mailbox]: `
+		}
+		messageHandlers.handleSendMessage(`${prefix}${inputValue}`, selectedImages, selectedFiles)
+	}
 
 	return (
 		<>
@@ -85,6 +117,48 @@ export const InputSection: React.FC<InputSectionProps> = ({
 						onDismiss={() => setActiveQuote(null)}
 						text={activeQuote}
 					/>
+				</div>
+			)}
+			{contextTask && (
+				<div
+					aria-label={`Task: ${contextTask.title}`}
+					className="mx-3.5 mt-2 -mb-1 flex items-center gap-1.5 text-xs text-description"
+					data-testid="context-task-chip">
+					<span>Task:</span>
+					<span className="inline-flex items-center gap-1 rounded bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 font-medium text-[11px]">
+						<span>{contextTask.title}</span>
+						{onClearContextTask && (
+							<button
+								aria-label="Bỏ task context"
+								className="ml-0.5 cursor-pointer opacity-70 hover:opacity-100"
+								onClick={onClearContextTask}
+								title="Bỏ context task"
+								type="button">
+								✕
+							</button>
+						)}
+					</span>
+				</div>
+			)}
+			{contextDecision && (
+				<div
+					aria-label={`Decision: ${contextDecision.title}`}
+					className="mx-3.5 mt-2 -mb-1 flex items-center gap-1.5 text-xs text-description"
+					data-testid="context-decision-chip">
+					<span>Decision:</span>
+					<span className="inline-flex items-center gap-1 rounded bg-amber-500/20 text-amber-300 px-1.5 py-0.5 font-medium text-[11px]">
+						<span>{contextDecision.title}</span>
+						{onClearContextDecision && (
+							<button
+								aria-label="Bỏ decision context"
+								className="ml-0.5 cursor-pointer opacity-70 hover:opacity-100"
+								onClick={onClearContextDecision}
+								title="Bỏ context decision"
+								type="button">
+								✕
+							</button>
+						)}
+					</span>
 				</div>
 			)}
 			{focusAgent && (
@@ -124,8 +198,8 @@ export const InputSection: React.FC<InputSectionProps> = ({
 					}
 				}}
 				onSelectFilesAndImages={selectFilesAndImages}
-				onSend={() => messageHandlers.handleSendMessage(inputValue, selectedImages, selectedFiles)}
-				placeholderText={placeholderText}
+				onSend={handleSendWithContext}
+				placeholderText={effectivePlaceholderText}
 				ref={textAreaRef}
 				selectedFiles={selectedFiles}
 				selectedImages={selectedImages}

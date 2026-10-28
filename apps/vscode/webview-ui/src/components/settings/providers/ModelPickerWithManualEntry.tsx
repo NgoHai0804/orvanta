@@ -105,7 +105,7 @@ export function ModelPickerWithManualEntry({
 							<VSCodeOption value="">{selectedModel.modelId} (not in current list)</VSCodeOption>
 						)}
 						{modelIds.map((modelId) => (
-							<VSCodeOption className="break-words whitespace-normal max-w-full" key={modelId} value={modelId}>
+							<VSCodeOption className="wrap-break-word whitespace-normal max-w-full" key={modelId} value={modelId}>
 								{modelId}
 							</VSCodeOption>
 						))}

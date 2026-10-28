@@ -70,6 +70,7 @@ import {
 	type TeamTaskToolResult,
 	TeamTaskToolResultSchema,
 	type TeamTeammateSpec,
+	EphemeralTracker,
 	validateWithZod,
 	wrapToolWithPurposeLock,
 	zodToJsonSchema,
@@ -177,6 +178,9 @@ export interface CreateAgentTeamsToolsOptions {
 	includeManagementTools?: boolean;
 	allowedAgentIds?: string[];
 	onLeadToolsUnlocked?: (tools: AgentTool[]) => void;
+	ephemeralTracker?: EphemeralTracker;
+	onPersistentSpawnDenied?: (info: { agentId: string; rolePrompt: string }) => void;
+	onOverEphemeral?: (info: { count: number; limit: number }) => void;
 }
 
 export interface BootstrapAgentTeamsOptions {
@@ -190,6 +194,9 @@ export interface BootstrapAgentTeamsOptions {
 	includeLeadManagementTools?: boolean;
 	allowedAgentIds?: string[];
 	onLeadToolsUnlocked?: (tools: AgentTool[]) => void;
+	ephemeralTracker?: EphemeralTracker;
+	onPersistentSpawnDenied?: (info: { agentId: string; rolePrompt: string }) => void;
+	onOverEphemeral?: (info: { count: number; limit: number }) => void;
 }
 
 
@@ -248,6 +255,7 @@ function spawnTeamTeammate(
 		wrapToolWithPurposeLock(tool, {
 			requesterId: options.spec.agentId,
 			workspaceRoot: cwd,
+			toolPolicy: options.spec.tools,
 		}),
 	);
 	options.runtime.spawnTeammate({
@@ -281,6 +289,9 @@ export function bootstrapAgentTeams(
 		includeManagementTools: options.includeLeadManagementTools,
 		allowedAgentIds: options.allowedAgentIds,
 		onLeadToolsUnlocked: options.onLeadToolsUnlocked,
+		ephemeralTracker: options.ephemeralTracker,
+		onPersistentSpawnDenied: options.onPersistentSpawnDenied,
+		onOverEphemeral: options.onOverEphemeral,
 	});
 
 
@@ -331,12 +342,27 @@ export function createAgentTeamsTools(
 					if (!allowSpawn) {
 						throw new Error("Spawning teammates is disabled in this context.");
 					}
-					if (
+					if (validatedInput.ephemeral) {
+						if (options.ephemeralTracker) {
+							const check = options.ephemeralTracker.canSpawn();
+							if (!check.allowed) {
+								options.onOverEphemeral?.({ count: check.count, limit: check.limit });
+								throw new Error(
+									`Đã đạt giới hạn tối đa ${check.limit} guest ephemeral trong session này. Cần CEO duyệt over_ephemeral.`,
+								);
+							}
+							options.ephemeralTracker.recordSpawn();
+						}
+					} else if (
 						options.allowedAgentIds &&
 						!options.allowedAgentIds.includes(validatedInput.agentId)
 					) {
+						options.onPersistentSpawnDenied?.({
+							agentId: validatedInput.agentId,
+							rolePrompt: validatedInput.rolePrompt,
+						});
 						throw new Error(
-							`Spawning agent "${validatedInput.agentId}" is not allowed: agent is not in the roster.`,
+							`Spawning agent "${validatedInput.agentId}" is not allowed: agent is not in the roster. Spawning persistent agent requires CEO approval via Inbox (hire_agent). Đã gửi yêu cầu vào Inbox.`,
 						);
 					}
 					const spec: TeamTeammateSpec = {

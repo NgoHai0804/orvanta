@@ -15,6 +15,8 @@ import type {
 	SessionPromptConfig,
 	SessionWorkspaceConfig,
 	TeamTeammateSpec,
+	EphemeralTracker,
+
 } from "@cline/shared";
 
 import type { ToolRoutingRule } from "../extensions/tools/model-tool-routing";
@@ -268,6 +270,10 @@ export interface CoreSessionConfig
 	teamDir?: string;
 	teammates?: TeamTeammateSpec[];
 	includeLeadSpawnTool?: boolean;
+	ephemeralTracker?: EphemeralTracker;
+	onPersistentSpawnDenied?: (info: { agentId: string; rolePrompt: string }) => void;
+	onOverEphemeral?: (info: { count: number; limit: number }) => void;
+
 	missionLogIntervalSteps?: number;
 	missionLogIntervalMs?: number;
 	hooks?: AgentHooks;

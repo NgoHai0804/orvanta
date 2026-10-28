@@ -43,6 +43,10 @@ interface ChatViewProps {
 	showHistoryView: () => void
 	focusAgent?: OrvantaRosterAgent
 	onResetFocusAgent?: () => void
+	contextTask?: { id: string; title: string }
+	contextDecision?: { id: string; title: string }
+	onClearContextTask?: () => void
+	onClearContextDecision?: () => void
 }
 
 // Use constants from the imported module
@@ -56,6 +60,10 @@ const ChatView = ({
 	showHistoryView,
 	focusAgent,
 	onResetFocusAgent,
+	contextTask,
+	contextDecision,
+	onClearContextTask,
+	onClearContextDecision,
 }: ChatViewProps) => {
 	const showNavbar = useShowNavbar()
 	const {
@@ -452,8 +460,12 @@ const ChatView = ({
 				<QueuedPrompts items={queuedPrompts} />
 				<InputSection
 					chatState={chatState}
+					contextDecision={contextDecision}
+					contextTask={contextTask}
 					focusAgent={focusAgent}
 					messageHandlers={messageHandlers}
+					onClearContextDecision={onClearContextDecision}
+					onClearContextTask={onClearContextTask}
 					onResetFocusAgent={onResetFocusAgent}
 					placeholderText={placeholderText}
 					scrollBehavior={scrollBehavior}

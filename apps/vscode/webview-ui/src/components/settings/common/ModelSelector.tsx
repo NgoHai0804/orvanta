@@ -59,7 +59,7 @@ export const ModelSelector = ({ models, selectedModelId, onChange, zIndex, label
 			<VSCodeDropdown className="w-full" id="model-id" key={dropdownKey} onChange={onChange} value={selectedModelId}>
 				<VSCodeOption value="">Select a model...</VSCodeOption>
 				{modelIds.map((modelId) => (
-					<VSCodeOption className="break-words whitespace-normal max-w-full" key={modelId} value={modelId}>
+					<VSCodeOption className="wrap-break-word whitespace-normal max-w-full" key={modelId} value={modelId}>
 						{modelId}
 					</VSCodeOption>
 				))}

@@ -4,7 +4,14 @@ import { SCHEMA_VERSION } from "./paths";
 export const DecisionTypeSchema = z.enum([
 	"hire_agent",
 	"fire_agent",
+	"change_role",
 	"change_purpose",
+	"change_scope",
+	"merge",
+	"over_budget",
+	"over_ephemeral",
+	"escalate_blocked",
+	"change_policy",
 ]);
 export type DecisionType = z.infer<typeof DecisionTypeSchema>;
 
@@ -47,6 +54,65 @@ export const ChangePurposePayloadSchema = z.object({
 	to: z.string().min(1),
 });
 export type ChangePurposePayload = z.infer<typeof ChangePurposePayloadSchema>;
+export const ChangeRolePayloadSchema = z.object({
+	agentId: z.string().min(1),
+	fromFrontmatter: z.record(z.string(), z.unknown()).optional(),
+	toFrontmatter: z.record(z.string(), z.unknown()).optional(),
+	profile: z.record(z.string(), z.unknown()).optional(),
+	tools: z
+		.object({
+			allow: z.array(z.string()).optional(),
+			deny: z.array(z.string()).optional(),
+		})
+		.optional(),
+});
+export type ChangeRolePayload = z.infer<typeof ChangeRolePayloadSchema>;
+
+export const ChangeScopePayloadSchema = z.object({
+	taskId: z.string().min(1),
+	title: z.string().min(1),
+	whyOutsidePurpose: z.string().min(1),
+	proposedScope: z.string().optional(),
+});
+export type ChangeScopePayload = z.infer<typeof ChangeScopePayloadSchema>;
+
+export const MergePayloadSchema = z.object({
+	outcomeId: z.string().optional(),
+	diffSummary: z.string().optional(),
+	files: z.array(z.string()).default([]),
+	risk: z.string().optional(),
+	authorAgentId: z.string().optional(),
+});
+export type MergePayload = z.infer<typeof MergePayloadSchema>;
+
+export const OverBudgetPayloadSchema = z.object({
+	spentUsd: z.number().nonnegative(),
+	limitUsd: z.number().positive(),
+	window: z.string().min(1),
+});
+export type OverBudgetPayload = z.infer<typeof OverBudgetPayloadSchema>;
+
+export const OverEphemeralPayloadSchema = z.object({
+	count: z.number().int().nonnegative(),
+	limit: z.number().int().positive(),
+});
+export type OverEphemeralPayload = z.infer<typeof OverEphemeralPayloadSchema>;
+
+export const EscalateBlockedPayloadSchema = z.object({
+	taskId: z.string().min(1),
+	blocker: z.string().min(1),
+	askedAt: z.string().min(1),
+	agentId: z.string().optional(),
+});
+export type EscalateBlockedPayload = z.infer<typeof EscalateBlockedPayloadSchema>;
+
+export const ChangePolicyPayloadSchema = z.object({
+	key: z.string().min(1),
+	from: z.string(),
+	to: z.string().min(1),
+});
+export type ChangePolicyPayload = z.infer<typeof ChangePolicyPayloadSchema>;
+
 
 export const DecisionItemSchema = z.object({
 	id: z.string().min(1),
@@ -94,5 +160,13 @@ export class DecisionNotFoundError extends Error {
 	constructor(id: string) {
 		super(`Không tìm thấy quyết định '${id}' trong pending inbox`);
 		this.name = "DecisionNotFoundError";
+	}
+}
+
+
+export class MergeRejectNoteRequiredError extends Error {
+	constructor() {
+		super("Từ chối merge bắt buộc phải có lý do (tối thiểu 8 ký tự).");
+		this.name = "MergeRejectNoteRequiredError";
 	}
 }
