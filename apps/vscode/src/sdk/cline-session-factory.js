@@ -25,10 +25,12 @@ import {
 } from "@cline/llms"
 import {
 	buildClineSystemPrompt,
+	buildOrgTreePersonnelPrompt,
 	buildTeammateSpecs,
 	createOrvantaRequestDecisionTool,
 	createOrvantaSubmitHandoffTool,
 	EphemeralTracker,
+	injectAgentMemory,
 	injectOrvantaSystemPrompt,
 	isClineProvider,
 	requestDecision,
@@ -43,7 +45,7 @@ import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { globalTeamStatusTracker } from "@/orvanta/team-status-tracker"
 import { globalWarRoomTracker } from "@/orvanta/war-room-tracker"
-import { getAgentProfile, listAgentProfiles, loadCompany } from "@/orvanta/workspace-store"
+import { getAgentMemory, getAgentProfile, listAgentProfiles, loadCompany } from "@/orvanta/workspace-store"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { fetch, fetchWithoutIdleTimeouts } from "@/shared/net"
@@ -997,6 +999,21 @@ export async function buildSessionConfig(input) {
 			await fs.mkdir(teamDir, { recursive: true }).catch((err) => {
 				Logger.warn("[SessionFactory] Failed to create teamDir:", err)
 			})
+			// 0. Auto-create Artifacts directories
+			const artifactDirs = [
+				path.join(workspaceRoot, ".orvanta", "artifacts", "marketing"),
+				path.join(workspaceRoot, ".orvanta", "artifacts", "sales"),
+				path.join(workspaceRoot, ".orvanta", "artifacts", "research"),
+				path.join(workspaceRoot, ".orvanta", "artifacts", "reviews"),
+				path.join(workspaceRoot, ".orvanta", "artifacts", "build"),
+			]
+			await Promise.all(
+				artifactDirs.map((dir) =>
+					fs.mkdir(dir, { recursive: true }).catch((err) => {
+						Logger.warn("[SessionFactory] Failed to create artifact dir:", dir, err)
+					}),
+				),
+			)
 			// 1. Layer 1 Purpose-Lock: Prepend purpose + constraints to systemPrompt
 			let constraints
 			const constraintsPath = path.join(workspaceRoot, ".orvanta", "constraints.md")
@@ -1012,10 +1029,40 @@ export async function buildSessionConfig(input) {
 				constraints,
 				roleInstructions: coordinatorProfile?.instructions,
 			})
-			// 2. Map roster teammate profiles to TeamTeammateSpec
+			// 2. Read profiles and teammate memories
 			const profiles = await listAgentProfiles(workspaceRoot)
 			const profilesMap = new Map(profiles.map((p) => [p.id, p]))
-			teammates = buildTeammateSpecs(companyLoad.roster, profilesMap)
+			// 2a. Inject Org Tree Personnel Map & Coordinator Memory into Coordinator systemPrompt
+			const orgTreePrompt = buildOrgTreePersonnelPrompt(companyLoad.roster, profilesMap)
+			if (orgTreePrompt) {
+				systemPrompt = `${systemPrompt}\n\n${orgTreePrompt}`
+			}
+			let coordinatorMemory = ""
+			try {
+				coordinatorMemory = await getAgentMemory(workspaceRoot, "coordinator")
+			} catch {
+				// optional memory file
+			}
+			if (coordinatorMemory) {
+				systemPrompt = injectAgentMemory(systemPrompt, coordinatorMemory)
+			}
+			// 2b. Map roster teammate profiles to TeamTeammateSpec with their memory
+			const memoriesMap = new Map()
+			await Promise.all(
+				profiles.map(async (p) => {
+					try {
+						const mem = await getAgentMemory(workspaceRoot, p.id)
+						if (mem) {
+							memoriesMap.set(p.id, mem)
+						}
+					} catch {
+						// optional memory file
+					}
+				}),
+			)
+			teammates = buildTeammateSpecs(companyLoad.roster, profilesMap, {
+				memories: memoriesMap,
+			})
 			// 3. Lead tools: allow team_spawn_teammate with Orvanta policy (ephemeral max 3, persistent -> hire_agent decision)
 			includeLeadSpawnTool = true
 			ephemeralTracker = new EphemeralTracker(3)

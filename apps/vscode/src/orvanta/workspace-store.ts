@@ -15,6 +15,7 @@ import {
 	DEFAULT_COMPANY_POLICIES,
 	defaultCoordinatorRoster,
 	ensureMandatoryDenyWrite,
+	KNOWLEDGE_DIRNAME,
 	PURPOSE_FILE,
 	parseAgentProfile,
 	ROSTER_FILE,
@@ -112,6 +113,28 @@ export async function loadCompany(workspaceRoot: string): Promise<CompanyLoad> {
 	}
 }
 
+export const BRAND_GUIDELINES_TEMPLATE = `# Brand Guidelines
+
+## Giọng điệu thương hiệu (Brand Voice)
+- Chuyên nghiệp, trực diện, tôn trọng thời gian của khách hàng và đối tác.
+- Ngắn gọn, súc tích, tránh sáo rỗng hoặc hoa mỹ quá mức.
+
+## Quy tắc giao tiếp & Nội dung
+- Luôn có Call to Action (CTA) rõ ràng ở cuối tài liệu truyền thông.
+- Kiểm tra lỗi chính tả và ngữ pháp trước khi xuất bản.
+`
+
+export const CODING_STANDARDS_TEMPLATE = `# Coding Standards
+
+## Quy chuẩn phát triển (Development Standards)
+- Ngôn ngữ & Toolchain: Sử dụng bun làm package manager & test runner (\`bun test\`), Node.js runtime.
+- Type Safety: TypeScript strict mode, không sử dụng \`any\` tùy tiện.
+
+## Quy tắc kiểm thử & Code Review
+- Viết unit test cho các module nghiệp vụ mới trước khi hoàn tất task.
+- Không sửa file cấu hình cốt lõi ngoài phạm vi được giao.
+`
+
 async function writeTree(tmpRoot: string, company: CompanyJson, purpose: string): Promise<void> {
 	const files: Array<[string, string]> = [
 		[COMPANY_FILE, `${JSON.stringify(company, null, "\t")}\n`],
@@ -120,6 +143,8 @@ async function writeTree(tmpRoot: string, company: CompanyJson, purpose: string)
 		[ROSTER_FILE, `${JSON.stringify(defaultCoordinatorRoster(company.createdAt), null, "\t")}\n`],
 		[COORDINATOR_PROFILE_FILE, COORDINATOR_PROFILE_TEMPLATE],
 		[COORDINATOR_MEMORY_FILE, ""],
+		[join(KNOWLEDGE_DIRNAME, "brand-guidelines.md"), BRAND_GUIDELINES_TEMPLATE],
+		[join(KNOWLEDGE_DIRNAME, "coding-standards.md"), CODING_STANDARDS_TEMPLATE],
 	]
 	for (const [relative, contents] of files) {
 		const filePath = join(tmpRoot, relative)
@@ -368,12 +393,45 @@ export async function removeAgent(workspaceRoot: string, agentId: string): Promi
 	return loadCompany(workspaceRoot)
 }
 
+export async function getAgentMemory(workspaceRoot: string, agentId: string): Promise<string> {
+	const memoryPath = join(workspaceRoot, WORKSPACE_DIRNAME, "org", "agents", agentId, "workspace", "memory.md")
+	if (!(await pathExists(memoryPath))) {
+		return ""
+	}
+	return (await readTextIfPresent(memoryPath)) ?? ""
+}
+
+export async function saveAgentMemory(workspaceRoot: string, agentId: string, content: string): Promise<void> {
+	const workspaceDir = join(workspaceRoot, WORKSPACE_DIRNAME, "org", "agents", agentId, "workspace")
+	await mkdir(workspaceDir, { recursive: true })
+	const memoryPath = join(workspaceDir, "memory.md")
+	const tmpPath = join(workspaceDir, "memory.md.tmp")
+	await writeFile(tmpPath, content, "utf8")
+	await rename(tmpPath, memoryPath)
+}
+
+export async function initCompanyKnowledge(workspaceRoot: string): Promise<void> {
+	const knowledgeDir = join(workspaceRoot, WORKSPACE_DIRNAME, KNOWLEDGE_DIRNAME)
+	await mkdir(knowledgeDir, { recursive: true })
+
+	const brandPath = join(knowledgeDir, "brand-guidelines.md")
+	if (!(await pathExists(brandPath))) {
+		await writeFile(brandPath, BRAND_GUIDELINES_TEMPLATE, "utf8")
+	}
+
+	const codingPath = join(knowledgeDir, "coding-standards.md")
+	if (!(await pathExists(codingPath))) {
+		await writeFile(codingPath, CODING_STANDARDS_TEMPLATE, "utf8")
+	}
+}
+
+export const upsertAgentProfile = upsertAgent
+
 export async function getAgent(workspaceRoot: string, agentId: string): Promise<AgentDetail | undefined> {
 	const profile = await getAgentProfile(workspaceRoot, agentId)
 	if (!profile) {
 		return undefined
 	}
-	const memoryPath = join(workspaceRoot, WORKSPACE_DIRNAME, "org", "agents", agentId, "workspace", "memory.md")
-	const memory = (await readTextIfPresent(memoryPath)) ?? ""
+	const memory = await getAgentMemory(workspaceRoot, agentId)
 	return { profile, memory }
 }

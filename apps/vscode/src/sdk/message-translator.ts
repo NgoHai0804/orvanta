@@ -857,6 +857,24 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 			}
 		}
 
+		case "orvanta_request_decision": {
+			const title = getStringField(parsedInput, "title") ?? getStringField(parsedInput, "summary") ?? ""
+			return {
+				tool: "orvanta_request_decision" as ClineSayTool["tool"],
+				path: title,
+				content: JSON.stringify(parsedInput ?? {}),
+			}
+		}
+
+		case "team_run_task": {
+			const taskName = getStringField(parsedInput, "task") ?? getStringField(parsedInput, "taskId") ?? ""
+			return {
+				tool: "team_run_task" as ClineSayTool["tool"],
+				path: taskName,
+				content: JSON.stringify(parsedInput ?? {}),
+			}
+		}
+
 		default: {
 			// MCP tools and unknown tools — pass through with the raw tool name.
 			const filePath =
@@ -1853,7 +1871,20 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 						}
 					}
 
-					const sayTool = toDisplaySayTool(sdkToolToClineSayTool(toolName, storedInput), state.currentCwd())
+					let sayTool = toDisplaySayTool(sdkToolToClineSayTool(toolName, storedInput), state.currentCwd())
+					if (toolName === "orvanta_request_decision" && event.output && typeof event.output === "object") {
+						try {
+							const existingContent = JSON.parse(sayTool.content || "{}")
+							sayTool = {
+								...sayTool,
+								content: JSON.stringify({
+									...existingContent,
+									decisionId: (event.output as any).decisionId ?? existingContent.decisionId,
+									status: (event.output as any).status ?? existingContent.status,
+								}),
+							}
+						} catch {}
+					}
 					// If there's an error, include it in the tool message
 					if (event.error) {
 						messages.push({

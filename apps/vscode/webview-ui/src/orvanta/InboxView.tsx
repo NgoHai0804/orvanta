@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import type { OrvantaDecisionItem, OrvantaHistoryEntry } from "../../../src/shared/proto/cline/orvanta"
 import { InboxConfirmModal } from "./inbox/InboxConfirmModal"
 import { InboxDetail } from "./inbox/InboxDetail"
@@ -23,6 +23,12 @@ export default function InboxView({ pending, deferred, history, loading, error, 
 	const [selectedId, setSelectedId] = useState<string | null>(focusId || null)
 	const [confirmAction, setConfirmAction] = useState<"approve" | "reject" | null>(null)
 	const [resolving, setResolving] = useState<boolean>(false)
+	useEffect(() => {
+		if (focusId) {
+			setSelectedId(focusId)
+			setActiveSubTab("pending")
+		}
+	}, [focusId])
 
 	const currentList: AnyDecisionItem[] = useMemo(() => {
 		if (activeSubTab === "pending") return pending

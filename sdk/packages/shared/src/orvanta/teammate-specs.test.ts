@@ -158,4 +158,27 @@ describe("buildTeammateSpecs", () => {
 		const specs2 = buildTeammateSpecs(mockRoster, fn);
 		expect(specs2.find((s) => s.agentId === "implementer")?.rolePrompt).toBe("From fn for implementer");
 	});
+
+	it("injects agent memory into rolePrompt when memories option is provided", () => {
+		const customProfiles = {
+			implementer: makeFakeProfile("implementer", { instructions: "Implement tasks." }),
+			reviewer: makeFakeProfile("reviewer", { instructions: "Review work." }),
+		};
+		const memories = new Map([
+			["implementer", "- Always use bun test\n- Follow coding standards"],
+			["reviewer", "- Check DoD strictly before approve"],
+		]);
+
+		const specs = buildTeammateSpecs(mockRoster, customProfiles, { memories });
+		const implSpec = specs.find((s) => s.agentId === "implementer");
+		const revSpec = specs.find((s) => s.agentId === "reviewer");
+
+		expect(implSpec?.rolePrompt).toContain("Implement tasks.");
+		expect(implSpec?.rolePrompt).toContain("# Personal Memory & Learnings");
+		expect(implSpec?.rolePrompt).toContain("- Always use bun test");
+
+		expect(revSpec?.rolePrompt).toContain("Review work.");
+		expect(revSpec?.rolePrompt).toContain("# Personal Memory & Learnings");
+		expect(revSpec?.rolePrompt).toContain("- Check DoD strictly before approve");
+	});
 });

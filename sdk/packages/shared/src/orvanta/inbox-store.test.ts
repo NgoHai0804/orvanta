@@ -1,6 +1,6 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
 	CannotFireCoordinatorError,
@@ -8,6 +8,7 @@ import {
 	MergeRejectNoteRequiredError,
 } from "./inbox-schema";
 import {
+	getPendingInboxPath,
 	loadHistoryInbox,
 	loadPendingInbox,
 	requestDecision,
@@ -406,6 +407,36 @@ describe("inbox-store", () => {
 					note: "", // empty
 				}),
 			).rejects.toThrow(MergeRejectNoteRequiredError);
+		} finally {
+			await rm(ws, { recursive: true, force: true });
+		}
+	});
+
+	it("loadPendingInbox recovers items when title is missing in raw json", async () => {
+		const ws = await tempWorkspace();
+		try {
+			const pendingPath = getPendingInboxPath(ws);
+			await mkdir(dirname(pendingPath), { recursive: true });
+			const rawData = {
+				schemaVersion: 1,
+				items: [
+					{
+						id: "dec_test_123",
+						type: "hire_agent",
+						status: "pending",
+						createdAt: new Date().toISOString(),
+						createdBy: "coordinator",
+						summary: "Tuyển dụng Coder",
+						payload: { agentId: "coder" },
+						urgency: "normal",
+					},
+				],
+			};
+			await writeFile(pendingPath, JSON.stringify(rawData), "utf-8");
+			const inbox = await loadPendingInbox(ws);
+			expect(inbox.items).toHaveLength(1);
+			expect(inbox.items[0].id).toBe("dec_test_123");
+			expect(inbox.items[0].title).toBe("Tuyển dụng Coder");
 		} finally {
 			await rm(ws, { recursive: true, force: true });
 		}

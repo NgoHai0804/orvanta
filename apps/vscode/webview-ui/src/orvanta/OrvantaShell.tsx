@@ -12,9 +12,10 @@ export type OrvantaTab = "home" | "agents" | "inbox" | "chat" | "war-room"
 type OrvantaShellProps = {
 	activeTab: OrvantaTab
 	onTabChange: (tab: OrvantaTab) => void
+	inboxFocusId?: string
 }
 
-const OrvantaShell = ({ activeTab, onTabChange }: OrvantaShellProps) => {
+const OrvantaShell = ({ activeTab, onTabChange, inboxFocusId: propInboxFocusId }: OrvantaShellProps) => {
 	const { company, loading, creating, createError, createCompany, saveAgentProfile, deleteAgentProfile } = useOrvantaCompany()
 
 	const {
@@ -33,7 +34,8 @@ const OrvantaShell = ({ activeTab, onTabChange }: OrvantaShellProps) => {
 
 	const warRoom = useWarRoom(activeTab === "war-room" && isCompanyReady)
 
-	const [inboxFocusId, setInboxFocusId] = useState<string | undefined>()
+	const [localInboxFocusId, setLocalInboxFocusId] = useState<string | undefined>()
+	const effectiveInboxFocusId = propInboxFocusId || localInboxFocusId
 
 	const tabs: Array<{
 		id: OrvantaTab
@@ -82,7 +84,7 @@ const OrvantaShell = ({ activeTab, onTabChange }: OrvantaShellProps) => {
 						key={tab.id}
 						onClick={() => {
 							if (tab.id === "inbox") {
-								setInboxFocusId(undefined)
+								setLocalInboxFocusId(undefined)
 							}
 							onTabChange(tab.id)
 						}}
@@ -107,7 +109,7 @@ const OrvantaShell = ({ activeTab, onTabChange }: OrvantaShellProps) => {
 					onCreate={createCompany}
 					onDeleteAgentProfile={deleteAgentProfile}
 					onOpenInbox={(focusId) => {
-						setInboxFocusId(focusId)
+						setLocalInboxFocusId(focusId)
 						onTabChange("inbox")
 					}}
 					onRequestDecision={requestDecision}
@@ -122,7 +124,7 @@ const OrvantaShell = ({ activeTab, onTabChange }: OrvantaShellProps) => {
 				<InboxView
 					deferred={deferred}
 					error={inboxError}
-					focusId={inboxFocusId}
+					focusId={effectiveInboxFocusId}
 					history={history}
 					loading={inboxLoading}
 					onRefresh={refreshInbox}

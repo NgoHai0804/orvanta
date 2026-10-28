@@ -8,11 +8,15 @@ import {
 	serializeAgentProfile,
 } from "./agent-profile";
 import {
+	AGENT_TEMPLATES,
 	BLANK_PROFILE_TEMPLATE,
+	CONTENT_REVIEWER_PROFILE_TEMPLATE,
 	COORDINATOR_PROFILE_TEMPLATE,
+	COPYWRITER_PROFILE_TEMPLATE,
 	IMPLEMENTER_PROFILE_TEMPLATE,
 	RESEARCHER_PROFILE_TEMPLATE,
 	REVIEWER_PROFILE_TEMPLATE,
+	SALES_REP_PROFILE_TEMPLATE,
 	SKEPTIC_PROFILE_TEMPLATE,
 } from "./templates";
 
@@ -26,7 +30,17 @@ describe("agent-profile schema & serialization", () => {
 		expect(profile.modelId).toBeNull();
 		expect(profile.maxIterations).toBe(40);
 		expect(profile.temperature).toBeNull();
-		expect(profile.tools.allow).toEqual(["read_files", "list_files", "grep"]);
+		expect(profile.tools.allow).toEqual([
+			"read_files",
+			"list_files",
+			"grep",
+			"team_task",
+			"team_run_task",
+			"team_await_runs",
+			"team_status",
+			"orvanta_request_decision",
+			"orvanta_submit_handoff",
+		]);
 		expect(profile.tools.deny).toEqual(["write_to_file", "apply_diff"]);
 		expect(profile.scopePaths.allow).toEqual(["**/*"]);
 		expect(profile.scopePaths.denyWrite).toEqual(
@@ -41,6 +55,9 @@ describe("agent-profile schema & serialization", () => {
 			REVIEWER_PROFILE_TEMPLATE,
 			RESEARCHER_PROFILE_TEMPLATE,
 			SKEPTIC_PROFILE_TEMPLATE,
+			COPYWRITER_PROFILE_TEMPLATE,
+			SALES_REP_PROFILE_TEMPLATE,
+			CONTENT_REVIEWER_PROFILE_TEMPLATE,
 			BLANK_PROFILE_TEMPLATE,
 		];
 		for (const t of templates) {
@@ -52,6 +69,39 @@ describe("agent-profile schema & serialization", () => {
 				expect.arrayContaining([...MANDATORY_DENY_WRITE_PATHS]),
 			);
 		}
+	});
+
+	it("validates specific properties of v0.0.3 preset templates", () => {
+		const copywriter = parseAgentProfile(COPYWRITER_PROFILE_TEMPLATE);
+		expect(copywriter.id).toBe("copywriter");
+		expect(copywriter.tools.allow).toContain("read_files");
+		expect(copywriter.tools.allow).toContain("write_to_file");
+		expect(copywriter.scopePaths.allow).toEqual([".orvanta/artifacts/marketing/**"]);
+
+		const salesRep = parseAgentProfile(SALES_REP_PROFILE_TEMPLATE);
+		expect(salesRep.id).toBe("sales-rep");
+		expect(salesRep.tools.allow).toContain("browser_action");
+		expect(salesRep.tools.allow).toContain("web_fetch");
+		expect(salesRep.tools.allow).toContain("write_to_file");
+		expect(salesRep.scopePaths.allow).toEqual([".orvanta/artifacts/sales/**"]);
+
+		const contentReviewer = parseAgentProfile(CONTENT_REVIEWER_PROFILE_TEMPLATE);
+		expect(contentReviewer.id).toBe("content-reviewer");
+		expect(contentReviewer.tools.allow).toContain("read_files");
+		expect(contentReviewer.tools.allow).toContain("grep");
+		expect(contentReviewer.tools.allow).toContain("write_to_file");
+		expect(contentReviewer.scopePaths.allow).toEqual([".orvanta/artifacts/reviews/**"]);
+
+		expect(AGENT_TEMPLATES.map((t) => t.id)).toEqual([
+			"implementer",
+			"reviewer",
+			"researcher",
+			"skeptic",
+			"copywriter",
+			"sales-rep",
+			"content-reviewer",
+			"blank",
+		]);
 	});
 
 	it("round-trips serialize and parse without loss", () => {

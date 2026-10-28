@@ -1,7 +1,7 @@
 import type { TeamTeammateSpec } from "../team/schema";
 import type { AgentProfile } from "./agent-profile";
 import type { RosterJson } from "./company-schema";
-
+import { injectAgentMemory } from "./system-prompt";
 
 export type AgentProfileLookup =
 	| Map<string, AgentProfile>
@@ -10,6 +10,10 @@ export type AgentProfileLookup =
 
 export interface BuildTeammateSpecsOptions {
 	fallbackModelId?: string;
+	memories?:
+		| Map<string, string>
+		| Record<string, string>
+		| ((agentId: string) => string | undefined);
 }
 
 function resolveProfile(
@@ -52,7 +56,19 @@ export function buildTeammateSpecs(
 		}
 
 		const profile = resolveProfile(profiles, agent.id);
-		const rolePrompt = profile?.instructions?.trim() || "";
+		let rolePrompt = profile?.instructions?.trim() || "";
+
+		if (options.memories) {
+			const memory =
+				typeof options.memories === "function"
+					? options.memories(agent.id)
+					: options.memories instanceof Map
+						? options.memories.get(agent.id)
+						: options.memories[agent.id];
+			if (memory) {
+				rolePrompt = injectAgentMemory(rolePrompt, memory);
+			}
+		}
 
 		const rawModelId = profile?.modelId ?? agent.modelId ?? options.fallbackModelId;
 		const modelId =

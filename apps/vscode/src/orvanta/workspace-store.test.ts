@@ -1,8 +1,14 @@
 import { afterEach, describe, expect, it } from "bun:test"
-import { mkdir, mkdtemp, rm } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { MANDATORY_DENY_WRITE_PATHS, PURPOSE_FILE, WORKSPACE_DIRNAME, WORKSPACE_TMP_DIRNAME } from "@cline/shared"
+import {
+	KNOWLEDGE_DIRNAME,
+	MANDATORY_DENY_WRITE_PATHS,
+	PURPOSE_FILE,
+	WORKSPACE_DIRNAME,
+	WORKSPACE_TMP_DIRNAME,
+} from "@cline/shared"
 import {
 	CannotDeleteCoordinatorError,
 	CompanyAlreadyExistsError,
@@ -10,12 +16,15 @@ import {
 	createCompany,
 	deleteCompany,
 	getAgent,
+	getAgentMemory,
 	getAgentProfile,
+	initCompanyKnowledge,
 	listAgentProfiles,
 	loadCompany,
 	pathExists,
 	pickWorkspaceRoot,
 	removeAgent,
+	saveAgentMemory,
 	upsertAgent,
 } from "./workspace-store"
 
@@ -307,5 +316,80 @@ describe("workspace-store", () => {
 			const implementerRoster = loaded.roster.agents.find((a) => a.id === "implementer")
 			expect(implementerRoster?.reportsTo).toBe("coordinator")
 		}
+	})
+	it("reads and writes agent memory independently with persistence", async () => {
+		const root = await tempWorkspace()
+		await createCompany(root, { name: "Orvanta", purpose: PURPOSE })
+
+		// Coordinator memory initially empty
+		expect(await getAgentMemory(root, "coordinator")).toBe("")
+
+		// Non-existent agent memory returns empty
+		expect(await getAgentMemory(root, "unknown-agent")).toBe("")
+
+		// Upsert implementer and reviewer
+		await upsertAgent(root, {
+			id: "implementer",
+			displayName: "Implementer",
+			role: "teammate",
+			instructions: "Write code.",
+		})
+		await upsertAgent(root, {
+			id: "reviewer",
+			displayName: "Reviewer",
+			role: "teammate",
+			instructions: "Review code.",
+		})
+
+		// Save distinct memories
+		const coordMemory = "# Coordinator Learnings\n- Always dispatch via team_run_task\n- Deliverables in artifacts/"
+		const implMemory = "# Implementer Learnings\n- Use bun test, never npm test\n- Follow coding standards"
+		const revMemory = "# Reviewer Learnings\n- Verify DoD strictly before approve\n- Max 2 retries"
+
+		await saveAgentMemory(root, "coordinator", coordMemory)
+		await saveAgentMemory(root, "implementer", implMemory)
+		await saveAgentMemory(root, "reviewer", revMemory)
+
+		// Verify memories are independent and exact
+		expect(await getAgentMemory(root, "coordinator")).toBe(coordMemory)
+		expect(await getAgentMemory(root, "implementer")).toBe(implMemory)
+		expect(await getAgentMemory(root, "reviewer")).toBe(revMemory)
+
+		// Verify getAgent also returns the memory
+		const implementerDetail = await getAgent(root, "implementer")
+		expect(implementerDetail?.memory).toBe(implMemory)
+
+		// Updating agent profile does not wipe memory
+		await upsertAgent(root, {
+			id: "implementer",
+			displayName: "Senior Implementer",
+			role: "teammate",
+			instructions: "Updated instructions.",
+		})
+		expect(await getAgentMemory(root, "implementer")).toBe(implMemory)
+	})
+
+	it("initializes company knowledge base without overwriting existing files", async () => {
+		const root = await tempWorkspace()
+		await createCompany(root, { name: "Orvanta", purpose: PURPOSE })
+
+		const knowledgeDir = join(root, WORKSPACE_DIRNAME, KNOWLEDGE_DIRNAME)
+		const brandPath = join(knowledgeDir, "brand-guidelines.md")
+		const codingPath = join(knowledgeDir, "coding-standards.md")
+
+		// Knowledge files should exist from createCompany
+		expect(await pathExists(brandPath)).toBe(true)
+		expect(await pathExists(codingPath)).toBe(true)
+
+		// Customize a file
+		const customBrand = "# Custom Brand Voice\n- Bold and direct."
+		await writeFile(brandPath, customBrand, "utf8")
+
+		// Re-run initCompanyKnowledge
+		await initCompanyKnowledge(root)
+
+		// Custom content must be preserved
+		const brandContent = await readFile(brandPath, "utf8")
+		expect(brandContent).toBe(customBrand)
 	})
 })

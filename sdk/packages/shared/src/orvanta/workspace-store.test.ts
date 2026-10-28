@@ -1,14 +1,17 @@
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { PURPOSE_FILE, WORKSPACE_DIRNAME, WORKSPACE_TMP_DIRNAME } from "./paths";
+import { KNOWLEDGE_DIRNAME, PURPOSE_FILE, WORKSPACE_DIRNAME, WORKSPACE_TMP_DIRNAME } from "./paths";
 import {
 	CompanyAlreadyExistsError,
 	createCompany,
+	getAgentMemory,
+	initCompanyKnowledge,
 	loadCompany,
 	pathExists,
 	pickWorkspaceRoot,
+	saveAgentMemory,
 } from "./workspace-store";
 
 const PURPOSE =
@@ -91,3 +94,42 @@ describe("workspace-store", () => {
 		expect(await pathExists(join(root, WORKSPACE_DIRNAME))).toBe(true);
 	});
 });
+
+
+	it("reads and writes agent memory independently with persistence", async () => {
+		const root = await tempWorkspace();
+		await createCompany(root, { name: "Orvanta", purpose: PURPOSE });
+
+		// Coordinator memory initially empty
+		expect(await getAgentMemory(root, "coordinator")).toBe("");
+		expect(await getAgentMemory(root, "unknown-agent")).toBe("");
+
+		const coordMemory = "# Coordinator Learnings\n- Always dispatch via team_run_task";
+		const implMemory = "# Implementer Learnings\n- Use bun test";
+
+		await saveAgentMemory(root, "coordinator", coordMemory);
+		await saveAgentMemory(root, "implementer", implMemory);
+
+		expect(await getAgentMemory(root, "coordinator")).toBe(coordMemory);
+		expect(await getAgentMemory(root, "implementer")).toBe(implMemory);
+	});
+
+	it("initializes company knowledge base without overwriting existing files", async () => {
+		const root = await tempWorkspace();
+		await createCompany(root, { name: "Orvanta", purpose: PURPOSE });
+
+		const knowledgeDir = join(root, WORKSPACE_DIRNAME, KNOWLEDGE_DIRNAME);
+		const brandPath = join(knowledgeDir, "brand-guidelines.md");
+		const codingPath = join(knowledgeDir, "coding-standards.md");
+
+		expect(await pathExists(brandPath)).toBe(true);
+		expect(await pathExists(codingPath)).toBe(true);
+
+		const customBrand = "# Custom Brand Voice\n- Bold and direct.";
+		await writeFile(brandPath, customBrand, "utf8");
+
+		await initCompanyKnowledge(root);
+
+		const brandContent = await readFile(brandPath, "utf8");
+		expect(brandContent).toBe(customBrand);
+	});

@@ -1,6 +1,12 @@
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { type AgentProfile, parseAgentProfile } from "./agent-profile";
+import {
+	type AgentProfile,
+	AgentProfileSchema,
+	ensureMandatoryDenyWrite,
+	parseAgentProfile,
+	serializeAgentProfile,
+} from "./agent-profile";
 
 import {
 	type CompanyJson,
@@ -9,13 +15,17 @@ import {
 	CreateCompanyInputSchema,
 	DEFAULT_COMPANY_POLICIES,
 	defaultCoordinatorRoster,
+	RosterJsonSchema,
+	type RosterJson,
 	slugifyTeamName,
 	validateLoadedCompany,
 } from "./company-schema";
 import {
 	COMPANY_FILE,
+	COORDINATOR_AGENT_ID,
 	COORDINATOR_MEMORY_FILE,
 	COORDINATOR_PROFILE_FILE,
+	KNOWLEDGE_DIRNAME,
 	PURPOSE_FILE,
 	ROSTER_FILE,
 	SCHEMA_VERSION,
@@ -30,6 +40,13 @@ export class CompanyAlreadyExistsError extends Error {
 	constructor(workspaceRoot: string) {
 		super(`Công ty đã tồn tại trong ${workspaceRoot}`);
 		this.name = "CompanyAlreadyExistsError";
+	}
+}
+
+export class CannotDeleteCoordinatorError extends Error {
+	constructor(agentId: string = "coordinator") {
+		super(`Không thể xóa coordinator '${agentId}' của công ty`);
+		this.name = "CannotDeleteCoordinatorError";
 	}
 }
 
@@ -93,6 +110,28 @@ export async function loadCompany(workspaceRoot: string): Promise<CompanyLoad> {
 	};
 }
 
+export const BRAND_GUIDELINES_TEMPLATE = `# Brand Guidelines
+
+## Giọng điệu thương hiệu (Brand Voice)
+- Chuyên nghiệp, trực diện, tôn trọng thời gian của khách hàng và đối tác.
+- Ngắn gọn, súc tích, tránh sáo rỗng hoặc hoa mỹ quá mức.
+
+## Quy tắc giao tiếp & Nội dung
+- Luôn có Call to Action (CTA) rõ ràng ở cuối tài liệu truyền thông.
+- Kiểm tra lỗi chính tả và ngữ pháp trước khi xuất bản.
+`;
+
+export const CODING_STANDARDS_TEMPLATE = `# Coding Standards
+
+## Quy chuẩn phát triển (Development Standards)
+- Ngôn ngữ & Toolchain: Sử dụng bun làm package manager & test runner (\`bun test\`), Node.js runtime.
+- Type Safety: TypeScript strict mode, không sử dụng \`any\` tùy tiện.
+
+## Quy tắc kiểm thử & Code Review
+- Viết unit test cho các module nghiệp vụ mới trước khi hoàn tất task.
+- Không sửa file cấu hình cốt lõi ngoài phạm vi được giao.
+`;
+
 async function writeTree(
 	tmpRoot: string,
 	company: CompanyJson,
@@ -108,6 +147,8 @@ async function writeTree(
 		],
 		[COORDINATOR_PROFILE_FILE, COORDINATOR_PROFILE_TEMPLATE],
 		[COORDINATOR_MEMORY_FILE, ""],
+		[join(KNOWLEDGE_DIRNAME, "brand-guidelines.md"), BRAND_GUIDELINES_TEMPLATE],
+		[join(KNOWLEDGE_DIRNAME, "coding-standards.md"), CODING_STANDARDS_TEMPLATE],
 	];
 	for (const [relative, contents] of files) {
 		const filePath = join(tmpRoot, relative);
@@ -208,4 +249,241 @@ export async function getAgentProfile(
 	const content = await readFile(filePath, "utf8");
 	return parseAgentProfile(content, `org/agents/${agentId}/profile.md`);
 }
+
+export async function getAgentMemory(
+	workspaceRoot: string,
+	agentId: string,
+): Promise<string> {
+	const memoryPath = join(
+		workspaceRoot,
+		WORKSPACE_DIRNAME,
+		"org",
+		"agents",
+		agentId,
+		"workspace",
+		"memory.md",
+	);
+	if (!(await pathExists(memoryPath))) {
+		return "";
+	}
+	return (await readTextIfPresent(memoryPath)) ?? "";
+}
+
+export async function saveAgentMemory(
+	workspaceRoot: string,
+	agentId: string,
+	content: string,
+): Promise<void> {
+	const workspaceDir = join(
+		workspaceRoot,
+		WORKSPACE_DIRNAME,
+		"org",
+		"agents",
+		agentId,
+		"workspace",
+	);
+	await mkdir(workspaceDir, { recursive: true });
+	const memoryPath = join(workspaceDir, "memory.md");
+	const tmpPath = join(workspaceDir, "memory.md.tmp");
+	await writeFile(tmpPath, content, "utf8");
+	await rename(tmpPath, memoryPath);
+}
+
+export async function initCompanyKnowledge(
+	workspaceRoot: string,
+): Promise<void> {
+	const knowledgeDir = join(
+		workspaceRoot,
+		WORKSPACE_DIRNAME,
+		KNOWLEDGE_DIRNAME,
+	);
+	await mkdir(knowledgeDir, { recursive: true });
+
+	const brandPath = join(knowledgeDir, "brand-guidelines.md");
+	if (!(await pathExists(brandPath))) {
+		await writeFile(brandPath, BRAND_GUIDELINES_TEMPLATE, "utf8");
+	}
+
+	const codingPath = join(knowledgeDir, "coding-standards.md");
+	if (!(await pathExists(codingPath))) {
+		await writeFile(codingPath, CODING_STANDARDS_TEMPLATE, "utf8");
+	}
+}
+
+export interface UpsertAgentInput {
+	id: string;
+	displayName?: string;
+	description?: string;
+	role?: "lead" | "teammate";
+	reportsTo?: string | null;
+	providerId?: string | null;
+	modelId?: string | null;
+	maxIterations?: number;
+	temperature?: number | null;
+	reasoningEffort?: string | null;
+	supportsImages?: boolean | null;
+	contextWindow?: number | null;
+	maxOutputTokens?: number | null;
+	instructions: string;
+	tools?: {
+		allow?: string[];
+		deny?: string[];
+	};
+	scopePaths?: {
+		allow?: string[];
+		denyWrite?: string[];
+	};
+	rules?: string[];
+	skills?: string[];
+}
+
+export async function writeAgentProfile(
+	agentDir: string,
+	profile: AgentProfile,
+): Promise<void> {
+	const profilePath = join(agentDir, "profile.md");
+	const serialized = serializeAgentProfile(profile);
+	await writeFile(profilePath, serialized, "utf8");
+}
+
+export async function upsertAgent(
+	workspaceRoot: string,
+	input: UpsertAgentInput,
+): Promise<AgentProfile> {
+	const load = await loadCompany(workspaceRoot);
+	if (load.status !== "ready") {
+		throw new Error("Công ty chưa sẵn sàng trong workspace này");
+	}
+
+	const description =
+		input.description?.trim() || input.displayName?.trim() || input.id;
+	const displayName = input.displayName?.trim() || input.id;
+	const denyWrite = ensureMandatoryDenyWrite(input.scopePaths?.denyWrite);
+	const normalizedInput = {
+		...input,
+		displayName,
+		description,
+		scopePaths: {
+			allow: input.scopePaths?.allow ?? ["**/*"],
+			denyWrite,
+		},
+	};
+
+	const profile = AgentProfileSchema.parse({
+		...normalizedInput,
+		filePath: `org/agents/${input.id}/profile.md`,
+	});
+
+	const coordinatorId =
+		load.company.coordinatorAgentId || COORDINATOR_AGENT_ID;
+	if (profile.role === "lead" && profile.id !== coordinatorId) {
+		throw new Error("Không thể có hai lead. Lead duy nhất là coordinator.");
+	}
+	if (profile.id === coordinatorId && profile.role !== "lead") {
+		throw new Error("Coordinator bắt buộc phải có role lead.");
+	}
+
+	const root = join(workspaceRoot, WORKSPACE_DIRNAME);
+	const agentDir = join(root, "org", "agents", profile.id);
+	const workspaceDir = join(agentDir, "workspace");
+	await mkdir(workspaceDir, { recursive: true });
+
+	await writeAgentProfile(agentDir, profile);
+
+	const memoryPath = join(workspaceDir, "memory.md");
+	if (!(await pathExists(memoryPath))) {
+		await writeFile(memoryPath, "", "utf8");
+	}
+
+	const rosterPath = join(root, ROSTER_FILE);
+	const rawRoster = await readJsonIfPresent(rosterPath);
+	const parsedRoster = RosterJsonSchema.safeParse(rawRoster);
+	const currentRoster: RosterJson = parsedRoster.success
+		? parsedRoster.data
+		: { schemaVersion: SCHEMA_VERSION, agents: [] };
+
+	const existingIndex = currentRoster.agents.findIndex(
+		(a) => a.id === profile.id,
+	);
+	const now = new Date().toISOString();
+	const agentFile = `org/agents/${profile.id}/profile.md`;
+
+	if (existingIndex >= 0) {
+		const existing = currentRoster.agents[existingIndex];
+		currentRoster.agents[existingIndex] = {
+			...existing,
+			displayName: profile.displayName,
+			role: profile.role,
+			reportsTo: profile.reportsTo ?? existing?.reportsTo ?? null,
+			modelId: profile.modelId,
+			maxIterations: profile.maxIterations,
+			agentFile,
+		};
+	} else {
+		currentRoster.agents.push({
+			id: profile.id,
+			displayName: profile.displayName,
+			role: profile.role,
+			reportsTo: profile.reportsTo ?? null,
+			status: "idle",
+			agentFile,
+			hiredAt: now,
+			hiredBy: "ceo",
+			modelId: profile.modelId,
+			maxIterations: profile.maxIterations,
+		});
+	}
+
+	const tmpRosterPath = join(root, "org", "roster.json.tmp");
+	await writeFile(
+		tmpRosterPath,
+		`${JSON.stringify(currentRoster, null, "\t")}\n`,
+		"utf8",
+	);
+	await rename(tmpRosterPath, rosterPath);
+
+	return profile;
+}
+
+export const upsertAgentProfile = upsertAgent;
+
+export async function removeAgent(
+	workspaceRoot: string,
+	agentId: string,
+): Promise<CompanyLoad> {
+	const load = await loadCompany(workspaceRoot);
+	if (load.status !== "ready") {
+		throw new Error("Công ty chưa sẵn sàng trong workspace này");
+	}
+
+	const coordinatorId =
+		load.company.coordinatorAgentId || COORDINATOR_AGENT_ID;
+	if (agentId === coordinatorId) {
+		throw new CannotDeleteCoordinatorError(coordinatorId);
+	}
+
+	const root = join(workspaceRoot, WORKSPACE_DIRNAME);
+	const agentDir = join(root, "org", "agents", agentId);
+	await rm(agentDir, { recursive: true, force: true });
+
+	const rosterPath = join(root, ROSTER_FILE);
+	const rawRoster = await readJsonIfPresent(rosterPath);
+	const parsedRoster = RosterJsonSchema.safeParse(rawRoster);
+	if (parsedRoster.success) {
+		const currentRoster = parsedRoster.data;
+		currentRoster.agents = currentRoster.agents.filter(
+			(a) => a.id !== agentId,
+		);
+		const tmpRosterPath = join(root, "org", "roster.json.tmp");
+		await writeFile(
+			tmpRosterPath,
+			`${JSON.stringify(currentRoster, null, "\t")}\n`,
+			"utf8",
+		);
+		await rename(tmpRosterPath, rosterPath);
+	}
+
+	return loadCompany(workspaceRoot);
+}
+
 

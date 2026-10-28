@@ -37,6 +37,7 @@ const mocks = vi.hoisted(() => {
 		loadCompany: vi.fn(() => Promise.resolve({ status: "missing" })),
 		listAgentProfiles: vi.fn(() => Promise.resolve([])),
 		getAgentProfile: vi.fn(() => Promise.resolve(undefined)),
+		getAgentMemory: vi.fn(() => Promise.resolve("")),
 		stateManager: {
 			getApiConfiguration: vi.fn(() => ({
 				actModeApiProvider: "anthropic",
@@ -64,6 +65,7 @@ vi.mock("@/orvanta/workspace-store", () => ({
 	loadCompany: mocks.loadCompany,
 	listAgentProfiles: mocks.listAgentProfiles,
 	getAgentProfile: mocks.getAgentProfile,
+	getAgentMemory: mocks.getAgentMemory,
 }))
 vi.mock("@/services/logging/distinctId", () => ({
 	getDistinctId: mocks.getDistinctId,
@@ -1419,14 +1421,83 @@ describe("buildSessionConfig", () => {
 		expect(config.teamName).toBe("acme-corp-team")
 		expect(config.teamDir).toBe(path.join(workspaceRoot, ".orvanta", "state", "team"))
 		expect(fs.existsSync(path.join(workspaceRoot, ".orvanta", "state", "team"))).toBe(true)
-		expect(config.includeLeadSpawnTool).toBe(false)
+		expect(fs.existsSync(path.join(workspaceRoot, ".orvanta", "artifacts", "marketing"))).toBe(true)
+		expect(fs.existsSync(path.join(workspaceRoot, ".orvanta", "artifacts", "sales"))).toBe(true)
+		expect(fs.existsSync(path.join(workspaceRoot, ".orvanta", "artifacts", "research"))).toBe(true)
+		expect(fs.existsSync(path.join(workspaceRoot, ".orvanta", "artifacts", "reviews"))).toBe(true)
+		expect(fs.existsSync(path.join(workspaceRoot, ".orvanta", "artifacts", "build"))).toBe(true)
+		expect(config.includeLeadSpawnTool).toBe(true)
 		expect(config.teammates).toHaveLength(1)
 		expect(config.teammates?.[0].agentId).toBe("implementer")
 		expect(config.teammates?.[0].rolePrompt).toBe("Write clean code")
 		expect(config.systemPrompt).toContain('# Khối Orvanta\n\nBạn là thành viên của công ty "Acme Corp".')
 		expect(config.systemPrompt).toContain("Build software to automate tasks")
+		expect(config.systemPrompt).toContain("# CƠ CẤU TỔ CHỨC CÔNG TY (Org Tree & Personnel Map)")
+		expect(config.systemPrompt).toContain("QUY TẮC BẮT BUỘC KHI ĐIỀU HÀNH")
 		expect(typeof config.onTeamEvent).toBe("function")
 		expect(config.extraTools?.some((t) => t.name === "orvanta_request_decision")).toBe(true)
+	})
+
+	it("injects coordinator and teammate memories into prompts when company is ready", async () => {
+		const workspaceRoot = path.join(tempDir, "orvanta-memory-workspace")
+		fs.mkdirSync(workspaceRoot, { recursive: true })
+
+		mocks.loadCompany.mockResolvedValueOnce({
+			status: "ready",
+			company: {
+				id: "orvanta-test-456",
+				name: "Memory Corp",
+				teamName: "memory-corp-team",
+				createdAt: new Date().toISOString(),
+				schemaVersion: 1,
+				coordinatorAgentId: "coordinator",
+			},
+			purpose: "Build great products",
+			roster: {
+				schemaVersion: 1,
+				agents: [
+					{
+						id: "reviewer",
+						displayName: "Reviewer",
+						role: "teammate",
+						status: "idle",
+						agentFile: "org/agents/reviewer/profile.md",
+						hiredAt: "2026-10-27T10:00:00.000Z",
+						hiredBy: "ceo",
+					},
+				],
+			},
+		})
+
+		mocks.listAgentProfiles.mockResolvedValueOnce([
+			{
+				id: "reviewer",
+				displayName: "Reviewer",
+				role: "teammate",
+				instructions: "Review code thoroughly",
+			},
+		])
+
+		mocks.getAgentMemory.mockImplementation((_root, agentId) => {
+			if (agentId === "coordinator") {
+				return Promise.resolve("- Always check reviewer approval before reporting to CEO")
+			}
+			if (agentId === "reviewer") {
+				return Promise.resolve("- Run bun test and typecheck on all PRs")
+			}
+			return Promise.resolve("")
+		})
+
+		const config = await buildSessionConfig({
+			cwd: workspaceRoot,
+			workspaceRoot,
+		})
+
+		expect(config.systemPrompt).toContain("# Personal Memory & Learnings")
+		expect(config.systemPrompt).toContain("- Always check reviewer approval before reporting to CEO")
+		expect(config.teammates?.[0].rolePrompt).toContain("Review code thoroughly")
+		expect(config.teammates?.[0].rolePrompt).toContain("# Personal Memory & Learnings")
+		expect(config.teammates?.[0].rolePrompt).toContain("- Run bun test and typecheck on all PRs")
 	})
 	it("disables agent teams and omits teamName and teamDir when company is missing", async () => {
 		mocks.loadCompany.mockResolvedValueOnce({ status: "missing" })

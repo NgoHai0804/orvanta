@@ -6,7 +6,11 @@ import type {
 } from "../agent";
 import type { AgentHooks } from "../agents/types";
 
-import { WORKSPACE_DIRNAME } from "./paths";
+import {
+	WORKSPACE_DIRNAME,
+	ARTIFACTS_DIRNAME,
+	ARTIFACTS_REVIEWS_DIR,
+} from "./paths";
 
 export interface PurposeLockCheckResult {
 	allowed: boolean;
@@ -40,6 +44,78 @@ export function normalizeTargetPath(
 	return normalized;
 }
 
+export function isArtifactPath(normalizedPath: string): boolean {
+	const lower = normalizedPath.toLowerCase();
+	return (
+		lower === `${WORKSPACE_DIRNAME}/${ARTIFACTS_DIRNAME}` ||
+		lower.startsWith(`${WORKSPACE_DIRNAME}/${ARTIFACTS_DIRNAME}/`) ||
+		lower === ARTIFACTS_DIRNAME ||
+		lower.startsWith(`${ARTIFACTS_DIRNAME}/`)
+	);
+}
+
+export function isReviewArtifactPath(normalizedPath: string): boolean {
+	const lower = normalizedPath.toLowerCase();
+	return (
+		lower === `${WORKSPACE_DIRNAME}/${ARTIFACTS_REVIEWS_DIR}` ||
+		lower.startsWith(`${WORKSPACE_DIRNAME}/${ARTIFACTS_REVIEWS_DIR}/`) ||
+		lower === ARTIFACTS_REVIEWS_DIR ||
+		lower.startsWith(`${ARTIFACTS_REVIEWS_DIR}/`)
+	);
+}
+
+export function isSourceCodePath(normalizedPath: string): boolean {
+	const lower = normalizedPath.toLowerCase();
+	return (
+		lower === "src" ||
+		lower.startsWith("src/") ||
+		lower.includes("/src/")
+	);
+}
+
+export function isAllowedReviewerCommand(command: string): boolean {
+	if (!command || typeof command !== "string") return false;
+	const trimmed = command.trim();
+	if (!trimmed) return false;
+
+	const subCommands = trimmed
+		.split(/&&|;|\|\|/)
+		.map((c) => c.trim())
+		.filter(Boolean);
+	if (subCommands.length === 0) return false;
+
+	const testRegex =
+		/^(bun|npm|pnpm|yarn)\s+(run\s+)?(test|t)(\s+.*)?$/i;
+	const vitestRegex =
+		/^(bunx\s+|npx\s+|bun\s+run\s+|npm\s+run\s+)?vitest(\s+.*)?$/i;
+	const jestRegex =
+		/^(bunx\s+|npx\s+|bun\s+run\s+|npm\s+run\s+)?jest(\s+.*)?$/i;
+	const mochaRegex =
+		/^(bunx\s+|npx\s+|bun\s+run\s+|npm\s+run\s+)?mocha(\s+.*)?$/i;
+
+	const typecheckRegex =
+		/^(bunx\s+|npx\s+)?tsc(\s+.*)?$/i;
+	const typecheckScriptRegex =
+		/^(bun|npm|pnpm|yarn)\s+(run\s+)?typecheck(\s+.*)?$/i;
+
+	const lintRegex =
+		/^(bunx\s+|npx\s+)?(eslint|biome\s+(check|lint)|@biomejs\/biome\s+(check|lint))(\s+.*)?$/i;
+	const lintScriptRegex =
+		/^(bun|npm|pnpm|yarn)\s+(run\s+)?(lint|check)(\s+.*)?$/i;
+
+	return subCommands.every(
+		(sub) =>
+			testRegex.test(sub) ||
+			vitestRegex.test(sub) ||
+			jestRegex.test(sub) ||
+			mochaRegex.test(sub) ||
+			typecheckRegex.test(sub) ||
+			typecheckScriptRegex.test(sub) ||
+			lintRegex.test(sub) ||
+			lintScriptRegex.test(sub),
+	);
+}
+
 export function validateMemoryPath(targetPath: string): boolean {
 	const normalized = targetPath.replace(/\\/g, "/");
 	if (normalized.includes("..")) return false;
@@ -61,14 +137,59 @@ export function checkPurposeLockPath(
 		};
 	}
 
+	const isReviewer =
+		options.requesterId?.toLowerCase().trim() === "reviewer" ||
+		options.requesterId?.toLowerCase().includes("reviewer");
+
+	// Reviewer is strictly forbidden from writing to project source code (src/**)
+	if (isReviewer && isSourceCodePath(relPath)) {
+		return {
+			allowed: false,
+			code: "purpose_lock_denied",
+			reason:
+				"Reviewer không được phép sửa mã nguồn dự án (src/**). Tuyệt đối cấm reviewer dùng apply_diff hoặc write_to_file trên source code dự án (src/**).",
+			path: relPath,
+		};
+	}
+
 	const isInsideOrvanta =
 		lower === WORKSPACE_DIRNAME || lower.startsWith(`${WORKSPACE_DIRNAME}/`);
 
 	if (!isInsideOrvanta) {
+		if (isReviewer) {
+			return {
+				allowed: false,
+				code: "purpose_lock_denied",
+				reason:
+					"Reviewer không được phép sửa mã nguồn dự án ngoài artifacts/reviews/**. Chỉ được ghi biên bản vào .orvanta/artifacts/reviews/**.",
+				path: relPath,
+			};
+		}
 		return { allowed: true, path: relPath };
 	}
 
 	const subPath = lower.slice(WORKSPACE_DIRNAME.length + 1);
+
+	// Artifacts folder: .orvanta/artifacts/**
+	if (subPath === "artifacts" || subPath.startsWith("artifacts/")) {
+		if (isReviewer) {
+			if (
+				subPath === "artifacts/reviews" ||
+				subPath.startsWith("artifacts/reviews/")
+			) {
+				return { allowed: true, path: relPath };
+			}
+			return {
+				allowed: false,
+				code: "purpose_lock_denied",
+				reason:
+					"Reviewer chỉ được ghi biên bản vào .orvanta/artifacts/reviews/**.",
+				path: relPath,
+			};
+		}
+		// Maker agents (copywriter, researcher, implementer, etc.) are allowed in .orvanta/artifacts/**
+		return { allowed: true, path: relPath };
+	}
 
 	// Memory folder: .orvanta/memory/** - must not contain ".." and must end with .md
 	if (subPath === "memory" || subPath.startsWith("memory/")) {
@@ -157,6 +278,14 @@ export function checkPurposeLockPath(
 		path: relPath,
 	};
 }
+export const WRITE_TOOL_NAMES = new Set([
+	"write_to_file",
+	"editor",
+	"apply_patch",
+	"apply_diff",
+	"write_file",
+]);
+
 export interface ToolPolicyOptions {
 	allow?: string[];
 	deny?: string[];
@@ -169,15 +298,131 @@ export interface ToolPolicyCheckResult {
 	reason?: string;
 }
 
-export function checkToolPolicy(options: {
+export interface CheckToolPolicyOptions {
 	toolName: string;
 	agentId?: string;
 	policy?: ToolPolicyOptions;
-}): ToolPolicyCheckResult {
+	scopePaths?: {
+		allow?: string[];
+		denyWrite?: string[];
+	};
+	targetPath?: string;
+	command?: string;
+	workspaceRoot?: string;
+}
+
+export function checkToolPolicy(
+	options: CheckToolPolicyOptions,
+): ToolPolicyCheckResult {
 	const tool = options.toolName.toLowerCase().trim();
-	const agentId = options.agentId || "agent";
+	const agentId = (options.agentId || "agent").toLowerCase().trim();
 	const policy = options.policy;
 
+	const isWriteTool =
+		WRITE_TOOL_NAMES.has(tool) ||
+		tool === "write_to_file" ||
+		tool === "apply_diff";
+	const isCommandTool =
+		tool === "execute_command" ||
+		tool === "run_commands" ||
+		tool === "bash";
+
+	const normPath = options.targetPath
+		? normalizeTargetPath(options.targetPath, options.workspaceRoot)
+		: undefined;
+
+	const isReviewer =
+		agentId === "reviewer" ||
+		agentId.endsWith("-reviewer") ||
+		agentId.includes("reviewer");
+
+	// 1. Reviewer special rules
+	if (isReviewer) {
+		// Reviewer write tools: strictly forbidden on source code (src/**), allowed only in artifacts/reviews/**
+		if (isWriteTool) {
+			if (normPath) {
+				if (isSourceCodePath(normPath)) {
+					return {
+						allowed: false,
+						code: "purpose_lock_denied",
+						tool: options.toolName,
+						reason: `Tuyệt đối cấm reviewer dùng ${options.toolName} trên source code dự án (src/**).`,
+					};
+				}
+				if (isReviewArtifactPath(normPath)) {
+					return { allowed: true, tool: options.toolName };
+				}
+				return {
+					allowed: false,
+					code: "purpose_lock_denied",
+					tool: options.toolName,
+					reason: `Reviewer chỉ được ghi biên bản vào .orvanta/artifacts/reviews/**, không được ghi vào '${normPath}'.`,
+				};
+			}
+		}
+
+		// Reviewer execute_command tools: only linter, typecheck, unit test allowed
+		if (isCommandTool) {
+			if (options.command) {
+				if (isAllowedReviewerCommand(options.command)) {
+					return { allowed: true, tool: options.toolName };
+				}
+				return {
+					allowed: false,
+					code: "purpose_lock_denied",
+					tool: options.toolName,
+					reason: `Reviewer chỉ được phép dùng execute_command để chạy linter, typecheck và unit test (ví dụ: bun test, npm test). Lệnh không hợp lệ: '${options.command}'.`,
+				};
+			}
+		}
+	}
+
+	// 2. Maker agents (copywriter, researcher, implementer, etc.) writing to artifacts
+	if (isWriteTool && normPath) {
+		// Non-coder maker agents (copywriter, sales-rep, etc.) are forbidden from writing to project source code
+		if (
+			(agentId === "copywriter" ||
+				agentId.includes("copywriter") ||
+				agentId === "sales-rep" ||
+				agentId.includes("sales")) &&
+			isSourceCodePath(normPath)
+		) {
+			return {
+				allowed: false,
+				code: "purpose_lock_denied",
+				tool: options.toolName,
+				reason: `Vai trò ${agentId} không được phép ghi mã nguồn dự án (src/**). Chỉ được ghi vào thư mục artifacts tương ứng.`,
+			};
+		}
+
+		if (options.scopePaths?.allow && options.scopePaths.allow.length > 0) {
+			const allowedScopes = options.scopePaths.allow;
+			const isWithinScope = allowedScopes.some((p) => {
+				if (p === "**/*") return true;
+				const clean = p.replace(/\*\*$/, "").replace(/\/+$/, "").toLowerCase();
+				const lowerNorm = normPath.toLowerCase();
+				return (
+					lowerNorm === clean ||
+					lowerNorm.startsWith(`${clean}/`) ||
+					lowerNorm.startsWith(`.orvanta/${clean}/`)
+				);
+			});
+			if (!isWithinScope) {
+				return {
+					allowed: false,
+					code: "purpose_lock_denied",
+					tool: options.toolName,
+					reason: `Đường dẫn '${normPath}' nằm ngoài phạm vi được phép ghi của vai trò ${agentId}.`,
+				};
+			}
+		}
+
+		if (isArtifactPath(normPath)) {
+			return { allowed: true, tool: options.toolName };
+		}
+	}
+
+	// 3. Fallback to standard role policy (deny / allow lists)
 	if (!policy) {
 		return { allowed: true, tool: options.toolName };
 	}
@@ -353,13 +598,20 @@ export function classifyTaskScope(
 }
 
 
-export const WRITE_TOOL_NAMES = new Set([
-	"write_to_file",
-	"editor",
-	"apply_patch",
-	"apply_diff",
-	"write_file",
-]);
+function extractCommand(input: unknown): string | undefined {
+	if (!input || typeof input !== "object") return undefined;
+	const rec = input as Record<string, unknown>;
+	if (typeof rec.command === "string" && rec.command.trim()) {
+		return rec.command.trim();
+	}
+	if (Array.isArray(rec.commands) && rec.commands.length > 0) {
+		const valid = rec.commands.filter((c): c is string => typeof c === "string" && c.trim().length > 0);
+		if (valid.length > 0) {
+			return valid.join(" && ");
+		}
+	}
+	return undefined;
+}
 
 function extractTargetPaths(input: unknown): string[] {
 	if (!input || typeof input !== "object") return [];
@@ -387,12 +639,18 @@ export function createPurposeLockHook(
 			context: AgentBeforeToolContext,
 		): Promise<AgentBeforeToolResult | undefined> => {
 			const requesterId = options.requesterId ?? context.snapshot.agentId;
+			const command = extractCommand(context.input);
+			const paths = extractTargetPaths(context.input);
+			const targetPath = paths[0];
 
-			if (options.toolPolicy) {
+			if (options.toolPolicy || command || targetPath) {
 				const policyCheck = checkToolPolicy({
 					toolName: context.tool.name,
 					agentId: requesterId,
 					policy: options.toolPolicy,
+					targetPath,
+					command,
+					workspaceRoot: options.workspaceRoot,
 				});
 				if (!policyCheck.allowed) {
 					return {
@@ -410,7 +668,6 @@ export function createPurposeLockHook(
 			if (!WRITE_TOOL_NAMES.has(context.tool.name.toLowerCase())) {
 				return undefined;
 			}
-			const paths = extractTargetPaths(context.input);
 			for (const p of paths) {
 				const check = checkPurposeLockPath({
 					targetPath: p,
@@ -449,12 +706,18 @@ export function wrapToolWithPurposeLock<TInput, TOutput>(
 		...tool,
 		execute: async (input: TInput, context: AgentToolContext): Promise<TOutput> => {
 			const requesterId = options.requesterId ?? context.agentId;
+			const command = extractCommand(input);
+			const paths = extractTargetPaths(input);
+			const targetPath = paths[0];
 
-			if (options.toolPolicy) {
+			if (options.toolPolicy || command || targetPath) {
 				const policyCheck = checkToolPolicy({
 					toolName: tool.name,
 					agentId: requesterId,
 					policy: options.toolPolicy,
+					targetPath,
+					command,
+					workspaceRoot: options.workspaceRoot,
 				});
 				if (!policyCheck.allowed) {
 					return {
@@ -467,7 +730,6 @@ export function wrapToolWithPurposeLock<TInput, TOutput>(
 			}
 
 			if (isWrite) {
-				const paths = extractTargetPaths(input);
 				for (const p of paths) {
 					const check = checkPurposeLockPath({
 						targetPath: p,

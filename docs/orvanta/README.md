@@ -6,7 +6,7 @@ Orvanta là lớp **công ty AI theo từng repository**, xây dựng trên nề
 
 ## Cấu trúc Phiên bản Tài liệu
 
-Tài liệu thiết kế và đặc tả kỹ thuật được phân chia theo 2 phiên bản:
+Tài liệu thiết kế và đặc tả kỹ thuật được phân chia theo 3 phiên bản:
 
 ### 📁 [v0.0.1 (Tài liệu Nền tảng Ban đầu)](./v0.0.1/README.md)
 Chứa toàn bộ tài liệu kiến trúc ban đầu từ Phase P1 đến Phase P9, bộ 4 bề mặt chính (A–D):
@@ -23,15 +23,20 @@ Phiên bản nâng cấp toàn diện trang **Home** và hệ thống quản lý
 1. **Tách Roster thành Tab Agents riêng** trên thanh điều hướng `OrvantaShell` (`Home | Agents | Inbox | Chat | War room`).
 2. **Sơ đồ cây phân cấp Agent đa tầng (Multi-level Tree Org Chart)**: Mô hình hóa rõ nét quan hệ *Agent nào quản lý agent nào* thông qua trường `reportsTo`.
 3. **Bố cục Split View Trên - Dưới**: Nửa trên là sơ đồ cây tương tác trực quan; Nửa dưới là khu vực cấu hình chi tiết của Agent đang chọn.
-4. **Cấu hình Agent 5 Tabs chuyên biệt**:
-   - Tab 1: **Profile** (Thông tin chung, vai trò, quản lý bởi).
-   - Tab 2: **Model & Thông số AI** (Combobox chọn model từ catalog, Reasoning, Supports Images, Context Window, Max Output Tokens, Temperature).
-   - Tab 3: **Tools & Quyền hạn** (Combobox chọn tools allow/deny, phạm vi thư mục).
-   - Tab 4: **Instructions & Rules** (System instructions & Rules gán cho agent).
-   - Tab 5: **Skills** (Thư viện kỹ năng cấp phép cho agent).
+4. **Cấu hình Agent 5 Tabs chuyên biệt**: Profile, Model & Thông số AI, Tools & Quyền hạn, Instructions & Rules, Skills.
 5. **UI & Hiệu ứng Chuẩn**: Thiết kế pixel-perfect, animation mượt mà, theme màu tối Indigo/Violet/Navy, tương thích chuẩn VS Code.
-6. **Logic Chuẩn Xác**: Thuật toán dựng cây, chống chu trình (cycle detection), tự động điền specs từ catalog, xử lý fallback khi agent cha bị xóa.
-7. **Actionable AI Checklist**: Bộ checklist chi tiết đến từng file, từng hàm và từng test case để AI triển khai code chính xác 100%.
+6. **Actionable AI Checklist**: Bộ checklist chi tiết đến từng file, từng hàm và từng test case để AI triển khai code chính xác 100%.
+
+---
+
+### ⚡ [v0.0.3 (Kiến Trúc Thực Thi Tự Động — Autonomous Execution Engine)](./v0.0.3/README.md)
+Phiên bản nâng cấp toàn diện **Cơ chế phối hợp & Thực thi thực tế** cho mọi loại công việc (Tech, Marketing, Sales, Research):
+1. **Mô hình Hub-and-Spoke Orchestration**: Toàn bộ luồng giao việc và thẩm định đi qua Quản lý trực tiếp theo sơ đồ Cây. Tuyệt đối cấm sub-agent chat ngang hàng (P2P) tránh cạn token / lặp vô tận.
+2. **Artifact-Driven Deliverables (File là bằng chứng duy nhất)**: Mọi nhiệm vụ đều bắt buộc xuất ra file sản phẩm cụ thể lưu tại thư mục `.orvanta/artifacts/`.
+3. **Quy trình Thẩm định Độc lập (Maker - Checker Separation)**: Nhân sự làm xong phải được Reviewer thẩm định độc lập dựa trên Definition of Done (DoD).
+4. **Bounded Feedback Loop**: Tối đa 2 vòng sửa đổi. Nếu quá 2 lần không đạt, tự động escalate lên CEO Inbox cho người dùng duyệt.
+5. **Nạp Cây Tổ Chức vào Não Agent Chủ**: Coordinator tự động nhận diện toàn bộ cơ cấu nhân sự, năng lực và quyền hạn của từng cấp dưới trong System Prompt để tự giao việc đúng người.
+6. **Universal Company Presets**: Mẫu cấu hình đội ngũ toàn diện cho Lập trình, Marketing & Growth, B2B Sales, Nghiên cứu sâu.
 
 ---
 

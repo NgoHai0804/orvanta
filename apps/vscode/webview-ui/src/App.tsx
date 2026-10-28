@@ -85,10 +85,15 @@ const AppContent = () => {
 			openClinePassSubscriptionIfPending(clineUser.appBaseUrl)
 		}
 	}, [clineUser?.uid, clineUser?.appBaseUrl])
+	const [inboxFocusId, setInboxFocusId] = useState<string | undefined>()
+
 	useEffect(() => {
 		const handleMessage = (e: MessageEvent) => {
 			if (e.data?.type === "orvanta_switch_tab" && e.data?.tab) {
 				setOrvantaTab(e.data.tab)
+				if (e.data.tab === "inbox") {
+					setInboxFocusId(e.data.focusDecision || e.data.focusId || undefined)
+				}
 				if (e.data.focusAgentId || e.data.focusAgent) {
 					setFocusAgentId(e.data.focusAgentId || e.data.focusAgent)
 				}
@@ -183,7 +188,7 @@ const AppContent = () => {
 	if (!didHydrateState) {
 		return (
 			<div className="flex h-full min-h-0 w-full flex-col">
-				<OrvantaShell activeTab={orvantaTab} onTabChange={setOrvantaTab} />
+				<OrvantaShell activeTab={orvantaTab} inboxFocusId={inboxFocusId} onTabChange={setOrvantaTab} />
 			</div>
 		)
 	}
@@ -215,7 +220,7 @@ const AppContent = () => {
 			)}
 			{showWorktrees && <WorktreesView onDone={hideWorktrees} />}
 			{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
-			{!overlayOpen && <OrvantaShell activeTab={orvantaTab} onTabChange={setOrvantaTab} />}
+			{!overlayOpen && <OrvantaShell activeTab={orvantaTab} inboxFocusId={inboxFocusId} onTabChange={setOrvantaTab} />}
 			{showOnboarding && !overlayOpen && (
 				<div className="min-h-0 flex-1 overflow-auto">
 					<OnboardingView />

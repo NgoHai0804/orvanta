@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import {
 	CannotFireCoordinatorError,
 	DecisionNotFoundError,
+	DecisionItemSchema,
 	MergeRejectNoteRequiredError,
 	type DecisionItem,
 	type DecisionType,
@@ -56,10 +57,48 @@ export async function loadPendingInbox(
 	}
 	try {
 		const raw = await readFile(pendingPath, "utf-8");
-		const validated = PendingInboxSchema.safeParse(JSON.parse(raw));
-		return validated.success
-			? validated.data
-			: { schemaVersion: SCHEMA_VERSION, items: [] };
+		const parsed = JSON.parse(raw);
+		const directValidation = PendingInboxSchema.safeParse(parsed);
+		if (directValidation.success) {
+			return directValidation.data;
+		}
+
+		// Graceful recovery for individual items if whole array parse fails
+		if (parsed && Array.isArray(parsed.items)) {
+			const sanitizedItems: DecisionItem[] = [];
+			for (const rawItem of parsed.items) {
+				if (!rawItem || typeof rawItem !== "object") continue;
+				const title =
+					typeof rawItem.title === "string" && rawItem.title.trim().length > 0
+						? rawItem.title.trim()
+						: typeof rawItem.summary === "string" && rawItem.summary.trim().length > 0
+							? rawItem.summary.trim()
+							: "Quyết định mới";
+				const summary =
+					typeof rawItem.summary === "string" ? rawItem.summary : title;
+				const payload =
+					rawItem.payload && typeof rawItem.payload === "object"
+						? rawItem.payload
+						: {};
+				const candidate = {
+					...rawItem,
+					title,
+					summary,
+					payload,
+				};
+				const itemVal = DecisionItemSchema.safeParse(candidate);
+
+				if (itemVal.success) {
+					sanitizedItems.push(itemVal.data);
+				}
+			}
+			return {
+				schemaVersion: parsed.schemaVersion || SCHEMA_VERSION,
+				items: sanitizedItems,
+			};
+		}
+
+		return { schemaVersion: SCHEMA_VERSION, items: [] };
 	} catch {
 		return { schemaVersion: SCHEMA_VERSION, items: [] };
 	}
@@ -126,48 +165,58 @@ export async function requestDecision(
 	let duplicate: DecisionItem | undefined;
 	if (input.type === "hire_agent") {
 		const agentId = String(input.payload.agentId || "");
-		duplicate = pending.items.find(
-			(i) =>
-				i.status === "pending" &&
-				i.type === "hire_agent" &&
-				String(i.payload.agentId || "") === agentId,
-		);
+		if (agentId) {
+			duplicate = pending.items.find(
+				(i) =>
+					i.status === "pending" &&
+					i.type === "hire_agent" &&
+					String(i.payload.agentId || "") === agentId,
+			);
+		}
 	} else if (input.type === "fire_agent") {
 		const agentId = String(input.payload.agentId || "");
-		duplicate = pending.items.find(
-			(i) =>
-				i.status === "pending" &&
-				i.type === "fire_agent" &&
-				String(i.payload.agentId || "") === agentId,
-		);
+		if (agentId) {
+			duplicate = pending.items.find(
+				(i) =>
+					i.status === "pending" &&
+					i.type === "fire_agent" &&
+					String(i.payload.agentId || "") === agentId,
+			);
+		}
 	} else if (input.type === "change_role") {
 		const agentId = String(input.payload.agentId || "");
-		duplicate = pending.items.find(
-			(i) =>
-				i.status === "pending" &&
-				i.type === "change_role" &&
-				String(i.payload.agentId || "") === agentId,
-		);
+		if (agentId) {
+			duplicate = pending.items.find(
+				(i) =>
+					i.status === "pending" &&
+					i.type === "change_role" &&
+					String(i.payload.agentId || "") === agentId,
+			);
+		}
 	} else if (input.type === "change_purpose") {
 		duplicate = pending.items.find(
 			(i) => i.status === "pending" && i.type === "change_purpose",
 		);
 	} else if (input.type === "change_scope") {
 		const taskId = String(input.payload.taskId || "");
-		duplicate = pending.items.find(
-			(i) =>
-				i.status === "pending" &&
-				i.type === "change_scope" &&
-				String(i.payload.taskId || "") === taskId,
-		);
+		if (taskId) {
+			duplicate = pending.items.find(
+				(i) =>
+					i.status === "pending" &&
+					i.type === "change_scope" &&
+					String(i.payload.taskId || "") === taskId,
+			);
+		}
 	} else if (input.type === "merge") {
 		const outcomeId = String(input.payload.outcomeId || input.payload.diffSummary || "");
-		duplicate = pending.items.find(
-			(i) =>
-				i.status === "pending" &&
-				i.type === "merge" &&
-				String(i.payload.outcomeId || i.payload.diffSummary || "") === outcomeId,
-		);
+		if (outcomeId) {
+			duplicate = pending.items.find(
+				(i) =>
+					i.status === "pending" &&
+					i.type === "merge" &&
+					String(i.payload.outcomeId || i.payload.diffSummary || "") === outcomeId,
+			);
+		}
 	} else if (input.type === "over_budget") {
 		duplicate = pending.items.find(
 			(i) => i.status === "pending" && i.type === "over_budget",
@@ -178,20 +227,24 @@ export async function requestDecision(
 		);
 	} else if (input.type === "escalate_blocked") {
 		const taskId = String(input.payload.taskId || "");
-		duplicate = pending.items.find(
-			(i) =>
-				i.status === "pending" &&
-				i.type === "escalate_blocked" &&
-				String(i.payload.taskId || "") === taskId,
-		);
+		if (taskId) {
+			duplicate = pending.items.find(
+				(i) =>
+					i.status === "pending" &&
+					i.type === "escalate_blocked" &&
+					String(i.payload.taskId || "") === taskId,
+			);
+		}
 	} else if (input.type === "change_policy") {
 		const key = String(input.payload.key || "");
-		duplicate = pending.items.find(
-			(i) =>
-				i.status === "pending" &&
-				i.type === "change_policy" &&
-				String(i.payload.key || "") === key,
-		);
+		if (key) {
+			duplicate = pending.items.find(
+				(i) =>
+					i.status === "pending" &&
+					i.type === "change_policy" &&
+					String(i.payload.key || "") === key,
+			);
+		}
 	}
 
 	if (duplicate) {
@@ -219,9 +272,9 @@ export async function requestDecision(
 		status: "pending",
 		createdAt: new Date().toISOString(),
 		createdBy: input.createdBy || "coordinator",
-		title: input.title,
-		summary: input.summary,
-		payload: input.payload,
+		title: input.title?.trim() || input.summary?.trim() || "Quyết định mới",
+		summary: input.summary?.trim() || input.title?.trim() || "",
+		payload: input.payload ?? {},
 		urgency: input.urgency || defaultUrgency,
 	};
 
