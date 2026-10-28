@@ -1,12 +1,12 @@
-import { AGENT_TEMPLATES, COORDINATOR_PROFILE_TEMPLATE, PURPOSE_TEMPLATE, parseAgentProfile } from "@cline/shared/orvanta"
-import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
-import { OrvantaAgentProfile, type OrvantaCompanyResponse, type OrvantaDecisionItem } from "@shared/proto/cline/orvanta"
+import { PURPOSE_TEMPLATE } from "@cline/shared/orvanta"
+import { StringRequest } from "@shared/proto/cline/common"
+import type { OrvantaAgentProfile, OrvantaCompanyResponse, OrvantaDecisionItem } from "@shared/proto/cline/orvanta"
 import { useMemo, useState } from "react"
 import MarkdownBlock from "@/components/common/MarkdownBlock"
 import { OrvantaServiceClient } from "@/services/grpc-client"
-import AgentEditor from "./AgentEditor"
 import EditPurposeModal from "./EditPurposeModal"
 import LibraryDialog, { type LibraryDialogMode } from "./LibraryDialog"
+import type { OrvantaTab } from "./OrvantaShell"
 
 interface WorkTask {
 	id: string
@@ -17,53 +17,6 @@ interface WorkTask {
 	dependsOn?: string[]
 	updatedAt?: string
 	reason?: string
-}
-
-function getStatusRank(status: string): number {
-	const s = status.toLowerCase()
-	if (s === "running") return 1
-	if (s === "idle") return 2
-	if (s.startsWith("pending")) return 3
-	if (s === "stopped") return 4
-	return 5
-}
-
-const emptyRequest = {} as EmptyRequest
-
-function templateToProto(content: string, overrideId?: string): OrvantaAgentProfile {
-	try {
-		const parsed = parseAgentProfile(content)
-		return OrvantaAgentProfile.create({
-			id: overrideId !== undefined ? overrideId : parsed.id,
-			displayName: parsed.displayName,
-			role: parsed.role,
-			description: parsed.description,
-			modelId: parsed.modelId ?? undefined,
-			maxIterations: parsed.maxIterations || 40,
-			temperature: parsed.temperature ?? undefined,
-			instructions: parsed.instructions,
-			filePath: parsed.filePath,
-			tools: {
-				allow: parsed.tools?.allow ?? [],
-				deny: parsed.tools?.deny ?? [],
-			},
-			scopePaths: {
-				allow: parsed.scopePaths?.allow ?? [],
-				denyWrite: parsed.scopePaths?.denyWrite ?? [],
-			},
-		})
-	} catch {
-		return OrvantaAgentProfile.create({
-			id: overrideId || "",
-			displayName: "",
-			role: "teammate",
-			description: "",
-			maxIterations: 40,
-			instructions: "",
-			tools: { allow: [], deny: [] },
-			scopePaths: { allow: ["**/*"], denyWrite: [] },
-		})
-	}
 }
 
 type HomeViewProps = {
@@ -86,6 +39,7 @@ type HomeViewProps = {
 		urgency?: string,
 	) => Promise<unknown>
 	isTeamSessionActive?: boolean
+	onTabChange?: (tab: OrvantaTab) => void
 }
 
 const HomeView = ({
@@ -95,17 +49,12 @@ const HomeView = ({
 	createError,
 	onCreate,
 	onRefresh,
-	onSaveAgentProfile,
-	onDeleteAgentProfile,
 	inboxPending,
 	onOpenInbox,
 	onRequestDecision,
-	isTeamSessionActive,
+	onTabChange,
 }: HomeViewProps) => {
 	const [expandedPurpose, setExpandedPurpose] = useState(false)
-	const [showTemplatePicker, setShowTemplatePicker] = useState(false)
-	const [activeEditorProfile, setActiveEditorProfile] = useState<OrvantaAgentProfile | undefined>()
-	const [isEditorNew, setIsEditorNew] = useState(false)
 	const [showMenu, setShowMenu] = useState(false)
 	const [libraryDialogMode, setLibraryDialogMode] = useState<LibraryDialogMode | undefined>()
 	const [showEditPurposeModal, setShowEditPurposeModal] = useState(false)
@@ -117,7 +66,6 @@ const HomeView = ({
 	const [deleteConfirmName, setDeleteConfirmName] = useState("")
 	const [deletingCompany, setDeletingCompany] = useState(false)
 	const [showAllTasks, setShowAllTasks] = useState(false)
-	const [activeAgentMenuId, setActiveAgentMenuId] = useState<string | null>(null)
 
 	const coordinatorAgent = company.agents?.find((a) => a.role === "lead" || a.id === "coordinator")
 
@@ -172,142 +120,12 @@ const HomeView = ({
 		}
 	}
 
-	const handleSelectTemplate = (templateKey: string) => {
-		const tmpl = AGENT_TEMPLATES.find((t) => t.id === templateKey)
-		if (!tmpl) return
-		const proto = templateToProto(tmpl.template, templateKey === "blank" ? "" : templateKey)
-		setActiveEditorProfile(proto)
-		setIsEditorNew(true)
-		setShowTemplatePicker(false)
-	}
-
-	const handleOpenAgent = async (agentId: string) => {
-		try {
-			const res = await OrvantaServiceClient.listAgentProfiles(emptyRequest)
-			const found = res.profiles.find((p) => p.id === agentId)
-			if (found) {
-				setActiveEditorProfile(found)
-				setIsEditorNew(false)
-				return
-			}
-		} catch (err) {
-			console.error("listAgentProfiles error", err)
-		}
-		const agent = (company.agents ?? []).find((a) => a.id === agentId)
-		const fallback =
-			agent?.role === "lead"
-				? templateToProto(COORDINATOR_PROFILE_TEMPLATE, agentId)
-				: OrvantaAgentProfile.create({
-						id: agentId,
-						displayName: agent?.displayName || agentId,
-						role: (agent?.role as string) || "teammate",
-						description: "",
-						maxIterations: 40,
-						instructions: "",
-						tools: { allow: [], deny: [] },
-						scopePaths: { allow: ["**/*"], denyWrite: [] },
-					})
-		setActiveEditorProfile(fallback)
-		setIsEditorNew(false)
-	}
-
-	const handleSaveAgent = async (profile: OrvantaAgentProfile): Promise<boolean> => {
-		const isLive = isTeamSessionActive || Boolean(company.agents?.some((a) => a.status === "running"))
-		if (isEditorNew && isLive && onRequestDecision) {
-			try {
-				await onRequestDecision(
-					"hire_agent",
-					`Tuyển agent '${profile.displayName || profile.id}'`,
-					profile.description || "CEO tạo agent mới khi team đang hoạt động",
-					{
-						agentId: profile.id,
-						displayName: profile.displayName,
-						modelId: profile.modelId,
-						maxIterations: profile.maxIterations,
-						instructions: profile.instructions,
-						tools: profile.tools,
-					},
-					"normal",
-				)
-				setNoticeMessage(
-					`Phiên làm việc đang chạy: Đã gửi đề xuất tuyển agent '${profile.id}' vào Inbox để CEO phê duyệt.`,
-				)
-				return true
-			} catch (err: unknown) {
-				const msg = err instanceof Error ? err.message : String(err)
-				setNoticeMessage(`Lỗi tạo đề xuất tuyển agent: ${msg}`)
-				return false
-			}
-		}
-
-		if (onSaveAgentProfile) {
-			return onSaveAgentProfile(profile)
-		}
-		try {
-			await OrvantaServiceClient.upsertAgentProfile(profile)
-			if (onRefresh) {
-				await onRefresh()
-			}
-			return true
-		} catch (err) {
-			console.error("upsertAgentProfile error", err)
-			return false
-		}
-	}
-
-	const handleDeleteAgent = async (agentId: string): Promise<boolean> => {
-		if (agentId === coordinatorAgent?.id || agentId === "coordinator") {
-			setNoticeMessage("Không thể sa thải coordinator/lead.")
-			return false
-		}
-		if (onRequestDecision) {
-			try {
-				await onRequestDecision(
-					"fire_agent",
-					`Sa thải agent '${agentId}'`,
-					"Yêu cầu sa thải agent từ CEO",
-					{ agentId, reason: "CEO yêu cầu sa thải từ trang Home" },
-					"normal",
-				)
-				setNoticeMessage(`Đã gửi đề xuất sa thải agent '${agentId}' vào Inbox để CEO phê duyệt.`)
-				return true
-			} catch (err: unknown) {
-				const msg = err instanceof Error ? err.message : String(err)
-				setNoticeMessage(`Lỗi tạo đề xuất sa thải: ${msg}`)
-				return false
-			}
-		}
-		if (onDeleteAgentProfile) {
-			return onDeleteAgentProfile(agentId)
-		}
-		try {
-			await OrvantaServiceClient.deleteAgentProfile(StringRequest.create({ value: agentId }))
-			if (onRefresh) {
-				await onRefresh()
-			}
-			return true
-		} catch (err) {
-			console.error("deleteAgentProfile error", err)
-			return false
-		}
-	}
-
 	const errors = company.errors ?? []
 	const agents = company.agents ?? []
 	const purpose = company.purpose ?? ""
 
-	const sortedAgents = useMemo(() => {
-		return [...(company.agents ?? [])].sort((a, b) => {
-			const aIsLead = a.role === "lead" || a.id === "coordinator"
-			const bIsLead = b.role === "lead" || b.id === "coordinator"
-			if (aIsLead && !bIsLead) return -1
-			if (!aIsLead && bIsLead) return 1
-			const rankA = getStatusRank(a.status)
-			const rankB = getStatusRank(b.status)
-			if (rankA !== rankB) return rankA - rankB
-			return a.displayName.localeCompare(b.displayName)
-		})
-	}, [company.agents])
+	const runningCount = useMemo(() => agents.filter((a) => a.status === "running").length, [agents])
+	const idleCount = useMemo(() => agents.filter((a) => a.status === "idle").length, [agents])
 
 	const workTasks: WorkTask[] = useMemo(() => {
 		if (!company.tasksJson) return []
@@ -601,134 +419,45 @@ const HomeView = ({
 						<MarkdownBlock markdown={purpose} />
 					</div>
 				</section>
-				<section className="relative flex flex-col gap-2">
-					<div className="flex items-center justify-between">
-						<h3 className="text-xs font-bold uppercase tracking-wide opacity-70">Roster</h3>
+				<section className="rounded border border-border-panel bg-surface-secondary/20 p-2.5">
+					<div className="flex items-center justify-between mb-2">
+						<div className="flex items-center gap-1.5 font-semibold text-xs">
+							<span>Đội ngũ Agents</span>
+							<span className="rounded-full bg-(--vscode-badge-background) px-1.5 py-0.2 text-[10px] text-(--vscode-badge-foreground)">
+								{agents.length}
+							</span>
+						</div>
 						<button
-							className="rounded border border-border-panel px-2 py-0.5 text-xs hover:bg-white/5"
-							onClick={() => setShowTemplatePicker(true)}
+							className="text-xs text-(--vscode-textLink-foreground) hover:underline flex items-center gap-1"
+							onClick={() => {
+								if (onTabChange) {
+									onTabChange("agents")
+								} else {
+									window.postMessage({ type: "orvanta_switch_tab", tab: "agents" }, "*")
+								}
+							}}
 							type="button">
-							+ Thêm agent
+							Xem sơ đồ cây & Quản lý Agents →
 						</button>
 					</div>
-					<div className="flex flex-col gap-2">
-						{sortedAgents.map((agent) => (
-							<div
-								className="flex w-full items-center justify-between rounded border border-border-panel bg-(--vscode-editor-background) px-2.5 py-2 text-left"
-								key={agent.id}>
-								<button
-									className="flex-1 cursor-pointer text-left"
-									onClick={() => handleOpenAgent(agent.id)}
-									type="button">
-									<div className="font-medium text-xs">{agent.displayName}</div>
-									<div className="text-[11px] opacity-60">@{agent.id}</div>
-								</button>
-								<div className="flex items-center gap-1.5 text-xs">
-									<span className="rounded bg-(--vscode-badge-background) px-1.5 py-0.5 text-[10px] font-semibold uppercase text-(--vscode-badge-foreground)">
-										{agent.role}
-									</span>
-									<span className="rounded border border-border-panel px-1.5 py-0.5 text-[10px] opacity-80">
-										{agent.status}
-									</span>
-									<button
-										className="text-[11px] opacity-70 hover:opacity-100 px-1"
-										onClick={() => handleOpenAgent(agent.id)}
-										title="Sửa cấu hình agent"
-										type="button">
-										Sửa
-									</button>
-									<div className="relative">
-										<button
-											className="rounded px-1 text-xs opacity-60 hover:opacity-100"
-											onClick={() => setActiveAgentMenuId((prev) => (prev === agent.id ? null : agent.id))}
-											title="Tùy chọn"
-											type="button">
-											···
-										</button>
-										{activeAgentMenuId === agent.id && (
-											<div className="absolute right-0 top-full z-20 mt-1 min-w-28 rounded border border-border-panel bg-(--vscode-editor-background) p-1 shadow-xl">
-												<button
-													className="w-full rounded px-2.5 py-1 text-left text-xs hover:bg-white/5"
-													onClick={() => {
-														setActiveAgentMenuId(null)
-														window.postMessage(
-															{ type: "orvanta_switch_tab", tab: "chat", focusAgentId: agent.id },
-															"*",
-														)
-													}}
-													type="button">
-													Chat
-												</button>
-												<button
-													className="w-full rounded px-2.5 py-1 text-left text-xs hover:bg-white/5"
-													onClick={() => {
-														setActiveAgentMenuId(null)
-														window.postMessage({ type: "orvanta_switch_tab", tab: "war-room" }, "*")
-													}}
-													type="button">
-													War room
-												</button>
-												{agent.role !== "lead" && agent.id !== "coordinator" && (
-													<button
-														className="w-full rounded px-2.5 py-1 text-left text-xs text-red-400 hover:bg-red-500/10"
-														onClick={() => {
-															setActiveAgentMenuId(null)
-															void handleDeleteAgent(agent.id)
-														}}
-														type="button">
-														Sa thải
-													</button>
-												)}
-											</div>
-										)}
-									</div>
-								</div>
-							</div>
-						))}
-					</div>
-				</section>
-
-				{/* Template Picker Modal */}
-				{showTemplatePicker && (
-					<div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 p-4">
-						<div className="flex max-w-sm w-full flex-col gap-3 rounded border border-border-panel bg-(--vscode-editor-background) p-4 shadow-xl">
-							<div className="flex items-center justify-between">
-								<h3 className="font-semibold text-sm">Chọn template agent</h3>
-								<button
-									className="text-xs opacity-60 hover:opacity-100"
-									onClick={() => setShowTemplatePicker(false)}
-									type="button">
-									✕
-								</button>
-							</div>
-							<div className="flex flex-col gap-1.5">
-								{AGENT_TEMPLATES.map((tmpl) => (
-									<button
-										className="flex flex-col rounded border border-border-panel p-2 text-left hover:bg-white/5"
-										key={tmpl.id}
-										onClick={() => handleSelectTemplate(tmpl.id)}
-										type="button">
-										<span className="font-medium text-xs">{tmpl.label}</span>
-										<span className="text-[11px] opacity-70">{tmpl.description}</span>
-									</button>
-								))}
-							</div>
+					<div className="flex flex-wrap items-center gap-4 text-xs">
+						<div className="flex items-center gap-1.5">
+							<span className="h-2 w-2 rounded-full bg-slate-400" />
+							<span className="opacity-75">Tổng:</span>
+							<span className="font-semibold">{agents.length} agents</span>
+						</div>
+						<div className="flex items-center gap-1.5">
+							<span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+							<span className="opacity-75">Đang chạy:</span>
+							<span className="font-semibold text-amber-300">{runningCount} running</span>
+						</div>
+						<div className="flex items-center gap-1.5">
+							<span className="h-2 w-2 rounded-full bg-emerald-400" />
+							<span className="opacity-75">Đang chờ:</span>
+							<span className="font-semibold text-emerald-300">{idleCount} idle</span>
 						</div>
 					</div>
-				)}
-
-				{/* Agent Editor Overlay */}
-				{activeEditorProfile && (
-					<AgentEditor
-						existingIds={agents.map((a) => a.id)}
-						initialProfile={activeEditorProfile}
-						isCoordinator={activeEditorProfile.role === "lead"}
-						isNew={isEditorNew}
-						onClose={() => setActiveEditorProfile(undefined)}
-						onDelete={handleDeleteAgent}
-						onSave={handleSaveAgent}
-					/>
-				)}
+				</section>
 
 				{/* Library Dialog Overlay */}
 				{libraryDialogMode && (

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	type AgentProfile,
 	AGENT_ID_RE,
 	ensureMandatoryDenyWrite,
 	MANDATORY_DENY_WRITE_PATHS,
@@ -62,16 +63,166 @@ describe("agent-profile schema & serialization", () => {
 		expect(roundTripped.displayName).toBe(original.displayName);
 		expect(roundTripped.description).toBe(original.description);
 		expect(roundTripped.role).toBe(original.role);
+		expect(roundTripped.reportsTo).toBe(original.reportsTo);
 		expect(roundTripped.providerId).toBe(original.providerId);
 		expect(roundTripped.modelId).toBe(original.modelId);
 		expect(roundTripped.maxIterations).toBe(original.maxIterations);
 		expect(roundTripped.temperature).toBe(original.temperature);
+		expect(roundTripped.reasoningEffort).toBe(original.reasoningEffort);
+		expect(roundTripped.supportsImages).toBe(original.supportsImages);
+		expect(roundTripped.contextWindow).toBe(original.contextWindow);
+		expect(roundTripped.maxOutputTokens).toBe(original.maxOutputTokens);
 		expect(roundTripped.tools).toEqual(original.tools);
 		expect(roundTripped.scopePaths.allow).toEqual(original.scopePaths.allow);
 		expect(roundTripped.scopePaths.denyWrite).toEqual(
 			original.scopePaths.denyWrite,
 		);
+		expect(roundTripped.rules).toEqual(original.rules);
+		expect(roundTripped.skills).toEqual(original.skills);
 		expect(roundTripped.instructions).toBe(original.instructions);
+	});
+
+	it("round-trips serialize and parse with all v0.0.2 extended fields", () => {
+		const fullProfile: AgentProfile = {
+			id: "implementer",
+			displayName: "Lead Implementer",
+			description: "Viết code và thực thi các task kỹ thuật theo yêu cầu",
+			role: "teammate",
+			reportsTo: "coordinator",
+			providerId: "anthropic",
+			modelId: "claude-3-7-sonnet-20250219",
+			maxIterations: 40,
+			temperature: 0.2,
+			reasoningEffort: "medium",
+			supportsImages: true,
+			contextWindow: 200000,
+			maxOutputTokens: 16384,
+			tools: {
+				allow: ["read_files", "write_to_file", "apply_diff"],
+				deny: ["team_spawn_teammate"],
+			},
+			scopePaths: {
+				allow: ["**/*"],
+				denyWrite: [
+					".orvanta/purpose.md",
+					".orvanta/company.json",
+					".orvanta/org/roster.json",
+				],
+			},
+			rules: ["code-simplification", "test-driven-development"],
+			skills: ["code-review-and-quality"],
+			instructions: "Bạn là implementer của công ty này.",
+			filePath: "org/agents/implementer/profile.md",
+		};
+
+		const serialized = serializeAgentProfile(fullProfile);
+		expect(serialized).toContain("reportsTo: coordinator");
+		expect(serialized).toContain("reasoningEffort: medium");
+		expect(serialized).toContain("supportsImages: true");
+		expect(serialized).toContain("contextWindow: 200000");
+		expect(serialized).toContain("maxOutputTokens: 16384");
+		expect(serialized).toContain("- code-simplification");
+		expect(serialized).toContain("- test-driven-development");
+		expect(serialized).toContain("- code-review-and-quality");
+
+		const parsed = parseAgentProfile(serialized);
+		expect(parsed.id).toBe(fullProfile.id);
+		expect(parsed.displayName).toBe(fullProfile.displayName);
+		expect(parsed.description).toBe(fullProfile.description);
+		expect(parsed.role).toBe(fullProfile.role);
+		expect(parsed.reportsTo).toBe("coordinator");
+		expect(parsed.providerId).toBe("anthropic");
+		expect(parsed.modelId).toBe("claude-3-7-sonnet-20250219");
+		expect(parsed.maxIterations).toBe(40);
+		expect(parsed.temperature).toBe(0.2);
+		expect(parsed.reasoningEffort).toBe("medium");
+		expect(parsed.supportsImages).toBe(true);
+		expect(parsed.contextWindow).toBe(200000);
+		expect(parsed.maxOutputTokens).toBe(16384);
+		expect(parsed.tools).toEqual(fullProfile.tools);
+		expect(parsed.scopePaths).toEqual(fullProfile.scopePaths);
+		expect(parsed.rules).toEqual(["code-simplification", "test-driven-development"]);
+		expect(parsed.skills).toEqual(["code-review-and-quality"]);
+		expect(parsed.instructions).toBe(fullProfile.instructions);
+	});
+
+	it("parses scalar, flow array, and block list for rules and skills", () => {
+		const blockYaml = `---
+id: coder
+displayName: Coder
+description: ""
+role: teammate
+rules:
+  - rule-a
+  - rule-b
+skills:
+  - skill-1
+---
+
+Do coding.
+`;
+		const parsedBlock = parseAgentProfile(blockYaml);
+		expect(parsedBlock.rules).toEqual(["rule-a", "rule-b"]);
+		expect(parsedBlock.skills).toEqual(["skill-1"]);
+
+		const flowYaml = `---
+id: coder
+displayName: Coder
+description: ""
+role: teammate
+rules: [rule-x, rule-y]
+skills: [skill-z]
+---
+
+Do coding.
+`;
+		const parsedFlow = parseAgentProfile(flowYaml);
+		expect(parsedFlow.rules).toEqual(["rule-x", "rule-y"]);
+		expect(parsedFlow.skills).toEqual(["skill-z"]);
+
+		const scalarYaml = `---
+id: coder
+displayName: Coder
+description: ""
+role: teammate
+rules: single-rule
+skills: single-skill
+---
+
+Do coding.
+`;
+		const parsedScalar = parseAgentProfile(scalarYaml);
+		expect(parsedScalar.rules).toEqual(["single-rule"]);
+		expect(parsedScalar.skills).toEqual(["single-skill"]);
+	});
+
+	it("correctly parses null, boolean, and numbers for new fields", () => {
+		const rawYaml = `---
+id: tester
+displayName: Tester
+description: ""
+role: teammate
+reportsTo: null
+providerId: null
+modelId: null
+reasoningEffort: null
+supportsImages: false
+contextWindow: 128000
+maxOutputTokens: 8192
+temperature: 0.7
+---
+
+Testing.
+`;
+		const parsed = parseAgentProfile(rawYaml);
+		expect(parsed.reportsTo).toBeNull();
+		expect(parsed.providerId).toBeNull();
+		expect(parsed.modelId).toBeNull();
+		expect(parsed.reasoningEffort).toBeNull();
+		expect(parsed.supportsImages).toBe(false);
+		expect(parsed.contextWindow).toBe(128000);
+		expect(parsed.maxOutputTokens).toBe(8192);
+		expect(parsed.temperature).toBe(0.7);
 	});
 
 	it("serializes null model and provider as literal null, not string 'null'", () => {

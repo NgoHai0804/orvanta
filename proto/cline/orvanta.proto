@@ -11,6 +11,7 @@ option java_package = "bot.cline.proto";
 service OrvantaService {
   rpc getCompany(EmptyRequest) returns (OrvantaCompanyResponse);
   rpc createCompany(OrvantaCreateCompanyRequest) returns (OrvantaCompanyResponse);
+  rpc deleteCompany(StringRequest) returns (OrvantaCompanyResponse);
   rpc subscribeCompany(EmptyRequest) returns (stream OrvantaCompanyResponse);
   rpc listAgentProfiles(EmptyRequest) returns (OrvantaAgentProfileList);
   rpc upsertAgentProfile(OrvantaAgentProfile) returns (OrvantaAgentProfile);
@@ -19,6 +20,10 @@ service OrvantaService {
   rpc saveCompanyToLibrary(OrvantaSaveLibraryRequest) returns (OrvantaLibraryList);
   rpc loadCompanyFromLibrary(OrvantaLoadLibraryRequest) returns (OrvantaCompanyResponse);
   rpc deleteLibraryCompany(StringRequest) returns (OrvantaLibraryList);
+  rpc listInbox(EmptyRequest) returns (OrvantaInboxResponse);
+  rpc resolveDecision(OrvantaResolveDecisionRequest) returns (OrvantaResolveDecisionResponse);
+  rpc requestDecision(OrvantaRequestDecisionRequest) returns (OrvantaDecisionItem);
+  rpc subscribeWarRoom(EmptyRequest) returns (stream OrvantaWarRoomSnapshot);
 }
 
 message OrvantaCreateCompanyRequest {
@@ -31,6 +36,7 @@ message OrvantaRosterAgent {
   string display_name = 2;
   string role = 3;
   string status = 4;
+  optional string reports_to = 5;
 }
 
 message OrvantaCompanyResponse {
@@ -41,6 +47,7 @@ message OrvantaCompanyResponse {
   string purpose = 5;
   string team_name = 6;
   repeated OrvantaRosterAgent agents = 7;
+  string tasks_json = 8;
 }
 
 message OrvantaAgentTools {
@@ -65,6 +72,14 @@ message OrvantaAgentProfile {
   string file_path = 9;
   OrvantaAgentTools tools = 10;
   OrvantaAgentScopePaths scope_paths = 11;
+  optional string reports_to = 12;
+  optional string reasoning_effort = 13;
+  optional bool supports_images = 14;
+  optional int32 context_window = 15;
+  optional int32 max_output_tokens = 16;
+  repeated string rules = 17;
+  repeated string skills = 18;
+  optional string provider_id = 19;
 }
 
 message OrvantaAgentProfileList {
@@ -95,3 +110,93 @@ message OrvantaLoadLibraryRequest {
   string slug = 1;
   bool replace = 2;
 }
+
+message OrvantaDecisionItem {
+  string id = 1;
+  string type = 2;
+  string status = 3;
+  string created_at = 4;
+  string created_by = 5;
+  string title = 6;
+  string summary = 7;
+  string payload_json = 8;
+  string urgency = 9;
+}
+
+message OrvantaHistoryEntry {
+  string id = 1;
+  string type = 2;
+  string status = 3;
+  string resolved_at = 4;
+  string resolved_by = 5;
+  string note = 6;
+  string title = 7;
+  string summary = 8;
+  string payload_json = 9;
+  string urgency = 10;
+  string created_at = 11;
+  string created_by = 12;
+}
+
+message OrvantaInboxResponse {
+  repeated OrvantaDecisionItem pending = 1;
+  repeated OrvantaDecisionItem deferred = 2;
+  repeated OrvantaHistoryEntry history = 3;
+  int32 pending_count = 4;
+}
+
+message OrvantaResolveDecisionRequest {
+  string id = 1;
+  string action = 2;
+  string note = 3;
+}
+
+message OrvantaResolveDecisionResponse {
+  bool success = 1;
+  string error = 2;
+  optional OrvantaHistoryEntry resolved = 3;
+  optional OrvantaDecisionItem item = 4;
+}
+
+message OrvantaRequestDecisionRequest {
+  string type = 1;
+  string title = 2;
+  string summary = 3;
+  string payload_json = 4;
+  optional string urgency = 5;
+}
+
+// War Room messages
+
+message OrvantaCardBufferLine {
+  // kind: "text" | "tool_start" | "tool_result" | "deny" | "progress" | "error" | "think"
+  string kind = 1;
+  string text = 2;
+}
+
+message OrvantaAgentCard {
+  string id = 1;
+  string display_name = 2;
+  string role = 3;
+  // status: idle | queued | running | completed | failed | cancelled | interrupted | stopped
+  string status = 4;
+  // task title currently assigned
+  string task_title = 5;
+  // elapsed seconds if running (0 otherwise)
+  int64 elapsed_seconds = 6;
+  // ring buffer of last 20 activity lines
+  repeated OrvantaCardBufferLine buffer = 7;
+  // true for ephemeral/guest agents
+  bool is_ephemeral = 8;
+  int64 input_tokens = 9;
+  int64 output_tokens = 10;
+  double cost = 11;
+}
+
+message OrvantaWarRoomSnapshot {
+  repeated OrvantaAgentCard cards = 1;
+  string company_name = 2;
+  string purpose_one_liner = 3;
+}
+
+

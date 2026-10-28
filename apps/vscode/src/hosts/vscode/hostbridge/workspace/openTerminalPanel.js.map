@@ -1,0 +1,1 @@
+{"version":3,"file":"openTerminalPanel.js","sourceRoot":"","sources":["openTerminalPanel.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,MAAM,MAAM,QAAQ,CAAA;AAGhC,MAAM,CAAC,KAAK,UAAU,iBAAiB,CAAC,CAAsB;IAC7D,MAAM,CAAC,QAAQ,CAAC,cAAc,CAAC,iCAAiC,CAAC,CAAA;IACjE,OAAO,EAAE,CAAA;AACV,CAAC"}

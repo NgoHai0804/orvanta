@@ -1,70 +1,44 @@
-# Orvanta — tài liệu sản phẩm
+# Orvanta — Tài liệu Kiến trúc & Sản phẩm
 
-Orvanta là lớp **công ty AI theo từng repo**, xây trên fork Cline. Người dùng (CEO nhẹ) set mục tiêu; đội agent tự chia việc; agent không lệch role; việc chạy xuyên session; CEO chỉ duyệt quyết định lớn.
+Orvanta là lớp **công ty AI theo từng repository**, xây dựng trên nền tảng Cline. Người dùng đóng vai trò CEO định hình mục tiêu công ty; hệ thống đội ngũ AI tự phối hợp phân chia công việc theo vai trò chuẩn mực; CEO theo dõi trạng thái và phê duyệt các quyết định quan trọng.
 
-Bộ tài liệu này mô tả **đầy đủ chức năng A + B + C + D** trước khi viết code. Implementation chưa bắt đầu.
+---
 
-## Cách đọc
+## Cấu trúc Phiên bản Tài liệu
 
-| Thứ tự | File | Đọc khi nào |
-|---|---|---|
-| 1 | [00-vision.md](./00-vision.md) | Bức tranh: vấn đề, metaphor, thương hiệu |
-| 2 | [01-intent.md](./01-intent.md) | Intent đã chốt với founder |
-| 3 | [02-principles.md](./02-principles.md) | Luật thiết kế, CEO nhẹ, Not Doing |
-| 4 | [03-capability-map.md](./03-capability-map.md) | Module, phụ thuộc, thứ tự build |
-| 5 | [04-information-architecture.md](./04-information-architecture.md) | Màn hình, điều hướng, badge |
-| 6 | [05-schema-orvanta.md](./05-schema-orvanta.md) | Hợp đồng thư mục `.orvanta/` |
-| 7 | [06-purpose-lock.md](./06-purpose-lock.md) | Cơ chế giữ agent đúng mục tiêu |
-| 8 | [07-user-journeys.md](./07-user-journeys.md) | Hành trình người dùng end-to-end |
-| 9 | [08-glossary.md](./08-glossary.md) | Thuật ngữ |
-| 10 | [09-two-stores.md](./09-two-stores.md) | Workspace `.orvanta` vs `%USERPROFILE%\.orvanta` |
-| 11 | [10-agent-spaces.md](./10-agent-spaces.md) | Vùng từng agent, lock, mailbox + handoff |
-| 12 | [11-rebrand.md](./11-rebrand.md) | Đổi tên Orvanta, gỡ Cline Inc — không rename `@cline/*` vội |
-| 13 | [12-audit.md](./12-audit.md) | Rà soát lệch / vướng trước khi code |
-| 14 | [13-flow-ceo-coding.md](./13-flow-ceo-coding.md) | Luồng CEO giao việc coding (ví dụ rate limit) |
-| — | [SPEC-agent-config.md](./SPEC-agent-config.md) | Sửa từng agent, ghi workspace |
-| — | [SPEC-company-library.md](./SPEC-company-library.md) | Lưu / Tải công ty (nhiều slug) |
-| — | [phases/README.md](./phases/README.md) | **Chỗ agent đọc để code** — P1…P9 |
-| — | [SPEC-A-company-home.md](./SPEC-A-company-home.md) | **A** Company home |
-| — | [SPEC-B-ceo-inbox.md](./SPEC-B-ceo-inbox.md) | **B** Inbox CEO |
-| — | [SPEC-C-chat-sidebar.md](./SPEC-C-chat-sidebar.md) | **C** Chat + sidebar đội |
-| — | [SPEC-D-war-room.md](./SPEC-D-war-room.md) | **D** War room live |
-| — | [CHECKLIST.md](./CHECKLIST.md) | Checklist chức năng (nguồn sự thật khi implement) |
-| — | [ROADMAP.md](./ROADMAP.md) | Pha triển khai, dù vision là A–D đủ |
-| — | [../decisions/ADR-001-orvanta-company-on-cline.md](../decisions/ADR-001-orvanta-company-on-cline.md) | Quyết định kiến trúc: lớp trên Cline, không rebuild runtime |
+Tài liệu thiết kế và đặc tả kỹ thuật được phân chia theo 2 phiên bản:
 
-## Bốn bề mặt (A–D)
+### 📁 [v0.0.1 (Tài liệu Nền tảng Ban đầu)](./v0.0.1/README.md)
+Chứa toàn bộ tài liệu kiến trúc ban đầu từ Phase P1 đến Phase P9, bộ 4 bề mặt chính (A–D):
+- **A — Company Home**: Trang chủ công ty (Purpose, Roster dạng danh sách phẳng, Work now).
+- **B — CEO Inbox**: Hộp thư duyệt quyết định (Hire agent, Change purpose, Fire agent...).
+- **C — Chat & Team Sidebar**: Luồng trao đổi với Coordinator và thanh công việc song song.
+- **D — War Room**: Bảng điều khiển giám sát trực tiếp hoạt động toàn đội.
+- Các tài liệu nguyên lý, schema thư mục `.orvanta/`, purpose-lock và thư viện công ty (Company Library).
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  Activity Bar · Orvanta                                 │
-│  Home (A) · Inbox (B) · Chat (C) · War room (D)         │
-└─────────────────────────────────────────────────────────┘
-        │            │           │              │
-        ▼            ▼           ▼              ▼
-   purpose        quyết định   nói chuyện    nhìn live
-   roster         hire/scope   coordinator   từng agent
-   việc đang chạy merge/fire   + sidebar đội stream song song
-   badge inbox
-```
+---
 
-Tháng đầu **implement A trước**. Chat Cline (lõi của C) đã tồn tại — không viết lại. B và D được spec đầy đủ ở đây để không mất tầm nhìn.
+### 🚀 [v0.0.2 (Phiên bản Cải tiến Mới — Roster & Agents Tree)](./v0.0.2/README.md)
+Phiên bản nâng cấp toàn diện trang **Home** và hệ thống quản lý **Agents**:
+1. **Tách Roster thành Tab Agents riêng** trên thanh điều hướng `OrvantaShell` (`Home | Agents | Inbox | Chat | War room`).
+2. **Sơ đồ cây phân cấp Agent đa tầng (Multi-level Tree Org Chart)**: Mô hình hóa rõ nét quan hệ *Agent nào quản lý agent nào* thông qua trường `reportsTo`.
+3. **Bố cục Split View Trên - Dưới**: Nửa trên là sơ đồ cây tương tác trực quan; Nửa dưới là khu vực cấu hình chi tiết của Agent đang chọn.
+4. **Cấu hình Agent 5 Tabs chuyên biệt**:
+   - Tab 1: **Profile** (Thông tin chung, vai trò, quản lý bởi).
+   - Tab 2: **Model & Thông số AI** (Combobox chọn model từ catalog, Reasoning, Supports Images, Context Window, Max Output Tokens, Temperature).
+   - Tab 3: **Tools & Quyền hạn** (Combobox chọn tools allow/deny, phạm vi thư mục).
+   - Tab 4: **Instructions & Rules** (System instructions & Rules gán cho agent).
+   - Tab 5: **Skills** (Thư viện kỹ năng cấp phép cho agent).
+5. **UI & Hiệu ứng Chuẩn**: Thiết kế pixel-perfect, animation mượt mà, theme màu tối Indigo/Violet/Navy, tương thích chuẩn VS Code.
+6. **Logic Chuẩn Xác**: Thuật toán dựng cây, chống chu trình (cycle detection), tự động điền specs từ catalog, xử lý fallback khi agent cha bị xóa.
+7. **Actionable AI Checklist**: Bộ checklist chi tiết đến từng file, từng hàm và từng test case để AI triển khai code chính xác 100%.
 
-## Giả định đang dùng (sửa ngay nếu sai)
+---
 
-1. Surface chính là **VS Code extension** hiện có (`apps/vscode`), không tạo extension mới.
-2. Runtime đội = Cline Agent Teams (`enableAgentTeams`), không viết orchestrator mới.
-3. Workspace `<folder>/.orvanta/` = công ty đang chạy. User `%USERPROFILE%/.orvanta/companies/<slug>/` = snapshot điều lệ+đội khi CEO bấm Lưu. Cả hai gitignore / ngoài repo.
-4. Một người dùng (founder). Chưa multi-user, chưa marketplace.
-5. Thương hiệu: Indigo · Violet · Dark Navy.
-6. Cấu hình từng agent ghi thẳng workspace. Authoring ≠ Inbox hire.
+## Danh mục tài liệu trong v0.0.2
 
-## Trạng thái
-
-| Hạng mục | Trạng thái |
-|---|---|
-| Intent | Đã chốt (kèm thư viện công ty) |
-| Spec A–D + agent + library | Đã viết |
-| Pha code P1–P9 | Đã viết — agent bắt đầu từ P1 |
-| Code | Chưa bắt đầu |
-| ADR-001 / ADR-002 | Proposed |
+- [`v0.0.2/README.md`](./v0.0.2/README.md): Tổng quan phiên bản v0.0.2.
+- [`v0.0.2/01-SPEC-UI-UX-EFFECTS.md`](./v0.0.2/01-SPEC-UI-UX-EFFECTS.md): Đặc tả chi tiết UI, Bố cục & Hiệu ứng chuyển động chuẩn.
+- [`v0.0.2/02-SPEC-BUSINESS-LOGIC.md`](./v0.0.2/02-SPEC-BUSINESS-LOGIC.md): Đặc tả Logic nghiệp vụ, thuật toán cây, quy tắc phân cấp & đồng bộ.
+- [`v0.0.2/03-SPEC-DATA-CONTRACTS.md`](./v0.0.2/03-SPEC-DATA-CONTRACTS.md): Đặc tả Protobuf, Zod Schemas & định dạng YAML Frontmatter.
+- [`v0.0.2/04-AI-IMPLEMENTATION-CHECKLIST.md`](./v0.0.2/04-AI-IMPLEMENTATION-CHECKLIST.md): Bộ checklist triển khai chi tiết cho AI Agent.

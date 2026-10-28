@@ -1,0 +1,74 @@
+// Maps the extension's legacy Bedrock ApiConfiguration onto the SDK's
+// structured AWS provider options (region + aws block).
+//
+// Both inference paths need this:
+//   - buildSdkProviderConfig() in sdk-api-handler.ts (standalone utility calls)
+//   - buildSessionConfig() in cline-session-factory.ts (main task loop, which
+//     hands a CoreSessionConfig.providerConfig to ClineCore)
+//
+// Without it, the SDK gateway never receives the AWS region or authentication
+// mode, so a pasted Bedrock API key (awsBedrockApiKey + awsAuthentication
+// "apikey") is silently ignored and requests fall through to the SigV4
+// credential chain with no region. This mirrors the structured aws block built
+// by the shared provider-settings legacy migration and the CLI.
+function trimToUndefined(value) {
+	if (typeof value !== "string") {
+		return undefined
+	}
+	const trimmed = value.trim()
+	return trimmed.length > 0 ? trimmed : undefined
+}
+/**
+ * Map the webview's `awsAuthentication` radio value onto the SDK's
+ * `AwsConfig.authentication` spelling.
+ *
+ * The Bedrock settings UI stores `"apikey"`, `"profile"`, or `"credentials"`.
+ * The SDK understands `"apikey"`/`"api-key"`, `"profile"`, and `"iam"`. The
+ * webview's `"credentials"` option means "use the default AWS credential
+ * chain", which is `"iam"` in SDK terms. When unset, fall back to the same
+ * heuristic the UI uses for its default radio selection (profile when an AWS
+ * profile is configured, otherwise the default credential chain).
+ */
+export function resolveBedrockAuthentication(configuration) {
+	const explicit = configuration.awsAuthentication
+	if (explicit === "apikey" || explicit === "api-key" || explicit === "profile" || explicit === "iam") {
+		return explicit
+	}
+	if (explicit === "credentials") {
+		return "iam"
+	}
+	// No explicit selection: mirror the webview's default radio resolution.
+	if (configuration.awsUseProfile || trimToUndefined(configuration.awsProfile)) {
+		return "profile"
+	}
+	return "iam"
+}
+/**
+ * Build the Bedrock `region` + `aws` portion of the SDK ProviderConfig from the
+ * extension's ApiConfiguration for the given mode (plan/act).
+ */
+export function buildBedrockProviderConfig(configuration, mode) {
+	const authentication = resolveBedrockAuthentication(configuration)
+	const usesProfile = authentication === "profile"
+	const aws = {
+		accessKey: trimToUndefined(configuration.awsAccessKey),
+		secretKey: trimToUndefined(configuration.awsSecretKey),
+		sessionToken: trimToUndefined(configuration.awsSessionToken),
+		authentication,
+		profile: usesProfile ? trimToUndefined(configuration.awsProfile) : undefined,
+		usePromptCache: configuration.awsBedrockUsePromptCache,
+		endpoint: trimToUndefined(configuration.awsBedrockEndpoint),
+		customModelBaseId: trimToUndefined(
+			mode === "plan"
+				? configuration.planModeAwsBedrockCustomModelBaseId
+				: configuration.actModeAwsBedrockCustomModelBaseId,
+		),
+	}
+	return {
+		region: trimToUndefined(configuration.awsRegion),
+		aws,
+		useCrossRegionInference: configuration.awsUseCrossRegionInference,
+		useGlobalInference: configuration.awsUseGlobalInference,
+	}
+}
+//# sourceMappingURL=bedrock-config.js.map

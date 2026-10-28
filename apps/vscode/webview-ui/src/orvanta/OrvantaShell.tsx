@@ -1,4 +1,5 @@
 import { useState } from "react"
+import AgentsView from "./AgentsView"
 import HomeView from "./HomeView"
 import InboxView from "./InboxView"
 import { useOrvantaCompany } from "./useOrvantaCompany"
@@ -6,7 +7,7 @@ import { useOrvantaInbox } from "./useOrvantaInbox"
 import { useWarRoom } from "./useWarRoom"
 import WarRoomView from "./WarRoomView"
 
-export type OrvantaTab = "home" | "inbox" | "chat" | "war-room"
+export type OrvantaTab = "home" | "agents" | "inbox" | "chat" | "war-room"
 
 type OrvantaShellProps = {
 	activeTab: OrvantaTab
@@ -43,6 +44,12 @@ const OrvantaShell = ({ activeTab, onTabChange }: OrvantaShellProps) => {
 	}> = [
 		{ id: "home", label: "Home", enabled: true },
 		{
+			id: "agents",
+			label: "Agents",
+			enabled: isCompanyReady,
+			title: isCompanyReady ? "Sơ đồ tổ chức & quản lý Agents" : "Lập công ty để mở Agents",
+		},
+		{
 			id: "inbox",
 			label: "Inbox",
 			enabled: isCompanyReady,
@@ -58,7 +65,7 @@ const OrvantaShell = ({ activeTab, onTabChange }: OrvantaShellProps) => {
 		},
 	]
 
-	const isFullView = activeTab === "home" || activeTab === "inbox" || activeTab === "war-room"
+	const isFullView = activeTab === "home" || activeTab === "agents" || activeTab === "inbox" || activeTab === "war-room"
 
 	return (
 		<div className={isFullView ? "flex h-full min-h-0 flex-1 flex-col overflow-hidden" : "shrink-0"}>
@@ -105,7 +112,11 @@ const OrvantaShell = ({ activeTab, onTabChange }: OrvantaShellProps) => {
 					}}
 					onRequestDecision={requestDecision}
 					onSaveAgentProfile={saveAgentProfile}
+					onTabChange={onTabChange}
 				/>
+			)}
+			{activeTab === "agents" && (
+				<AgentsView company={company} onDeleteAgentProfile={deleteAgentProfile} onSaveAgentProfile={saveAgentProfile} />
 			)}
 			{activeTab === "inbox" && (
 				<InboxView

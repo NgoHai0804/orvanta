@@ -10,6 +10,8 @@ export {
 	MANDATORY_DENY_WRITE_PATHS,
 	parseAgentProfile,
 	parseYamlFrontmatter,
+	type ReasoningEffort,
+	ReasoningEffortSchema,
 	serializeAgentProfile,
 } from "./agent-profile";
 export {

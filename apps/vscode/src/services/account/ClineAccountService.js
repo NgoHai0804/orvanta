@@ -1,0 +1,277 @@
+import axios from "axios"
+import { ClineEnv } from "@/config"
+import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
+import { getAxiosSettings } from "@/shared/net"
+import { Logger } from "@/shared/services/Logger"
+import { AuthService } from "../auth/AuthService"
+import { buildBasicClineHeaders } from "../EnvUtils"
+export class ClineAccountService {
+	static instance
+	_authService
+	constructor() {
+		this._authService = AuthService.getInstance()
+	}
+	/**
+	 * Returns the singleton instance of ClineAccountService
+	 * @returns Singleton instance of ClineAccountService
+	 */
+	static getInstance() {
+		if (!ClineAccountService.instance) {
+			ClineAccountService.instance = new ClineAccountService()
+		}
+		return ClineAccountService.instance
+	}
+	/**
+	 * Returns the base URL for the Cline API
+	 * @returns The base URL as a string
+	 */
+	get baseUrl() {
+		return ClineEnv.config().apiBaseUrl
+	}
+	/**
+	 * Helper function to make authenticated requests to the Cline API
+	 * @param endpoint The API endpoint to call (without the base URL)
+	 * @param config Additional axios request configuration
+	 * @param options.allowNullData When true, allows response.data.data to be null without throwing.
+	 *   Callers must include `| null` in T and handle null themselves.
+	 *   Used by endpoints like /users/me/remote-config that return 200 with data: null.
+	 * @returns The API response data
+	 * @throws Error if the API key is not found or the request fails
+	 */
+	async authenticatedRequest(endpoint, config = {}, options) {
+		const url = new URL(endpoint, this.baseUrl).toString() // Validate URL
+		// IMPORTANT: Prefixed with 'workos:' so backend can route verification to WorkOS provider
+		const clineAccountAuthToken = options?.authToken ?? (await this._authService.getAuthToken())
+		if (!clineAccountAuthToken) {
+			throw new Error("No Cline account auth token found")
+		}
+		const requestConfig = {
+			...config,
+			headers: {
+				Authorization: `Bearer ${clineAccountAuthToken}`,
+				"Content-Type": "application/json",
+				...(await buildBasicClineHeaders()),
+				...config.headers,
+			},
+			...getAxiosSettings(),
+		}
+		const response = await axios.request({
+			url,
+			method: "GET",
+			...requestConfig,
+		})
+		const status = response.status
+		if (status < 200 || status >= 300) {
+			throw new Error(`Request to ${endpoint} failed with status ${status}`)
+		}
+		if (typeof response.data === "object" && !response.data.success) {
+			throw new Error(`API error: ${response.data.error}`)
+		}
+		if (response.statusText === "No Content") {
+			return {}
+		}
+		const payload = response.data?.data
+		if (!response.data || typeof payload === "undefined") {
+			throw new Error(`Invalid response from ${endpoint} API`)
+		}
+		if (payload === null && !options?.allowNullData) {
+			throw new Error(`Invalid response from ${endpoint} API`)
+		}
+		return payload
+	}
+	/**
+	 * RPC variant that fetches the user's current credit balance without posting to webview
+	 * @returns Balance data or undefined if failed
+	 */
+	async fetchBalanceRPC() {
+		try {
+			const me = this.getCurrentUser()
+			if (!me || !me.uid) {
+				Logger.error("Failed to fetch user ID for usage transactions")
+				return undefined
+			}
+			const data = await this.authenticatedRequest(`/api/v1/users/${me.uid}/balance`)
+			return data
+		} catch (error) {
+			Logger.error("Failed to fetch balance (RPC):", error)
+			return undefined
+		}
+	}
+	/**
+	 * RPC variant that fetches the user's usage transactions without posting to webview
+	 * @returns Usage transactions or undefined if failed
+	 */
+	async fetchUsageTransactionsRPC() {
+		try {
+			const me = this.getCurrentUser()
+			if (!me || !me.uid) {
+				Logger.error("Failed to fetch user ID for usage transactions")
+				return undefined
+			}
+			const data = await this.authenticatedRequest(`/api/v1/users/${me.uid}/usages`)
+			return data.items
+		} catch (error) {
+			Logger.error("Failed to fetch usage transactions (RPC):", error)
+			return undefined
+		}
+	}
+	/**
+	 * RPC variant that fetches the user's payment transactions without posting to webview
+	 * @returns Payment transactions or undefined if failed
+	 */
+	async fetchPaymentTransactionsRPC() {
+		try {
+			const me = this.getCurrentUser()
+			if (!me || !me.uid) {
+				Logger.error("Failed to fetch user ID for usage transactions")
+				return undefined
+			}
+			const data = await this.authenticatedRequest(`/api/v1/users/${me.uid}/payments`)
+			return data.paymentTransactions
+		} catch (error) {
+			Logger.error("Failed to fetch payment transactions (RPC):", error)
+			return undefined
+		}
+	}
+	/**
+	 * Fetches the current user data
+	 * @returns UserResponse or undefined if failed
+	 */
+	async fetchMe() {
+		try {
+			const data = await this.authenticatedRequest(CLINE_API_ENDPOINT.USER_INFO)
+			return data
+		} catch (error) {
+			Logger.error("Failed to fetch user data (RPC):", error)
+			return undefined
+		}
+	}
+	/**
+	 * Fetches a short-lived Featurebase SSO JWT for the current user
+	 * @returns FeaturebaseTokenResponse or undefined if failed
+	 */
+	async fetchFeaturebaseToken() {
+		try {
+			const data = await this.authenticatedRequest(CLINE_API_ENDPOINT.FEATUREBASE_TOKEN)
+			return data
+		} catch (error) {
+			Logger.error("Failed to fetch Featurebase token:", error)
+			return undefined
+		}
+	}
+	/**
+	 * Fetches the current user's organizations
+	 * @returns UserResponse["organizations"] or undefined if failed
+	 */
+	async fetchUserOrganizationsRPC() {
+		try {
+			const me = await this.fetchMe()
+			if (!me || !me.organizations) {
+				Logger.error("Failed to fetch user organizations")
+				return undefined
+			}
+			return me.organizations
+		} catch (error) {
+			Logger.error("Failed to fetch user organizations (RPC):", error)
+			return undefined
+		}
+	}
+	/**
+	 * Fetches the current user's organization credits
+	 * @returns {Promise<OrganizationBalanceResponse>} A promise that resolves to the active organization balance.
+	 */
+	async fetchOrganizationCreditsRPC(organizationId) {
+		try {
+			const data = await this.authenticatedRequest(`/api/v1/organizations/${organizationId}/balance`)
+			return data
+		} catch (error) {
+			Logger.error("Failed to fetch active organization balance (RPC):", error)
+			return undefined
+		}
+	}
+	/**
+	 * Fetches the current user's organization transactions
+	 * @returns {Promise<OrganizationUsageTransaction[]>} A promise that resolves to the active organization transactions.
+	 */
+	async fetchOrganizationUsageTransactionsRPC(organizationId) {
+		try {
+			const organizations = this._authService.getUserOrganizations()
+			if (!organizations) {
+				Logger.error("Failed to get users organizations")
+				return undefined
+			}
+			const memberId = organizations.find((org) => org.organizationId === organizationId)?.memberId
+			if (!memberId) {
+				Logger.error("Failed to find member ID for active organization transactions")
+				return undefined
+			}
+			const data = await this.authenticatedRequest(`/api/v1/organizations/${organizationId}/members/${memberId}/usages`)
+			return data.items
+		} catch (error) {
+			Logger.error("Failed to fetch active organization transactions (RPC):", error)
+			return undefined
+		}
+	}
+	async fetchUserRemoteConfig() {
+		const token = await this._authService.getAuthToken()
+		if (!token) {
+			return undefined
+		}
+		const data = await this.authenticatedRequest(
+			CLINE_API_ENDPOINT.USER_REMOTE_CONFIG,
+			{},
+			{ allowNullData: true, authToken: token },
+		)
+		// Backend returns 200 with data: null when no org has remote config
+		return data ?? undefined
+	}
+	/**
+	 * Submits a spend limit increase request to the user's org admin.
+	 * Called when the user hits a SPEND_LIMIT_EXCEEDED (429) error and clicks "Request Increase".
+	 * @returns void — the backend records the request; errors are logged and swallowed
+	 */
+	async submitLimitIncreaseRequestRPC() {
+		try {
+			await this.authenticatedRequest("/api/v1/users/me/budget/request", {
+				method: "POST",
+			})
+		} catch (error) {
+			Logger.error("Failed to submit limit increase request (RPC):", error)
+			throw error
+		}
+	}
+	/**
+	 * Switches the active account to the specified organization or personal account.
+	 * @param organizationId - Optional organization ID to switch to. If not provided, it will switch to the personal account.
+	 * @returns {Promise<void>} A promise that resolves when the account switch is complete.
+	 * @throws {Error} If the account switch fails, an error will be thrown.
+	 */
+	async switchAccount(organizationId) {
+		// Call API to switch account
+		try {
+			// make XHR request to switch account
+			const _response = await this.authenticatedRequest(CLINE_API_ENDPOINT.ACTIVE_ACCOUNT, {
+				method: "PUT",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				data: {
+					organizationId: organizationId || null, // Pass organization if provided
+				},
+			})
+			const activeOrgId = this._authService.getActiveOrganizationId()
+			if (activeOrgId !== organizationId) {
+				// After user switches account, we will force a refresh of the id token by calling this function that restores the refresh token and retrieves new auth info
+				await this._authService.restoreRefreshTokenAndRetrieveAuthInfo()
+			}
+		} catch (error) {
+			Logger.error("Error switching account:", error)
+			await this._authService.restoreRefreshTokenAndRetrieveAuthInfo()
+			throw error
+		}
+	}
+	getCurrentUser() {
+		return this._authService.getInfo().user
+	}
+}
+//# sourceMappingURL=ClineAccountService.js.map

@@ -27,19 +27,29 @@ export const AgentRoleSchema = z.enum(["lead", "teammate"]);
 export type AgentRole = z.infer<typeof AgentRoleSchema>;
 export type OrvantaAgentRole = AgentRole;
 
+export const ReasoningEffortSchema = z
+	.enum(["none", "low", "medium", "high", "max"])
+	.nullable()
+	.default(null);
+export type ReasoningEffort = z.infer<typeof ReasoningEffortSchema>;
 
 export const AgentProfileFrontmatterSchema = z.object({
 	id: z.string().regex(AGENT_ID_RE, {
 		message:
-			"Id agent phải bắt đầu bằng chữ thường a-z, chỉ chứa chữ thường, số, gạch dưới hoặc gạch nối (2-32 ký tự)",
+			"Id agent phải bắt đầu bằng chữ thường a-z, 2-32 ký tự, chỉ chứa a-z, 0-9, gạch dưới hoặc gạch nối",
 	}),
 	displayName: z.string().trim().min(1).max(48),
-	description: z.string().max(200),
+	description: z.string().max(200).default(""),
 	role: AgentRoleSchema,
+	reportsTo: z.string().nullable().default(null),
 	providerId: z.string().nullable().default(null),
 	modelId: z.string().nullable().default(null),
 	maxIterations: z.number().int().min(1).max(200).default(40),
 	temperature: z.number().min(0).max(2).nullable().default(null),
+	reasoningEffort: ReasoningEffortSchema,
+	supportsImages: z.boolean().nullable().default(null),
+	contextWindow: z.number().int().positive().nullable().default(null),
+	maxOutputTokens: z.number().int().positive().nullable().default(null),
 	tools: z
 		.object({
 			allow: z.array(z.string()).default([]),
@@ -55,6 +65,8 @@ export const AgentProfileFrontmatterSchema = z.object({
 			allow: ["**/*"],
 			denyWrite: [...MANDATORY_DENY_WRITE_PATHS],
 		}),
+	rules: z.array(z.string()).default([]),
+	skills: z.array(z.string()).default([]),
 });
 export type AgentProfileFrontmatter = z.infer<
 	typeof AgentProfileFrontmatterSchema
@@ -90,8 +102,11 @@ function parseFlowArray(raw: string): string[] {
 	if (!inner) return [];
 	return inner
 		.split(",")
-		.map((item) => parseScalar(item))
-		.filter((item): item is string => typeof item === "string");
+		.map((item) => {
+			const parsed = parseScalar(item);
+			return parsed !== null && parsed !== undefined ? String(parsed).trim() : "";
+		})
+		.filter(Boolean);
 }
 
 export function parseYamlFrontmatter(content: string): {
@@ -109,8 +124,8 @@ export function parseYamlFrontmatter(content: string): {
 	const lines = yamlStr.split(/\r?\n/);
 	const data: Record<string, unknown> = {};
 
-	let currentParentObj: Record<string, unknown> | null = null;
-	let currentArrayKey: string | null = null;
+	let currentRootKey: string | null = null;
+	let currentSubKey: string | null = null;
 
 	for (const rawLine of lines) {
 		const line = rawLine.replace(/#.*$/, "").trimEnd();
@@ -119,47 +134,69 @@ export function parseYamlFrontmatter(content: string): {
 		const indent = rawLine.search(/\S/);
 
 		if (indent === 0) {
-			currentParentObj = null;
-			currentArrayKey = null;
+			currentRootKey = null;
+			currentSubKey = null;
 
 			const colonIdx = line.indexOf(":");
 			if (colonIdx === -1) continue;
 			const key = line.slice(0, colonIdx).trim();
 			const valStr = line.slice(colonIdx + 1).trim();
 
+			currentRootKey = key;
+
 			if (valStr === "") {
-				currentParentObj = {};
-				data[key] = currentParentObj;
+				data[key] = null;
 			} else if (valStr.startsWith("[") && valStr.endsWith("]")) {
 				data[key] = parseFlowArray(valStr);
 			} else {
 				data[key] = parseScalar(valStr);
 			}
-		} else if (currentParentObj) {
+		} else if (currentRootKey) {
 			const trimmed = line.trim();
+
 			if (trimmed.startsWith("- ")) {
-				if (currentArrayKey) {
-					if (!Array.isArray(currentParentObj[currentArrayKey])) {
-						currentParentObj[currentArrayKey] = [];
+				const rawItem = trimmed.slice(2).trim();
+				const itemVal = parseScalar(rawItem);
+				const stringVal =
+					itemVal !== null && itemVal !== undefined ? String(itemVal).trim() : "";
+
+				if (currentSubKey) {
+					const parentObj = data[currentRootKey] as Record<string, unknown>;
+					if (!Array.isArray(parentObj[currentSubKey])) {
+						parentObj[currentSubKey] = [];
 					}
-					const itemVal = parseScalar(trimmed.slice(2));
-					if (itemVal !== null) {
-						(currentParentObj[currentArrayKey] as string[]).push(String(itemVal));
+					if (stringVal) {
+						(parentObj[currentSubKey] as string[]).push(stringVal);
+					}
+				} else {
+					if (!Array.isArray(data[currentRootKey])) {
+						data[currentRootKey] = [];
+					}
+					if (stringVal) {
+						(data[currentRootKey] as string[]).push(stringVal);
 					}
 				}
 			} else {
-				currentArrayKey = null;
 				const colonIdx = trimmed.indexOf(":");
 				if (colonIdx !== -1) {
+					if (
+						typeof data[currentRootKey] !== "object" ||
+						data[currentRootKey] === null ||
+						Array.isArray(data[currentRootKey])
+					) {
+						data[currentRootKey] = {};
+					}
+					const parentObj = data[currentRootKey] as Record<string, unknown>;
 					const subKey = trimmed.slice(0, colonIdx).trim();
 					const subValStr = trimmed.slice(colonIdx + 1).trim();
+					currentSubKey = subKey;
+
 					if (subValStr === "") {
-						currentArrayKey = subKey;
-						currentParentObj[subKey] = [];
+						parentObj[subKey] = [];
 					} else if (subValStr.startsWith("[") && subValStr.endsWith("]")) {
-						currentParentObj[subKey] = parseFlowArray(subValStr);
+						parentObj[subKey] = parseFlowArray(subValStr);
 					} else {
-						currentParentObj[subKey] = parseScalar(subValStr);
+						parentObj[subKey] = parseScalar(subValStr);
 					}
 				}
 			}
@@ -167,6 +204,51 @@ export function parseYamlFrontmatter(content: string): {
 	}
 
 	return { data, body };
+}
+
+function toNullableString(val: unknown): string | null {
+	if (typeof val === "string") {
+		const trimmed = val.trim();
+		return trimmed && trimmed !== "null" && trimmed !== "~" ? trimmed : null;
+	}
+	return null;
+}
+
+function toNullableNumber(val: unknown): number | null {
+	if (typeof val === "number" && !Number.isNaN(val)) {
+		return val;
+	}
+	if (typeof val === "string") {
+		const trimmed = val.trim();
+		if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+			const num = Number(trimmed);
+			if (!Number.isNaN(num)) return num;
+		}
+	}
+	return null;
+}
+
+function toNullableBoolean(val: unknown): boolean | null {
+	if (typeof val === "boolean") return val;
+	if (val === "true" || val === true) return true;
+	if (val === "false" || val === false) return false;
+	return null;
+}
+
+function toArrayOfStrings(val: unknown): string[] {
+	if (Array.isArray(val)) {
+		return val
+			.map((item) => {
+				if (item === null || item === undefined) return "";
+				return String(item).trim();
+			})
+			.filter(Boolean);
+	}
+	if (typeof val === "string") {
+		const trimmed = val.trim();
+		return trimmed && trimmed !== "null" && trimmed !== "~" ? [trimmed] : [];
+	}
+	return [];
 }
 
 
@@ -192,12 +274,18 @@ export function parseAgentProfile(
 	const parsedFrontmatter = AgentProfileFrontmatterSchema.parse({
 		id: data.id,
 		displayName: data.displayName,
-		description: data.description ?? "",
+		description: typeof data.description === "string" ? data.description : "",
 		role: data.role,
-		providerId: data.providerId ?? null,
-		modelId: data.modelId ?? null,
-		maxIterations: data.maxIterations ?? 40,
-		temperature: data.temperature ?? null,
+		reportsTo: toNullableString(data.reportsTo),
+		providerId: toNullableString(data.providerId),
+		modelId: toNullableString(data.modelId),
+		maxIterations: toNullableNumber(data.maxIterations) ?? 40,
+		temperature: toNullableNumber(data.temperature),
+		reasoningEffort:
+			(toNullableString(data.reasoningEffort) as ReasoningEffort) ?? null,
+		supportsImages: toNullableBoolean(data.supportsImages),
+		contextWindow: toNullableNumber(data.contextWindow),
+		maxOutputTokens: toNullableNumber(data.maxOutputTokens),
 		tools: {
 			allow: Array.isArray(rawTools.allow) ? rawTools.allow : [],
 			deny: Array.isArray(rawTools.deny) ? rawTools.deny : [],
@@ -210,6 +298,8 @@ export function parseAgentProfile(
 					: [],
 			),
 		},
+		rules: toArrayOfStrings(data.rules),
+		skills: toArrayOfStrings(data.skills),
 	});
 
 	const computedFilePath =
@@ -248,6 +338,9 @@ export function serializeAgentProfile(
 	);
 	lines.push(`role: ${valid.role}`);
 	lines.push(
+		`reportsTo: ${valid.reportsTo === null ? "null" : /^[a-zA-Z0-9_\-]+$/.test(valid.reportsTo) ? valid.reportsTo : JSON.stringify(valid.reportsTo)}`,
+	);
+	lines.push(
 		`providerId: ${valid.providerId === null ? "null" : JSON.stringify(valid.providerId)}`,
 	);
 	lines.push(
@@ -256,6 +349,18 @@ export function serializeAgentProfile(
 	lines.push(`maxIterations: ${valid.maxIterations}`);
 	lines.push(
 		`temperature: ${valid.temperature === null ? "null" : valid.temperature}`,
+	);
+	lines.push(
+		`reasoningEffort: ${valid.reasoningEffort === null ? "null" : valid.reasoningEffort}`,
+	);
+	lines.push(
+		`supportsImages: ${valid.supportsImages === null ? "null" : valid.supportsImages}`,
+	);
+	lines.push(
+		`contextWindow: ${valid.contextWindow === null ? "null" : valid.contextWindow}`,
+	);
+	lines.push(
+		`maxOutputTokens: ${valid.maxOutputTokens === null ? "null" : valid.maxOutputTokens}`,
 	);
 	lines.push("tools:");
 	lines.push(`  allow: [${valid.tools.allow.join(", ")}]`);
@@ -268,6 +373,22 @@ export function serializeAgentProfile(
 	lines.push("  denyWrite:");
 	for (const p of valid.scopePaths.denyWrite) {
 		lines.push(`    - ${JSON.stringify(p)}`);
+	}
+	if (valid.rules.length === 0) {
+		lines.push("rules: []");
+	} else {
+		lines.push("rules:");
+		for (const r of valid.rules) {
+			lines.push(`  - ${/^[a-zA-Z0-9_\-\.\/]+$/.test(r) ? r : JSON.stringify(r)}`);
+		}
+	}
+	if (valid.skills.length === 0) {
+		lines.push("skills: []");
+	} else {
+		lines.push("skills:");
+		for (const s of valid.skills) {
+			lines.push(`  - ${/^[a-zA-Z0-9_\-\.\/]+$/.test(s) ? s : JSON.stringify(s)}`);
+		}
 	}
 	lines.push("---");
 	lines.push("");

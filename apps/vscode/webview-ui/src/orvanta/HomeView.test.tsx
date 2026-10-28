@@ -144,7 +144,8 @@ describe("HomeView", () => {
 		expect(screen.getByText("org/roster.json không hợp lệ")).toBeInTheDocument()
 	})
 
-	it("displays ready state with company name, purpose, and roster", () => {
+	it("displays ready state with company name, purpose, and agents summary widget", () => {
+		const onTabChange = vi.fn()
 		const company: OrvantaCompanyResponse = {
 			status: "ready",
 			errors: [],
@@ -159,15 +160,54 @@ describe("HomeView", () => {
 					role: "lead",
 					status: "idle",
 				},
+				{
+					id: "dev-1",
+					displayName: "Developer 1",
+					role: "teammate",
+					status: "running",
+				},
 			],
 		}
-		render(<HomeView {...defaultProps} company={company} />)
+		render(<HomeView {...defaultProps} company={company} onTabChange={onTabChange} />)
 		expect(screen.getByText("Acme Corp")).toBeInTheDocument()
 		expect(screen.getByText("Chúng ta đang làm gì")).toBeInTheDocument()
 		expect(screen.getByTestId("markdown-content")).toBeInTheDocument()
-		expect(screen.getByText("Coordinator")).toBeInTheDocument()
-		expect(screen.getByText("lead")).toBeInTheDocument()
-		expect(screen.getByText("idle")).toBeInTheDocument()
+		expect(screen.getByText("Đội ngũ Agents")).toBeInTheDocument()
+		expect(screen.getByText("2 agents")).toBeInTheDocument()
+		expect(screen.getByText("1 running")).toBeInTheDocument()
+		expect(screen.getByText("1 idle")).toBeInTheDocument()
+		expect(screen.queryByText("+ Thêm agent")).not.toBeInTheDocument()
+
+		const agentsButton = screen.getByRole("button", { name: "Xem sơ đồ cây & Quản lý Agents →" })
+		expect(agentsButton).toBeInTheDocument()
+		fireEvent.click(agentsButton)
+		expect(onTabChange).toHaveBeenCalledWith("agents")
+	})
+
+	it("dispatches window postMessage when clicking agents summary button without onTabChange", () => {
+		const postMessageSpy = vi.spyOn(window, "postMessage")
+		const company: OrvantaCompanyResponse = {
+			status: "ready",
+			errors: [],
+			id: "orvanta-123",
+			name: "Acme Corp",
+			purpose: "Mục đích",
+			teamName: "acme-corp",
+			agents: [
+				{
+					id: "coordinator",
+					displayName: "Coordinator",
+					role: "lead",
+					status: "idle",
+				},
+			],
+		}
+		render(<HomeView {...defaultProps} company={company} />)
+
+		const agentsButton = screen.getByRole("button", { name: "Xem sơ đồ cây & Quản lý Agents →" })
+		fireEvent.click(agentsButton)
+		expect(postMessageSpy).toHaveBeenCalledWith({ type: "orvanta_switch_tab", tab: "agents" }, "*")
+		postMessageSpy.mockRestore()
 	})
 
 	it("toggles purpose expand and collapse", () => {

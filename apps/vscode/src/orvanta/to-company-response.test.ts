@@ -35,6 +35,7 @@ describe("toCompanyResponse", () => {
 					role: "lead",
 					status: "idle",
 					agentFile: "org/agents/coordinator/profile.md",
+					reportsTo: null,
 					hiredAt: "2026-10-27T10:00:00.000Z",
 					hiredBy: "ceo",
 					modelId: null,
@@ -46,6 +47,7 @@ describe("toCompanyResponse", () => {
 					role: "teammate",
 					status: "idle",
 					agentFile: "org/agents/implementer/profile.md",
+					reportsTo: "coordinator",
 					hiredAt: "2026-10-27T10:00:00.000Z",
 					hiredBy: "ceo",
 					modelId: null,
@@ -70,6 +72,8 @@ describe("toCompanyResponse", () => {
 		const res = toCompanyResponse(mockReadyLoad)
 		expect(res.status).toBe("ready")
 		expect(res.agents.find((a) => a.id === "implementer")?.status).toBe("idle")
+		expect(res.agents.find((a) => a.id === "implementer")?.reportsTo).toBe("coordinator")
+		expect(res.agents.find((a) => a.id === "coordinator")?.reportsTo).toBeUndefined()
 	})
 
 	it("marks running agent when its id is in runningAgentIds", () => {

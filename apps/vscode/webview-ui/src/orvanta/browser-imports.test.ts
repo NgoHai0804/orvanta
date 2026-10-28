@@ -10,10 +10,19 @@ describe("orvanta webview imports", () => {
 	for (const file of [
 		"HomeView.tsx",
 		"AgentEditor.tsx",
+		"AgentsView.tsx",
+		"AgentTreeChart.tsx",
+		"ModelParamsTab.tsx",
+		"ModelPickerCombobox.tsx",
+		"model-catalog-data.ts",
+		"ToolsPermissionsTab.tsx",
+		"InstructionsRulesTab.tsx",
+		"SkillsTab.tsx",
 		"OrvantaShell.tsx",
 		"useOrvantaCompany.ts",
 		"LibraryDialog.tsx",
 		"TeamSidebar.tsx",
+		"tree-utils.ts",
 	]) {
 		it(`${file} does not import the Node barrel of @cline/shared`, () => {
 			const src = readFileSync(join(dir, file), "utf8")

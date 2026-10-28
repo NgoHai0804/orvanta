@@ -1,0 +1,1 @@
+{"version":3,"file":"getActiveEditor.js","sourceRoot":"","sources":["getActiveEditor.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,MAAM,MAAM,QAAQ,CAAA;AAIhC,MAAM,CAAC,KAAK,UAAU,eAAe,CAAC,CAAyB;IAC9D,MAAM,QAAQ,GAAG,MAAM,CAAC,MAAM,CAAC,gBAAgB,EAAE,QAAQ,CAAC,GAAG,CAAC,MAAM,CAAA;IACpE,OAAO,EAAE,QAAQ,EAAE,CAAA;AACpB,CAAC"}

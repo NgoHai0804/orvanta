@@ -51,6 +51,7 @@ export function toCompanyResponse(
 				displayName: agent.displayName,
 				role: agent.role,
 				status,
+				reportsTo: agent.reportsTo ?? undefined,
 			}
 		}),
 		tasksJson,

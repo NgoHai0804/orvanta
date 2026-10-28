@@ -160,7 +160,7 @@ const AppContent = () => {
 			}
 			if (viewParam) {
 				const clean = viewParam.trim().toLowerCase()
-				if (clean === "home" || clean === "inbox" || clean === "chat" || clean === "war-room") {
+				if (clean === "home" || clean === "agents" || clean === "inbox" || clean === "chat" || clean === "war-room") {
 					setOrvantaTab(clean as OrvantaTab)
 				}
 			}

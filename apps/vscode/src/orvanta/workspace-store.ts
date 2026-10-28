@@ -220,10 +220,15 @@ export interface UpsertAgentInput {
 	displayName?: string
 	description?: string
 	role?: "lead" | "teammate"
+	reportsTo?: string | null
 	providerId?: string | null
 	modelId?: string | null
 	maxIterations?: number
 	temperature?: number | null
+	reasoningEffort?: string | null
+	supportsImages?: boolean | null
+	contextWindow?: number | null
+	maxOutputTokens?: number | null
 	instructions: string
 	tools?: {
 		allow?: string[]
@@ -233,6 +238,14 @@ export interface UpsertAgentInput {
 		allow?: string[]
 		denyWrite?: string[]
 	}
+	rules?: string[]
+	skills?: string[]
+}
+
+export async function writeAgentProfile(agentDir: string, profile: AgentProfile): Promise<void> {
+	const profilePath = join(agentDir, "profile.md")
+	const serialized = serializeAgentProfile(profile)
+	await writeFile(profilePath, serialized, "utf8")
 }
 
 export async function upsertAgent(workspaceRoot: string, input: UpsertAgentInput): Promise<AgentProfile> {
@@ -272,9 +285,7 @@ export async function upsertAgent(workspaceRoot: string, input: UpsertAgentInput
 	const workspaceDir = join(agentDir, "workspace")
 	await mkdir(workspaceDir, { recursive: true })
 
-	const profilePath = join(agentDir, "profile.md")
-	const serialized = serializeAgentProfile(profile)
-	await writeFile(profilePath, serialized, "utf8")
+	await writeAgentProfile(agentDir, profile)
 
 	const memoryPath = join(workspaceDir, "memory.md")
 	if (!(await pathExists(memoryPath))) {
@@ -296,6 +307,7 @@ export async function upsertAgent(workspaceRoot: string, input: UpsertAgentInput
 			...existing,
 			displayName: profile.displayName,
 			role: profile.role,
+			reportsTo: profile.reportsTo ?? existing?.reportsTo ?? null,
 			modelId: profile.modelId,
 			maxIterations: profile.maxIterations,
 			agentFile,
@@ -305,6 +317,7 @@ export async function upsertAgent(workspaceRoot: string, input: UpsertAgentInput
 			id: profile.id,
 			displayName: profile.displayName,
 			role: profile.role,
+			reportsTo: profile.reportsTo ?? null,
 			status: "idle",
 			agentFile,
 			hiredAt: now,

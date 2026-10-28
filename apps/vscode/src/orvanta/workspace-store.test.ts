@@ -10,6 +10,7 @@ import {
 	createCompany,
 	deleteCompany,
 	getAgent,
+	getAgentProfile,
 	listAgentProfiles,
 	loadCompany,
 	pathExists,
@@ -252,5 +253,59 @@ describe("workspace-store", () => {
 		// Coordinator files still intact
 		const coordinatorProfile = join(root, WORKSPACE_DIRNAME, "org", "agents", "coordinator", "profile.md")
 		expect(await pathExists(coordinatorProfile)).toBe(true)
+	})
+
+	it("saves full v0.0.2 profile fields and persists reportsTo in roster.json", async () => {
+		const root = await tempWorkspace()
+		await createCompany(root, { name: "Orvanta", purpose: PURPOSE })
+
+		const created = await upsertAgent(root, {
+			id: "implementer",
+			displayName: "Lead Implementer",
+			description: "Implement features.",
+			role: "teammate",
+			reportsTo: "coordinator",
+			providerId: "anthropic",
+			modelId: "claude-3-7-sonnet-20250219",
+			maxIterations: 40,
+			temperature: 0.2,
+			reasoningEffort: "medium",
+			supportsImages: true,
+			contextWindow: 200000,
+			maxOutputTokens: 16384,
+			rules: ["code-simplification", "test-driven-development"],
+			skills: ["code-review-and-quality"],
+			instructions: "Implement clean code.",
+		})
+
+		expect(created.reportsTo).toBe("coordinator")
+		expect(created.reasoningEffort).toBe("medium")
+		expect(created.supportsImages).toBe(true)
+		expect(created.contextWindow).toBe(200000)
+		expect(created.maxOutputTokens).toBe(16384)
+		expect(created.rules).toEqual(["code-simplification", "test-driven-development"])
+		expect(created.skills).toEqual(["code-review-and-quality"])
+
+		// verify profile on disk
+		const loadedProfile = await getAgentProfile(root, "implementer")
+		expect(loadedProfile).toBeDefined()
+		expect(loadedProfile?.reportsTo).toBe("coordinator")
+		expect(loadedProfile?.reasoningEffort).toBe("medium")
+		expect(loadedProfile?.supportsImages).toBe(true)
+		expect(loadedProfile?.contextWindow).toBe(200000)
+		expect(loadedProfile?.maxOutputTokens).toBe(16384)
+		expect(loadedProfile?.rules).toEqual(["code-simplification", "test-driven-development"])
+		expect(loadedProfile?.skills).toEqual(["code-review-and-quality"])
+
+		// verify roster on disk has reportsTo
+		const loaded = await loadCompany(root)
+		expect(loaded.status).toBe("ready")
+		if (loaded.status === "ready") {
+			const coordinatorRoster = loaded.roster.agents.find((a) => a.id === "coordinator")
+			expect(coordinatorRoster?.reportsTo).toBeNull()
+
+			const implementerRoster = loaded.roster.agents.find((a) => a.id === "implementer")
+			expect(implementerRoster?.reportsTo).toBe("coordinator")
+		}
 	})
 })

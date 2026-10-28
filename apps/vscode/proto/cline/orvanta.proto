@@ -36,6 +36,7 @@ message OrvantaRosterAgent {
   string display_name = 2;
   string role = 3;
   string status = 4;
+  optional string reports_to = 5;
 }
 
 message OrvantaCompanyResponse {
@@ -71,6 +72,14 @@ message OrvantaAgentProfile {
   string file_path = 9;
   OrvantaAgentTools tools = 10;
   OrvantaAgentScopePaths scope_paths = 11;
+  optional string reports_to = 12;
+  optional string reasoning_effort = 13;
+  optional bool supports_images = 14;
+  optional int32 context_window = 15;
+  optional int32 max_output_tokens = 16;
+  repeated string rules = 17;
+  repeated string skills = 18;
+  optional string provider_id = 19;
 }
 
 message OrvantaAgentProfileList {

@@ -14,6 +14,7 @@ const emptyCompany: OrvantaCompanyResponse = {
 	purpose: "",
 	teamName: "",
 	agents: [],
+	tasksJson: "",
 }
 
 export function useOrvantaCompany() {

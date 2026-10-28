@@ -7,9 +7,15 @@ export function toOrvantaAgentProfile(profile: AgentProfile): OrvantaAgentProfil
 		displayName: profile.displayName,
 		role: profile.role,
 		description: profile.description,
+		reportsTo: profile.reportsTo ?? undefined,
+		providerId: profile.providerId ?? undefined,
 		modelId: profile.modelId ?? undefined,
 		maxIterations: profile.maxIterations,
 		temperature: profile.temperature ?? undefined,
+		reasoningEffort: profile.reasoningEffort ?? undefined,
+		supportsImages: profile.supportsImages ?? undefined,
+		contextWindow: profile.contextWindow ?? undefined,
+		maxOutputTokens: profile.maxOutputTokens ?? undefined,
 		instructions: profile.instructions,
 		filePath: profile.filePath,
 		tools: {
@@ -20,6 +26,8 @@ export function toOrvantaAgentProfile(profile: AgentProfile): OrvantaAgentProfil
 			allow: profile.scopePaths?.allow ?? [],
 			denyWrite: profile.scopePaths?.denyWrite ?? [],
 		},
+		rules: profile.rules ?? [],
+		skills: profile.skills ?? [],
 	})
 }
 
@@ -29,10 +37,15 @@ export function fromOrvantaAgentProfile(proto: OrvantaAgentProfile): AgentProfil
 		displayName: proto.displayName,
 		role: (proto.role === "lead" ? "lead" : "teammate") as "lead" | "teammate",
 		description: proto.description,
-		providerId: null,
+		reportsTo: proto.reportsTo ?? null,
+		providerId: proto.providerId ?? null,
 		modelId: proto.modelId ?? null,
-		maxIterations: proto.maxIterations ?? 50,
+		maxIterations: proto.maxIterations ?? 40,
 		temperature: proto.temperature ?? null,
+		reasoningEffort: (proto.reasoningEffort as AgentProfile["reasoningEffort"]) ?? null,
+		supportsImages: proto.supportsImages ?? null,
+		contextWindow: proto.contextWindow ?? null,
+		maxOutputTokens: proto.maxOutputTokens ?? null,
 		instructions: proto.instructions,
 		filePath: proto.filePath || `org/agents/${proto.id}/profile.md`,
 		tools: {
@@ -43,5 +56,7 @@ export function fromOrvantaAgentProfile(proto: OrvantaAgentProfile): AgentProfil
 			allow: proto.scopePaths?.allow ?? [],
 			denyWrite: proto.scopePaths?.denyWrite ?? [],
 		},
+		rules: proto.rules ?? [],
+		skills: proto.skills ?? [],
 	}
 }

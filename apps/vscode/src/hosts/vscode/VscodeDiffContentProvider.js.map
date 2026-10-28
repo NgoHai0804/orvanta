@@ -1,0 +1,1 @@
+{"version":3,"file":"VscodeDiffContentProvider.js","sourceRoot":"","sources":["VscodeDiffContentProvider.ts"],"names":[],"mappings":"AAEA,+FAA+F;AAC/F,MAAM,CAAC,MAAM,oBAAoB,GAAG,YAAY,CAAA;AAEhD,MAAM,CAAC,MAAM,mBAAmB,GAAuC;IACtE,0BAA0B,CAAC,GAAe;QACzC,OAAO,MAAM,CAAC,IAAI,CAAC,GAAG,CAAC,KAAK,EAAE,QAAQ,CAAC,CAAC,QAAQ,CAAC,OAAO,CAAC,CAAA;IAC1D,CAAC;CACD,CAAA"}
