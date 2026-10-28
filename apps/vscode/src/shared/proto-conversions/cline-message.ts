@@ -214,6 +214,9 @@ export function convertClineMessageToProto(message: AppClineMessage): ProtoCline
 		askNewTask: undefined,
 		apiReqInfo: undefined,
 		modelInfo: message.modelInfo ?? undefined,
+		agentId: message.agentId ?? message.agent_id,
+		agentDisplayName: message.agentDisplayName ?? message.agent_display_name,
+		agentRole: message.agentRole ?? message.agent_role,
 	}
 
 	return protoMessage
@@ -288,6 +291,19 @@ export function convertProtoToClineMessage(protoMessage: ProtoClineMessage): App
 	}
 	if (protoMessage.epoch && protoMessage.epoch !== 0) {
 		message.epoch = protoMessage.epoch
+	}
+
+	if (protoMessage.agentId) {
+		message.agentId = protoMessage.agentId
+		message.agent_id = protoMessage.agentId
+	}
+	if (protoMessage.agentDisplayName) {
+		message.agentDisplayName = protoMessage.agentDisplayName
+		message.agent_display_name = protoMessage.agentDisplayName
+	}
+	if (protoMessage.agentRole) {
+		message.agentRole = protoMessage.agentRole
+		message.agent_role = protoMessage.agentRole
 	}
 
 	return message

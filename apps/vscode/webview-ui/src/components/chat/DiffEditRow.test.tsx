@@ -34,4 +34,23 @@ describe("DiffEditRow", () => {
 		expect(openFileRelativePath).not.toHaveBeenCalled()
 		expect(screen.queryByTitle("Open file in editor")).toBeNull()
 	})
+
+	it("renders AgentBadge and attribution text when agent metadata is provided", () => {
+		render(
+			<DiffEditRow
+				agentDisplayName="Dave"
+				agentId="implementer"
+				agentRole="implementer"
+				patch={patch}
+				path="src/auth.ts"
+			/>,
+		)
+
+		// Check AgentBadge rendered
+		const badge = screen.getByTestId("agent-badge")
+		expect(badge).toBeInTheDocument()
+		expect(badge.textContent).toContain("Dave")
+		// Check attribution text contains "đang đề xuất sửa" and path
+		expect(screen.getByText(/đang đề xuất sửa.*src\/auth\.ts/)).toBeInTheDocument()
+	})
 })

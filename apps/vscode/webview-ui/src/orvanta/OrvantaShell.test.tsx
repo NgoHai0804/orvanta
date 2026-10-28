@@ -62,23 +62,22 @@ vi.mock("./useWarRoom", () => ({
 }))
 
 describe("OrvantaShell", () => {
-	it("renders 5 tabs: Home, Agents, Inbox, Chat, War room", () => {
+	it("renders 4 tabs: Home, Agents, Inbox, Console", () => {
 		mockCompanyStatus = "missing"
 		mockPendingCount = 0
 		render(<OrvantaShell activeTab="home" onTabChange={vi.fn()} />)
 		expect(screen.getByRole("button", { name: "Home" })).toBeInTheDocument()
 		expect(screen.getByRole("button", { name: "Agents" })).toBeInTheDocument()
 		expect(screen.getByRole("button", { name: "Inbox" })).toBeInTheDocument()
-		expect(screen.getByRole("button", { name: "Chat" })).toBeInTheDocument()
-		expect(screen.getByRole("button", { name: "War room" })).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Console" })).toBeInTheDocument()
 	})
 
-	it("disables Agents, Inbox when company missing; war-room disabled without company", () => {
+	it("disables Agents, Inbox when company missing; Console remains enabled", () => {
 		mockCompanyStatus = "missing"
 		render(<OrvantaShell activeTab="home" onTabChange={vi.fn()} />)
 		const agentsBtn = screen.getByRole("button", { name: "Agents" })
 		const inboxBtn = screen.getByRole("button", { name: "Inbox" })
-		const warRoomBtn = screen.getByRole("button", { name: "War room" })
+		const consoleBtn = screen.getByRole("button", { name: "Console" })
 
 		expect(agentsBtn).toBeDisabled()
 		expect(agentsBtn).toHaveAttribute("title", "Lập công ty để mở Agents")
@@ -86,8 +85,8 @@ describe("OrvantaShell", () => {
 		expect(inboxBtn).toBeDisabled()
 		expect(inboxBtn).toHaveAttribute("title", "Lập công ty trên Home để mở Inbox")
 
-		expect(warRoomBtn).toBeDisabled()
-		expect(warRoomBtn).toHaveAttribute("title", "Lập công ty trên Home để mở War room")
+		expect(consoleBtn).toBeEnabled()
+		expect(consoleBtn).toHaveAttribute("title", "Trung tâm tác chiến đa kênh (Console)")
 	})
 
 	it("enables Agents tab when company is ready and calls onTabChange when clicked", () => {
@@ -117,14 +116,14 @@ describe("OrvantaShell", () => {
 		expect(onTabChange).toHaveBeenCalledWith("inbox")
 	})
 
-	it("enables Home and Chat tabs and calls onTabChange when clicked", () => {
+	it("enables Home and Console tabs and calls onTabChange when clicked", () => {
 		const onTabChange = vi.fn()
 		render(<OrvantaShell activeTab="home" onTabChange={onTabChange} />)
 
-		const chatBtn = screen.getByRole("button", { name: "Chat" })
-		expect(chatBtn).toBeEnabled()
-		fireEvent.click(chatBtn)
-		expect(onTabChange).toHaveBeenCalledWith("chat")
+		const consoleBtn = screen.getByRole("button", { name: "Console" })
+		expect(consoleBtn).toBeEnabled()
+		fireEvent.click(consoleBtn)
+		expect(onTabChange).toHaveBeenCalledWith("console")
 	})
 
 	it("renders HomeView when activeTab is home", () => {
@@ -142,8 +141,8 @@ describe("OrvantaShell", () => {
 		expect(screen.getByTestId("mock-inbox-view")).toBeInTheDocument()
 	})
 
-	it("does not render HomeView, AgentsView, or InboxView when activeTab is chat", () => {
-		render(<OrvantaShell activeTab="chat" onTabChange={vi.fn()} />)
+	it("does not render HomeView, AgentsView, or InboxView when activeTab is console", () => {
+		render(<OrvantaShell activeTab="console" onTabChange={vi.fn()} />)
 		expect(screen.queryByTestId("mock-home-view")).not.toBeInTheDocument()
 		expect(screen.queryByTestId("mock-agents-view")).not.toBeInTheDocument()
 		expect(screen.queryByTestId("mock-inbox-view")).not.toBeInTheDocument()
@@ -162,12 +161,12 @@ describe("OrvantaShell", () => {
 		rerender(<OrvantaShell activeTab="agents" onTabChange={onTabChange} />)
 		expect(screen.getByTestId("mock-agents-view")).toBeInTheDocument()
 
-		// Click War room tab
-		fireEvent.click(screen.getByRole("button", { name: "War room" }))
-		expect(onTabChange).toHaveBeenCalledWith("war-room")
+		// Click Console tab
+		fireEvent.click(screen.getByRole("button", { name: "Console" }))
+		expect(onTabChange).toHaveBeenCalledWith("console")
 
-		// Re-render with activeTab="war-room"
-		rerender(<OrvantaShell activeTab="war-room" onTabChange={onTabChange} />)
-		expect(screen.getByText("Dang ket noi War room...")).toBeInTheDocument()
+		// Re-render with activeTab="console"
+		rerender(<OrvantaShell activeTab="console" onTabChange={onTabChange} />)
+		expect(screen.queryByTestId("mock-agents-view")).not.toBeInTheDocument()
 	})
 })

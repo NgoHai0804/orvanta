@@ -150,4 +150,48 @@ describe("WarRoomTracker", () => {
 		expect(card.outputTokens).toBe(350)
 		expect(card.cost).toBeCloseTo(0.0042)
 	})
+
+	it("getCard retrieves card by agentId", () => {
+		tracker.syncRoster([{ id: "coder", displayName: "Dave", role: "implementer", status: "idle" }])
+		const card = tracker.getCard("coder")
+		expect(card).toBeDefined()
+		expect(card?.displayName).toBe("Dave")
+		expect(card?.role).toBe("implementer")
+		expect(tracker.getCard("unknown")).toBeUndefined()
+	})
+
+	it("getAgentTranscript returns full history across runs", () => {
+		tracker.syncRoster([{ id: "coder", displayName: "Dave", role: "implementer", status: "idle" }])
+		tracker.handleTeamEvent({ type: TeamMessageType.RunStarted, run: { agentId: "coder" } } as any)
+		tracker.handleTeamEvent({
+			type: TeamMessageType.AgentEvent,
+			agentId: "coder",
+			event: { type: "content_start", contentType: "text", text: "Turn 1 output\n" },
+		} as any)
+		// Start another run (which clears card.buffer for the new run)
+		tracker.handleTeamEvent({ type: TeamMessageType.RunStarted, run: { agentId: "coder" } } as any)
+		tracker.handleTeamEvent({
+			type: TeamMessageType.AgentEvent,
+			agentId: "coder",
+			event: { type: "content_start", contentType: "text", text: "Turn 2 output\n" },
+		} as any)
+
+		const transcript = tracker.getAgentTranscript("coder")
+		expect(transcript.length).toBeGreaterThanOrEqual(2)
+		expect(transcript.some((l) => l.text.includes("Turn 1 output"))).toBe(true)
+		expect(transcript.some((l) => l.text.includes("Turn 2 output"))).toBe(true)
+	})
+
+	it("recordDirectMessage appends CEO direct steering to transcript and buffer", () => {
+		tracker.syncRoster([{ id: "dave", displayName: "Dave", role: "implementer", status: "idle" }])
+		tracker.recordDirectMessage("dave", "Please fix the auth flow first", "Priority change")
+
+		const transcript = tracker.getAgentTranscript("dave")
+		expect(transcript).toHaveLength(1)
+		expect(transcript[0].text).toContain("[CEO ➜ @Dave] (Priority change): Please fix the auth flow first")
+
+		const card = tracker.getCard("dave")
+		expect(card?.buffer).toHaveLength(1)
+		expect(card?.buffer[0].text).toContain("[CEO ➜ @Dave]")
+	})
 })

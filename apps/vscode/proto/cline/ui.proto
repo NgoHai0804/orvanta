@@ -235,6 +235,11 @@ message ClineMessage {
   // epoch = conversation/replica fence (older epoch is dropped by the webview)
   int64 seq = 24;
   int64 epoch = 25;
+
+  // MỞ RỘNG CHO ORVANTA v0.0.4:
+  optional string agent_id = 30;           // ID của agent thực thi (vd: "implementer")
+  optional string agent_display_name = 31; // Tên hiển thị (vd: "Dave")
+  optional string agent_role = 32;         // Vai trò (vd: "implementer", "lead", "reviewer")
 }
 
 message ShowWebviewEvent {

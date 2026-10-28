@@ -788,6 +788,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					restoredStateHydratedIntoRuntime = true;
 				}
 				registryEntry.runtime = teamRuntime;
+				// biome-ignore lint/suspicious/noExplicitAny: register active team runtime for Orvanta direct steering
+				(globalThis as any).__activeTeamRuntime = teamRuntime;
 			}
 
 			if (!teamToolsRegistered) {
@@ -931,6 +933,10 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			},
 			shutdown: async (reason: string) => {
 				shutdownTeamRuntime(teamRuntime, reason);
+				// biome-ignore lint/suspicious/noExplicitAny: unregister active team runtime
+				if ((globalThis as any).__activeTeamRuntime === teamRuntime) {
+					(globalThis as any).__activeTeamRuntime = undefined;
+				}
 				// Final synchronous write so nothing batched is lost on exit.
 				teamPersistence?.dispose();
 				this.teamRuntimeEntries.delete(registryKey);

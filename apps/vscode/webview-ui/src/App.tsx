@@ -12,8 +12,8 @@ import SettingsView from "./components/settings/SettingsView"
 import WorktreesView from "./components/worktrees/WorktreesView"
 import { useClineAuth } from "./context/ClineAuthContext"
 import { useExtensionState } from "./context/ExtensionStateContext"
+import ConsoleView from "./orvanta/ConsoleView"
 import OrvantaShell, { type OrvantaTab } from "./orvanta/OrvantaShell"
-import TeamSidebar from "./orvanta/TeamSidebar"
 import { useOrvantaCompany } from "./orvanta/useOrvantaCompany"
 import { Providers } from "./Providers"
 import { UiServiceClient } from "./services/grpc-client"
@@ -47,18 +47,25 @@ const AppContent = () => {
 	const { clineUser, organizations, activeOrganization, accountSwitch, accountSwitchError } = useClineAuth()
 	const { company } = useOrvantaCompany()
 	const [orvantaTab, setOrvantaTab] = useState<OrvantaTab>("home")
-	const [focusAgentId, setFocusAgentId] = useState<string>("coordinator")
+	const [focusAgentId, setFocusAgentId] = useState<string>("team-feed")
 
 	const [contextTask, setContextTask] = useState<{ id: string; title: string } | undefined>()
 	const [contextDecision, setContextDecision] = useState<{ id: string; title: string } | undefined>()
 
 	const hasCompany = company.status === "ready" && company.agents.length > 0
 	const coordinatorAgent = company.agents.find((a) => a.role === "lead" || a.id === "coordinator") ?? company.agents[0]
-	const effectiveFocusAgentId = company.agents.some((a) => a.id === focusAgentId)
-		? focusAgentId
-		: (coordinatorAgent?.id ?? "coordinator")
+	const effectiveFocusAgentId =
+		focusAgentId === "team-feed" || company.agents.some((a) => a.id === focusAgentId)
+			? focusAgentId
+			: (coordinatorAgent?.id ?? "coordinator")
 	const focusedAgent = company.agents.find((a) => a.id === effectiveFocusAgentId) ?? coordinatorAgent
 	const overlayOpen = showSettings || showHistory || showMarketplace || showMcp || showAccount || showWorktrees
+
+	useEffect(() => {
+		if (hasCompany && showHistory) {
+			hideHistory()
+		}
+	}, [hasCompany, showHistory, hideHistory])
 
 	const showUpdateAnnouncementModal = useCallback(() => {
 		setShowAnnouncement(true)
@@ -89,13 +96,22 @@ const AppContent = () => {
 
 	useEffect(() => {
 		const handleMessage = (e: MessageEvent) => {
+			if (e.data?.type === "orvanta_switch_channel" && e.data?.channelId) {
+				setOrvantaTab("console")
+				setFocusAgentId(e.data.channelId)
+				return
+			}
 			if (e.data?.type === "orvanta_switch_tab" && e.data?.tab) {
-				setOrvantaTab(e.data.tab)
-				if (e.data.tab === "inbox") {
-					setInboxFocusId(e.data.focusDecision || e.data.focusId || undefined)
+				const rawTab = e.data.tab
+				const nextTab: OrvantaTab = rawTab === "chat" || rawTab === "war-room" ? "console" : rawTab
+				setOrvantaTab(nextTab)
+				if (rawTab === "war-room") {
+					setFocusAgentId("team-feed")
+				} else if (e.data.focusAgentId || e.data.focusAgent || e.data.agentId || e.data.channelId) {
+					setFocusAgentId(e.data.focusAgentId || e.data.focusAgent || e.data.agentId || e.data.channelId)
 				}
-				if (e.data.focusAgentId || e.data.focusAgent) {
-					setFocusAgentId(e.data.focusAgentId || e.data.focusAgent)
+				if (nextTab === "inbox") {
+					setInboxFocusId(e.data.focusDecision || e.data.focusId || undefined)
 				}
 				if (e.data.contextTask) {
 					setContextTask(e.data.contextTask)
@@ -140,11 +156,11 @@ const AppContent = () => {
 					}
 				} else if (e.key === "3") {
 					e.preventDefault()
-					setOrvantaTab("chat")
+					setOrvantaTab("console")
 				} else if (e.key === "4") {
 					if (hasCompany) {
 						e.preventDefault()
-						setOrvantaTab("war-room")
+						setOrvantaTab("agents")
 					}
 				}
 			}
@@ -165,8 +181,13 @@ const AppContent = () => {
 			}
 			if (viewParam) {
 				const clean = viewParam.trim().toLowerCase()
-				if (clean === "home" || clean === "agents" || clean === "inbox" || clean === "chat" || clean === "war-room") {
+				if (clean === "home" || clean === "agents" || clean === "inbox" || clean === "console") {
 					setOrvantaTab(clean as OrvantaTab)
+				} else if (clean === "chat") {
+					setOrvantaTab("console")
+				} else if (clean === "war-room") {
+					setOrvantaTab("console")
+					setFocusAgentId("team-feed")
 				}
 			}
 
@@ -193,7 +214,7 @@ const AppContent = () => {
 		)
 	}
 
-	const showOnboarding = showWelcome && orvantaTab === "chat"
+	const showOnboarding = showWelcome && orvantaTab === "console"
 
 	return (
 		<div className="flex h-full min-h-0 w-full flex-col">
@@ -207,7 +228,7 @@ const AppContent = () => {
 				</div>
 			)}
 			{showSettings && <SettingsView navigationRequest={settingsNavigationRequest} onDone={hideSettings} />}
-			{showHistory && <HistoryView onDone={hideHistory} />}
+			{showHistory && !hasCompany && <HistoryView onDone={hideHistory} />}
 			{showMarketplace && <MarketplaceView initialType={mcpTab ? "mcp" : undefined} onDone={closeMarketplaceView} />}
 			{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
 			{showAccount && (
@@ -228,50 +249,65 @@ const AppContent = () => {
 			)}
 			<div
 				className="flex min-h-0 flex-1 w-full overflow-hidden"
-				style={{ display: overlayOpen || orvantaTab !== "chat" || showWelcome ? "none" : "flex" }}>
-				{hasCompany && (
-					<TeamSidebar
+				style={{ display: overlayOpen || orvantaTab !== "console" || showWelcome ? "none" : "flex" }}>
+				{hasCompany ? (
+					<ConsoleView
 						agents={company.agents}
+						companyName={company.name}
 						focusAgentId={effectiveFocusAgentId}
 						onHire={() => setOrvantaTab("home")}
-						onOpenWarRoom={() => setOrvantaTab("war-room")}
-						onSelectAgent={setFocusAgentId}
-					/>
-				)}
-				<div className="flex-1 min-w-0 h-full relative flex flex-col">
-					{!hasCompany && orvantaTab === "chat" && !chatBannerDismissed && (
-						<div className="flex items-center justify-between border-b border-border-panel bg-surface-secondary/40 px-3 py-1.5 text-xs text-muted-foreground shrink-0">
-							<span>Lập công ty trên Home để quản lý đội.</span>
-							<div className="flex items-center gap-2">
-								<button
-									className="text-(--vscode-textLink-foreground) hover:underline"
-									onClick={() => setOrvantaTab("home")}
-									type="button">
-									Lập công ty →
-								</button>
-								<button
-									aria-label="Dismiss banner"
-									className="opacity-60 hover:opacity-100"
-									onClick={dismissChatBanner}
-									type="button">
-									✕
-								</button>
+						onSelectAgent={setFocusAgentId}>
+						<ChatView
+							contextDecision={contextDecision}
+							contextTask={contextTask}
+							focusAgent={effectiveFocusAgentId !== "team-feed" ? focusedAgent : undefined}
+							hideAnnouncement={hideAnnouncement}
+							isHidden={
+								overlayOpen || orvantaTab !== "console" || showWelcome || effectiveFocusAgentId === "team-feed"
+							}
+							onClearContextDecision={() => setContextDecision(undefined)}
+							onClearContextTask={() => setContextTask(undefined)}
+							onResetFocusAgent={() => setFocusAgentId(coordinatorAgent?.id ?? "coordinator")}
+							showAnnouncement={showAnnouncement}
+							showHistoryView={navigateToHistory}
+						/>
+					</ConsoleView>
+				) : (
+					<div className="flex-1 min-w-0 h-full relative flex flex-col">
+						{orvantaTab === "console" && !chatBannerDismissed && (
+							<div className="flex items-center justify-between border-b border-border-panel bg-surface-secondary/40 px-3 py-1.5 text-xs text-muted-foreground shrink-0">
+								<span>Lập công ty trên Home để quản lý đội.</span>
+								<div className="flex items-center gap-2">
+									<button
+										className="text-(--vscode-textLink-foreground) hover:underline"
+										onClick={() => setOrvantaTab("home")}
+										type="button">
+										Lập công ty →
+									</button>
+									<button
+										aria-label="Dismiss banner"
+										className="opacity-60 hover:opacity-100"
+										onClick={dismissChatBanner}
+										type="button">
+										✕
+									</button>
+								</div>
 							</div>
-						</div>
-					)}
-					<ChatView
-						contextDecision={contextDecision}
-						contextTask={contextTask}
-						focusAgent={hasCompany ? focusedAgent : undefined}
-						hideAnnouncement={hideAnnouncement}
-						isHidden={overlayOpen || orvantaTab !== "chat" || showWelcome}
-						onClearContextDecision={() => setContextDecision(undefined)}
-						onClearContextTask={() => setContextTask(undefined)}
-						onResetFocusAgent={() => setFocusAgentId(coordinatorAgent?.id ?? "coordinator")}
-						showAnnouncement={showAnnouncement}
-						showHistoryView={navigateToHistory}
-					/>
-				</div>
+						)}
+						<ChatView
+							contextDecision={contextDecision}
+							contextTask={contextTask}
+							focusAgent={undefined}
+							hideAnnouncement={hideAnnouncement}
+							isHidden={overlayOpen || orvantaTab !== "console" || showWelcome}
+							onClearContextDecision={() => setContextDecision(undefined)}
+							onClearContextTask={() => setContextTask(undefined)}
+							onResetFocusAgent={() => setFocusAgentId("coordinator")}
+							showAnnouncement={showAnnouncement}
+							showHistoryView={navigateToHistory}
+						/>
+					</div>
+				)}
 			</div>
 		</div>
 	)

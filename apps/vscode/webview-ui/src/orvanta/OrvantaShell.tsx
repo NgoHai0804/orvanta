@@ -4,18 +4,20 @@ import HomeView from "./HomeView"
 import InboxView from "./InboxView"
 import { useOrvantaCompany } from "./useOrvantaCompany"
 import { useOrvantaInbox } from "./useOrvantaInbox"
-import { useWarRoom } from "./useWarRoom"
-import WarRoomView from "./WarRoomView"
 
-export type OrvantaTab = "home" | "agents" | "inbox" | "chat" | "war-room"
+export type OrvantaTab = "home" | "agents" | "inbox" | "console"
 
 type OrvantaShellProps = {
-	activeTab: OrvantaTab
+	activeTab: OrvantaTab | "chat" | "war-room"
 	onTabChange: (tab: OrvantaTab) => void
 	inboxFocusId?: string
 }
 
-const OrvantaShell = ({ activeTab, onTabChange, inboxFocusId: propInboxFocusId }: OrvantaShellProps) => {
+const OrvantaShell = ({ activeTab: rawActiveTab, onTabChange, inboxFocusId: propInboxFocusId }: OrvantaShellProps) => {
+	// Normalize legacy tab names if any caller passes "chat" or "war-room"
+	const activeTab: OrvantaTab =
+		rawActiveTab === "chat" || rawActiveTab === "war-room" ? "console" : (rawActiveTab as OrvantaTab)
+
 	const { company, loading, creating, createError, createCompany, saveAgentProfile, deleteAgentProfile } = useOrvantaCompany()
 
 	const {
@@ -31,8 +33,6 @@ const OrvantaShell = ({ activeTab, onTabChange, inboxFocusId: propInboxFocusId }
 	} = useOrvantaInbox(company?.status)
 
 	const isCompanyReady = company?.status === "ready"
-
-	const warRoom = useWarRoom(activeTab === "war-room" && isCompanyReady)
 
 	const [localInboxFocusId, setLocalInboxFocusId] = useState<string | undefined>()
 	const effectiveInboxFocusId = propInboxFocusId || localInboxFocusId
@@ -58,16 +58,15 @@ const OrvantaShell = ({ activeTab, onTabChange, inboxFocusId: propInboxFocusId }
 			title: isCompanyReady ? "Hộp thư quyết định của CEO" : "Lập công ty trên Home để mở Inbox",
 			badge: pendingCount,
 		},
-		{ id: "chat", label: "Chat", enabled: true },
 		{
-			id: "war-room",
-			label: "War room",
-			enabled: isCompanyReady,
-			title: isCompanyReady ? undefined : "Lập công ty trên Home để mở War room",
+			id: "console",
+			label: "Console",
+			enabled: true,
+			title: "Trung tâm tác chiến đa kênh (Console)",
 		},
 	]
 
-	const isFullView = activeTab === "home" || activeTab === "agents" || activeTab === "inbox" || activeTab === "war-room"
+	const isFullView = activeTab === "home" || activeTab === "agents" || activeTab === "inbox"
 
 	return (
 		<div className={isFullView ? "flex h-full min-h-0 flex-1 flex-col overflow-hidden" : "shrink-0"}>
@@ -130,20 +129,6 @@ const OrvantaShell = ({ activeTab, onTabChange, inboxFocusId: propInboxFocusId }
 					onRefresh={refreshInbox}
 					onResolve={resolveDecision}
 					pending={pending}
-				/>
-			)}
-			{activeTab === "war-room" && (
-				<WarRoomView
-					filter={warRoom.filter}
-					onFilterChange={warRoom.setFilter}
-					onPauseToggle={warRoom.setPaused}
-					onTalkToAgent={(agentId) => {
-						// Deep-link to chat tab focusing the agent
-						window.postMessage({ type: "orvanta_switch_tab", tab: "chat", focusAgentId: agentId }, "*")
-						onTabChange("chat")
-					}}
-					paused={warRoom.paused}
-					snapshot={warRoom.snapshot}
 				/>
 			)}
 		</div>

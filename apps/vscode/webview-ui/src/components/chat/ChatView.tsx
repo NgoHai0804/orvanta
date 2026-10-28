@@ -6,6 +6,7 @@ import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
 import type { OrvantaRosterAgent } from "@shared/proto/cline/orvanta"
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useMount } from "react-use"
+import { AgentBadge } from "@/components/common/AgentBadge"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useShowNavbar } from "@/context/PlatformContext"
 import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfiguration"
@@ -103,7 +104,41 @@ const ChatView = ({
 		textAreaRef,
 	} = chatState
 
-	const displayMessages = useMemo(() => withPendingUserMessage(messages, pendingUserMessage), [messages, pendingUserMessage])
+	const selectedAgentId = focusAgent?.id
+
+	const displayMessages = useMemo(() => {
+		const raw = withPendingUserMessage(messages, pendingUserMessage)
+		if (!selectedAgentId || selectedAgentId === "team-feed") {
+			return raw
+		}
+		if (selectedAgentId === "coordinator" || selectedAgentId === "lead") {
+			return raw.filter(
+				(m) =>
+					!m.agentId ||
+					m.agentId === "coordinator" ||
+					m.agent_id === "coordinator" ||
+					m.agentId === "lead" ||
+					m.agent_id === "lead" ||
+					m.say === "task" ||
+					m.type === "ask",
+			)
+		}
+		// Teammate agent channel:
+		// Always keep the initial task message (index 0) if it's say === "task" so TaskSection / task context is preserved,
+		// and include all messages that belong to this agent or are direct messages to this agent
+		const agentItems = raw.filter(
+			(m) =>
+				m.agentId === selectedAgentId ||
+				m.agent_id === selectedAgentId ||
+				(m.say === "tool" &&
+					(m.text?.includes(`"agentId":"${selectedAgentId}"`) || m.text?.includes(`"assignee":"${selectedAgentId}"`))),
+		)
+		const initialTask = raw.find((m) => m.say === "task")
+		if (initialTask && !agentItems.includes(initialTask)) {
+			return [initialTask, ...agentItems]
+		}
+		return agentItems
+	}, [messages, pendingUserMessage, selectedAgentId])
 
 	useEffect(() => {
 		if (pendingUserMessage && hasPendingMessageConfirmation(messages, pendingUserMessage)) {
@@ -236,7 +271,7 @@ const ChatView = ({
 	// handleFocusChange is already provided by chatState
 
 	// Use message handlers hook
-	const messageHandlers = useMessageHandlers(messages, chatState)
+	const messageHandlers = useMessageHandlers(messages, chatState, focusAgent)
 
 	const { selectedModelInfo } = useNormalizedApiConfiguration(mode)
 
@@ -404,7 +439,7 @@ const ChatView = ({
 	const placeholderText = useMemo(() => {
 		if (focusAgent) {
 			const isLead = focusAgent.role === "lead" || focusAgent.id === "coordinator"
-			return isLead ? "Nói với coordinator..." : `Chỉ đạo ${focusAgent.displayName}...`
+			return isLead ? "Chỉ đạo Coordinator điều phối..." : `Chỉ đạo 1:1 tới ${focusAgent.displayName || focusAgent.id}...`
 		}
 		const text = task ? "Type a message..." : "Type your task here..."
 		return text
@@ -446,6 +481,23 @@ const ChatView = ({
 						scrollBehavior={scrollBehavior}
 						task={task}
 					/>
+				)}
+				{focusAgent && focusAgent.id !== "coordinator" && focusAgent.role !== "lead" && modifiedMessages.length === 0 && (
+					<div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-xs text-muted-foreground gap-3">
+						<AgentBadge
+							agentId={focusAgent.id}
+							displayName={focusAgent.displayName}
+							role={focusAgent.role}
+							size="md"
+						/>
+						<div className="font-semibold text-foreground text-sm">
+							Kênh làm việc của {focusAgent.displayName || focusAgent.id}
+						</div>
+						<p className="max-w-xs text-[11px] text-muted-foreground/80">
+							Chưa có nhật ký hoạt động nào từ tác nhân này trong phiên làm việc. Bạn có thể nhập tin nhắn bên dưới
+							để chỉ đạo 1:1 trực tiếp qua mailbox.
+						</p>
+					</div>
 				)}
 			</div>
 			<footer className="bg-(--vscode-sidebar-background) flex flex-col" style={{ gridRow: "2" }}>

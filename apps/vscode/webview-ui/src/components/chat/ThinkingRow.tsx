@@ -1,5 +1,6 @@
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import { memo, useCallback, useEffect, useRef, useState } from "react"
+import { AgentBadge } from "@/components/common/AgentBadge"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -12,6 +13,9 @@ interface ThinkingRowProps {
 	title?: string
 	isStreaming?: boolean
 	showChevron?: boolean
+	agentId?: string
+	agentDisplayName?: string
+	agentRole?: string
 }
 
 export const ThinkingRow = memo(
@@ -24,10 +28,14 @@ export const ThinkingRow = memo(
 		title = "Thinking",
 		isStreaming = false,
 		showChevron = true,
+		agentId,
+		agentDisplayName,
+		agentRole,
 	}: ThinkingRowProps) => {
 		const scrollRef = useRef<HTMLDivElement>(null)
 		const [canScrollUp, setCanScrollUp] = useState(false)
 		const [canScrollDown, setCanScrollDown] = useState(false)
+		const hasAgent = Boolean(agentId || agentRole)
 
 		const checkScrollable = useCallback(() => {
 			if (scrollRef.current) {
@@ -60,7 +68,7 @@ export const ThinkingRow = memo(
 				{showTitle ? (
 					<Button
 						className={cn(
-							"inline-flex justify-baseline gap-0.5 text-left select-none px-0 py-0 my-0 h-auto min-h-0 w-full text-description overflow-visible",
+							"inline-flex justify-baseline gap-1.5 items-center text-left select-none px-0 py-0 my-0 h-auto min-h-0 w-full text-description overflow-visible",
 							{
 								"cursor-pointer": !!onToggle,
 								"cursor-default": !onToggle,
@@ -69,13 +77,14 @@ export const ThinkingRow = memo(
 						onClick={onToggle}
 						size="icon"
 						variant="icon">
+						{hasAgent && <AgentBadge agentId={agentId} displayName={agentDisplayName} role={agentRole} size="sm" />}
 						<span
 							className={cn("text-[13px] leading-[1.2]", {
 								"animate-shimmer bg-linear-90 from-foreground to-description bg-[length:200%_100%] bg-clip-text text-transparent":
 									isStreaming,
 								"select-none": isStreaming,
 							})}>
-							{title}
+							{hasAgent ? (isStreaming ? "đang suy nghĩ..." : "(Suy nghĩ)") : title}
 						</span>
 						{showChevron &&
 							(isExpanded ? (

@@ -24,6 +24,8 @@ service OrvantaService {
   rpc resolveDecision(OrvantaResolveDecisionRequest) returns (OrvantaResolveDecisionResponse);
   rpc requestDecision(OrvantaRequestDecisionRequest) returns (OrvantaDecisionItem);
   rpc subscribeWarRoom(EmptyRequest) returns (stream OrvantaWarRoomSnapshot);
+  rpc subscribeConsoleState(EmptyRequest) returns (stream OrvantaConsoleStateSnapshot);
+  rpc sendAgentDirectMessage(OrvantaSendAgentDirectMessageRequest) returns (OrvantaSendAgentDirectMessageResponse);
 }
 
 message OrvantaCreateCompanyRequest {
@@ -197,6 +199,37 @@ message OrvantaWarRoomSnapshot {
   repeated OrvantaAgentCard cards = 1;
   string company_name = 2;
   string purpose_one_liner = 3;
+}
+
+// Console & Channels messages (v0.0.4)
+
+message OrvantaChannelItem {
+  string id = 1;             // "team-feed" hoặc agentId (vd: "implementer")
+  string name = 2;           // "#team-feed" hoặc "Dave"
+  string role = 3;           // "channel" | "lead" | "implementer" | "reviewer"...
+  string status = 4;         // "idle" | "running" | "failed" | "completed"
+  bool is_channel = 5;       // true nếu là #team-feed
+  bool is_ephemeral = 6;     // true nếu là agent tạm thời
+  int32 unread_count = 7;    // số lượng sự kiện chưa đọc
+  int64 running_elapsed = 8; // số giây đã chạy nếu running
+  string current_task = 9;   // tiêu đề task đang thực hiện
+}
+
+message OrvantaConsoleStateSnapshot {
+  string active_channel_id = 1;
+  repeated OrvantaChannelItem channels = 2;
+  bool is_sidebar_collapsed = 3;
+}
+
+message OrvantaSendAgentDirectMessageRequest {
+  string agent_id = 1;
+  string message = 2;
+  optional string subject = 3;
+}
+
+message OrvantaSendAgentDirectMessageResponse {
+  bool success = 1;
+  optional string error = 2;
 }
 
 

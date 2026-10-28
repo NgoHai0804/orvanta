@@ -45,6 +45,7 @@ import type {
 } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
 import * as path from "path"
+import { globalWarRoomTracker } from "@/orvanta/war-room-tracker"
 import { isClineManagedProvider } from "@/shared/utils/cline"
 import { arePathsEqual, getDesktopDir } from "@/utils/path"
 import {
@@ -56,6 +57,33 @@ import { MessageIdMinter } from "./message-id-minter"
 import { describeCredentialRejectedError, describeMissingCredentialError } from "./provider-credential-error"
 import { extractPersistedHookContextChips, isSyntheticSdkUserMessage, isSyntheticUserPrompt } from "./sdk-user-message-mapping"
 import { isDeniedToolApprovalMistake, isKnownToolApprovalDenial } from "./tool-approval-denial"
+
+function resolveAgentAttribution(
+	rawAgentId?: string,
+	rawRole?: string,
+): { agentId: string; displayName: string; role: string } | undefined {
+	if (!rawAgentId) return undefined
+	const card = globalWarRoomTracker.getCard(rawAgentId)
+	if (card) {
+		return {
+			agentId: card.id,
+			displayName: card.displayName,
+			role: card.role || rawRole || "teammate",
+		}
+	}
+	const lower = rawAgentId.toLowerCase()
+	if (lower === "coordinator" || lower === "lead") {
+		return { agentId: rawAgentId, displayName: "Coordinator", role: "lead" }
+	}
+	if (lower === "implementer" || lower === "coder") {
+		return { agentId: rawAgentId, displayName: "Dave", role: "implementer" }
+	}
+	if (lower === "reviewer" || lower === "auditor") {
+		return { agentId: rawAgentId, displayName: "Reviewer", role: "reviewer" }
+	}
+	const displayName = rawAgentId.charAt(0).toUpperCase() + rawAgentId.slice(1)
+	return { agentId: rawAgentId, displayName, role: rawRole || "teammate" }
+}
 
 // ---------------------------------------------------------------------------
 // Translation result
@@ -216,6 +244,16 @@ export class MessageTranslatorState {
 		const ts = this.openCompactionTs
 		this.openCompactionTs = undefined
 		return ts
+	}
+
+	private currentAgentAttribution?: { agentId: string; displayName: string; role: string }
+
+	setCurrentAgent(attribution?: { agentId: string; displayName: string; role: string }): void {
+		this.currentAgentAttribution = attribution
+	}
+
+	getCurrentAgent(): { agentId: string; displayName: string; role: string } | undefined {
+		return this.currentAgentAttribution
 	}
 
 	/** Get and increment for streaming text */
@@ -564,6 +602,7 @@ export class MessageTranslatorState {
 	clearTurnOutcome(): void {
 		this.attemptCompletionSeen = false
 		this.errorSeen = false
+		this.currentAgentAttribution = undefined
 		this.clearTurnFinalText()
 	}
 }
@@ -2080,6 +2119,26 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		}
 	}
 
+	const rawAgentId = (event as any).agentId ?? (event as any).agent_id
+	let attribution = resolveAgentAttribution(rawAgentId)
+	if (attribution) {
+		state.setCurrentAgent(attribution)
+	} else {
+		attribution = state.getCurrentAgent()
+	}
+	if (attribution) {
+		for (const msg of messages) {
+			if (!msg.agentId && !msg.agent_id) {
+				msg.agentId = attribution.agentId
+				msg.agent_id = attribution.agentId
+				msg.agentDisplayName = attribution.displayName
+				msg.agent_display_name = attribution.displayName
+				msg.agentRole = attribution.role
+				msg.agent_role = attribution.role
+			}
+		}
+	}
+
 	return messages
 }
 
@@ -2136,8 +2195,32 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 				break
 			}
 
+			const rawAgentId =
+				(agentEvent as any).agentId ??
+				(agentEvent as any).agent_id ??
+				(event.payload as any)?.teamAgentId ??
+				(event.payload as any)?.agentId ??
+				(event as any)?.agentId
+
+			let attribution = resolveAgentAttribution(rawAgentId, (event.payload as any)?.teamRole)
+			if (attribution) {
+				state.setCurrentAgent(attribution)
+			} else {
+				attribution = state.getCurrentAgent()
+			}
+
 			// Agent events contain structured content (text, reasoning, tools)
 			const agentMessages = translateAgentEvent(agentEvent, state)
+			if (attribution) {
+				for (const msg of agentMessages) {
+					msg.agentId = attribution.agentId
+					msg.agent_id = attribution.agentId
+					msg.agentDisplayName = attribution.displayName
+					msg.agent_display_name = attribution.displayName
+					msg.agentRole = attribution.role
+					msg.agent_role = attribution.role
+				}
+			}
 			result.messages.push(...agentMessages)
 
 			// Check for done/error events

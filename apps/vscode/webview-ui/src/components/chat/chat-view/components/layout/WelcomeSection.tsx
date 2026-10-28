@@ -5,11 +5,9 @@ import type { Worktree } from "@shared/proto/cline/worktree"
 import { TrackWorktreeViewOpenedRequest } from "@shared/proto/cline/worktree"
 import { GitBranch, Sparkles } from "lucide-react"
 import React, { useCallback, useEffect, useMemo, useState } from "react"
-import RunningCloudTasks from "@/components/cloud/RunningCloudTasks"
 import { TaskTargetPanel } from "@/components/cloud/TaskTargetPanel"
-import BannerCarousel, { BannerData } from "@/components/common/BannerCarousel"
+import type { BannerData } from "@/components/common/BannerCarousel"
 import WhatsNewModal from "@/components/common/WhatsNewModal"
-import HistoryPreview from "@/components/history/HistoryPreview"
 import { useApiConfigurationHandlers } from "@/components/settings/utils/useApiConfigurationHandlers"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -36,9 +34,9 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	isVisible,
 	showAnnouncement,
 	hideAnnouncement,
-	showHistoryView,
+	showHistoryView: _showHistoryView,
 	version,
-	taskHistory,
+	taskHistory: _taskHistory,
 	shouldShowQuickWins,
 }) => {
 	const { lastDismissedInfoBannerVersion, lastDismissedCliBannerVersion, lastDismissedModelBannerVersion, dismissedBanners } =
@@ -330,9 +328,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 				<HomeHeader shouldShowQuickWins={shouldShowQuickWins} />
 				{!showWhatsNewModal && (
 					<>
-						<BannerCarousel banners={activeBanners} />
-						{cloudSessionsEnabled && <RunningCloudTasks />}
-						{!shouldShowQuickWins && taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
+						{/* Ẩn HistoryPreview và banner của Cline để chỉ giữ phần chính giao tiếp với agent */}
 						{/* Quick launch worktree button */}
 						{isGitRepo && worktreesEnabled?.featureFlag && worktreesEnabled?.user && (
 							<div className="flex flex-col items-center gap-3 mt-2 mb-4 px-5">

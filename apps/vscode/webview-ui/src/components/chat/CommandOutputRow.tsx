@@ -2,6 +2,7 @@ import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCo
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
 import { memo, useEffect, useRef } from "react"
+import { AgentBadge } from "@/components/common/AgentBadge"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
@@ -176,9 +177,19 @@ export const CommandOutputRow = memo(
 		const showCancelButton =
 			(isCommandExecuting || isCommandPending) && typeof onCancelCommand === "function" && isBackgroundExec
 
+		const hasAgent = Boolean(message?.agentId || message?.agent_id || message?.agentRole || message?.agent_role)
+
 		const commandHeader = (
-			<div className="flex items-center gap-2.5 mb-3">
+			<div className="flex items-center gap-2.5 mb-3 flex-wrap">
 				{icon}
+				{hasAgent && (
+					<AgentBadge
+						agentId={message.agentId ?? message.agent_id}
+						displayName={message.agentDisplayName ?? message.agent_display_name}
+						role={message.agentRole ?? message.agent_role}
+						size="sm"
+					/>
+				)}
 				{title}
 			</div>
 		)
@@ -239,8 +250,8 @@ export const CommandOutputRow = memo(
 						<CommandOutputContent
 							isContainerExpanded={true}
 							isOutputFullyExpanded={isOutputFullyExpanded}
-							onToggle={() => setIsOutputFullyExpanded(!isOutputFullyExpanded)}
 							onOutputChange={onOutputChange}
+							onToggle={() => setIsOutputFullyExpanded(!isOutputFullyExpanded)}
 							output={output}
 						/>
 					)}

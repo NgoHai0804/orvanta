@@ -153,7 +153,18 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 		return [...dedupedCompleted, ...activeTools]
 	}, [completedTools, activeTools])
 
-	const summary = getToolGroupSummaryFromParsedTools(completedTools.map((item) => item.parsedTool))
+	const agentName = useMemo(() => {
+		for (const m of messages) {
+			const name = m.agentDisplayName || (m as any).agent_display_name || m.agentId || (m as any).agent_id
+			if (name) return name
+		}
+		return undefined
+	}, [messages])
+
+	const summary = getToolGroupSummaryFromParsedTools(
+		completedTools.map((item) => item.parsedTool),
+		agentName,
+	)
 
 	const handleOpenFile = useCallback((filePath: string) => {
 		FileServiceClient.openFileRelativePath(StringRequest.create({ value: filePath })).catch((err) =>
@@ -357,7 +368,7 @@ function formatSearchDisplay(regex: string, path: string, filePattern?: string):
 /**
  * Get summary label for a tool group - shows what's been added to context.
  */
-export function getToolGroupSummaryFromParsedTools(tools: ClineSayTool[]): string {
+export function getToolGroupSummaryFromParsedTools(tools: ClineSayTool[], agentName?: string): string {
 	const counts = { read: 0, list: 0, search: 0, def: 0 }
 
 	for (const tool of tools) {
@@ -394,5 +405,6 @@ export function getToolGroupSummaryFromParsedTools(tools: ClineSayTool[]): strin
 		parts.push(`performed ${counts.search} search${counts.search > 1 ? "es" : ""}`)
 	}
 
-	return parts.length === 0 ? "Context" : "Cline" + action + parts.join(", ")
+	const actor = agentName || "Tác nhân"
+	return parts.length === 0 ? "Context" : `${actor}${action}${parts.join(", ")}`
 }

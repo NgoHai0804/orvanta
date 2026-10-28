@@ -1,6 +1,7 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { FilePlus, FileText, FileX, SquareArrowOutUpRightIcon } from "lucide-react"
 import { memo, useEffect, useMemo, useRef, useState } from "react"
+import { AgentBadge } from "@/components/common/AgentBadge"
 import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
 
@@ -40,38 +41,54 @@ interface DiffEditRowProps {
 	 * workspace.
 	 */
 	canOpenFile?: boolean
+	agentId?: string
+	agentDisplayName?: string
+	agentRole?: string
 }
 
-export const DiffEditRow = memo<DiffEditRowProps>(({ patch, path, isLoading, startLineNumbers, canOpenFile = true }) => {
-	const { parsedFiles, isStreaming } = useMemo(() => {
-		const parsed = parsePatch(patch, path)
-		return {
-			parsedFiles: parsed.parsedFiles,
-			isStreaming: isLoading || parsed.isStreaming,
+export const DiffEditRow = memo<DiffEditRowProps>(
+	({ patch, path, isLoading, startLineNumbers, canOpenFile = true, agentId, agentDisplayName, agentRole }) => {
+		const { parsedFiles, isStreaming } = useMemo(() => {
+			const parsed = parsePatch(patch, path)
+			return {
+				parsedFiles: parsed.parsedFiles,
+				isStreaming: isLoading || parsed.isStreaming,
+			}
+		}, [patch, path, isLoading])
+
+		if (!path) {
+			return null
 		}
-	}, [patch, path, isLoading])
 
-	if (!path) {
-		return null
-	}
+		return (
+			<div className="space-y-4 rounded-xs">
+				{parsedFiles.map((file, index) => (
+					<FileBlock
+						agentDisplayName={agentDisplayName}
+						agentId={agentId}
+						agentRole={agentRole}
+						canOpenFile={canOpenFile}
+						file={file}
+						isStreaming={isStreaming}
+						key={`${file.path}-${index}`}
+						startLineNumber={startLineNumbers?.[index]}
+					/>
+				))}
+			</div>
+		)
+	},
+)
 
-	return (
-		<div className="space-y-4 rounded-xs">
-			{parsedFiles.map((file, index) => (
-				<FileBlock
-					canOpenFile={canOpenFile}
-					file={file}
-					isStreaming={isStreaming}
-					key={`${file.path}-${index}`}
-					startLineNumber={startLineNumbers?.[index]}
-				/>
-			))}
-		</div>
-	)
-})
-
-const FileBlock = memo<{ file: Patch; isStreaming: boolean; startLineNumber?: number; canOpenFile: boolean }>(
-	({ file, isStreaming, startLineNumber, canOpenFile }) => {
+const FileBlock = memo<{
+	file: Patch
+	isStreaming: boolean
+	startLineNumber?: number
+	canOpenFile: boolean
+	agentId?: string
+	agentDisplayName?: string
+	agentRole?: string
+}>(
+	({ file, isStreaming, startLineNumber, canOpenFile, agentId, agentDisplayName, agentRole }) => {
 		const [isExpanded, setIsExpanded] = useState(true)
 		const scrollContainerRef = useRef<HTMLDivElement>(null)
 		const shouldFollowRef = useRef(true)
@@ -143,6 +160,9 @@ const FileBlock = memo<{ file: Patch; isStreaming: boolean; startLineNumber?: nu
 			})
 		}, [file.lines, startLineNumber])
 
+		const hasAgent = Boolean(agentId || agentRole)
+		const totalChangedLines = (file.additions ?? 0) + (file.deletions ?? 0)
+
 		return (
 			<div className="bg-code rounded-xs border border-editor-group-border overflow-hidden">
 				<button
@@ -152,15 +172,24 @@ const FileBlock = memo<{ file: Patch; isStreaming: boolean; startLineNumber?: nu
 					<div className="flex items-center gap-3 flex-1 w-full overflow-hidden">
 						<div className={cn("flex items-center gap-2 w-full", actionStyle.borderClass)}>
 							<ActionIcon className={cn("w-5 h-5", actionStyle.iconClass)} />
+							{hasAgent && (
+								<AgentBadge agentId={agentId} displayName={agentDisplayName} role={agentRole} size="sm" />
+							)}
 							{canOpenFile ? (
 								<span
 									className="font-medium truncate hover:underline hover:text-link"
 									onClick={handleOpenFile}
 									title="Open file in editor">
-									{file.path}
+									{hasAgent
+										? `đang đề xuất sửa ${totalChangedLines > 0 ? `${totalChangedLines} dòng trong ` : ""}${file.path}`
+										: file.path}
 								</span>
 							) : (
-								<span className="font-medium truncate">{file.path}</span>
+								<span className="font-medium truncate">
+									{hasAgent
+										? `đang đề xuất sửa ${totalChangedLines > 0 ? `${totalChangedLines} dòng trong ` : ""}${file.path}`
+										: file.path}
+								</span>
 							)}
 						</div>
 					</div>
@@ -199,7 +228,10 @@ const FileBlock = memo<{ file: Patch; isStreaming: boolean; startLineNumber?: nu
 		prev.file.action === next.file.action &&
 		prev.file.additions === next.file.additions &&
 		prev.file.deletions === next.file.deletions &&
-		prev.file.lines === next.file.lines,
+		prev.file.lines === next.file.lines &&
+		prev.agentId === next.agentId &&
+		prev.agentDisplayName === next.agentDisplayName &&
+		prev.agentRole === next.agentRole,
 )
 
 const DiffStats = memo<{ additions: number; deletions: number }>(({ additions, deletions }) => (

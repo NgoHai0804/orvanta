@@ -37,4 +37,24 @@ describe("ThinkingRow", () => {
 		fireEvent.click(screen.getByRole("button", { name: /Thinking/i }))
 		expect(onToggle).toHaveBeenCalledTimes(1)
 	})
+
+	it("renders AgentBadge and thinking status when agent metadata is provided", () => {
+		render(
+			<ThinkingRow
+				agentDisplayName="Dave"
+				agentId="implementer"
+				agentRole="implementer"
+				isExpanded={true}
+				isStreaming={true}
+				isVisible={true}
+				reasoningContent="Analyzing codebase..."
+				showTitle={true}
+			/>,
+		)
+
+		const badge = screen.getByTestId("agent-badge")
+		expect(badge).toBeInTheDocument()
+		expect(badge.textContent).toContain("Dave")
+		expect(screen.getByText("đang suy nghĩ...")).toBeInTheDocument()
+	})
 })

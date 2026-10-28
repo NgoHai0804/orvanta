@@ -1,5 +1,13 @@
 import { Logger } from "@/shared/services/Logger"
-import { StreamingResponseHandler } from "./grpc-handler"
+
+/**
+ * Type definition for a streaming response handler
+ */
+export type StreamingResponseHandler<TResponse> = (
+	response: TResponse,
+	isLast?: boolean,
+	sequenceNumber?: number,
+) => Promise<void>
 
 /**
  * Information about a registered gRPC request
@@ -120,4 +128,15 @@ export class GrpcRequestRegistry {
 
 		return cleanedCount
 	}
+}
+
+// Registry to track active gRPC requests and their cleanup functions
+const requestRegistry = new GrpcRequestRegistry()
+
+/**
+ * Get the request registry instance
+ * This allows other parts of the code to access the registry
+ */
+export function getRequestRegistry(): GrpcRequestRegistry {
+	return requestRegistry
 }

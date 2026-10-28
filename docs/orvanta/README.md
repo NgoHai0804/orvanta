@@ -6,7 +6,7 @@ Orvanta là lớp **công ty AI theo từng repository**, xây dựng trên nề
 
 ## Cấu trúc Phiên bản Tài liệu
 
-Tài liệu thiết kế và đặc tả kỹ thuật được phân chia theo 3 phiên bản:
+Tài liệu thiết kế và đặc tả kỹ thuật được phân chia theo 4 phiên bản:
 
 ### 📁 [v0.0.1 (Tài liệu Nền tảng Ban đầu)](./v0.0.1/README.md)
 Chứa toàn bộ tài liệu kiến trúc ban đầu từ Phase P1 đến Phase P9, bộ 4 bề mặt chính (A–D):
@@ -37,6 +37,16 @@ Phiên bản nâng cấp toàn diện **Cơ chế phối hợp & Thực thi th�
 4. **Bounded Feedback Loop**: Tối đa 2 vòng sửa đổi. Nếu quá 2 lần không đạt, tự động escalate lên CEO Inbox cho người dùng duyệt.
 5. **Nạp Cây Tổ Chức vào Não Agent Chủ**: Coordinator tự động nhận diện toàn bộ cơ cấu nhân sự, năng lực và quyền hạn của từng cấp dưới trong System Prompt để tự giao việc đúng người.
 6. **Universal Company Presets**: Mẫu cấu hình đội ngũ toàn diện cho Lập trình, Marketing & Growth, B2B Sales, Nghiên cứu sâu.
+
+
+---
+
+### 🎮 [v0.0.4 (Trung Tâm Tác Chiến Đa Tác Nhân — Multi-Agent Mission Console)](./v0.0.4/README.md)
+Phiên bản nâng cấp trải nghiệm tương tác & điều hành tập trung:
+1. **Hợp nhất Chat & War Room thành Tab [Console]**: Một màn hình chỉ huy duy nhất loại bỏ hoàn toàn sự phân mảnh giữa quan sát và ra lệnh.
+2. **Mô hình Kênh (Channels Architecture)**: Kênh chung `#team-feed` (War Room Grid + Global Activity Timeline) và các kênh riêng chuyên biệt cho từng Agent (`@coordinator`, `@implementer`, `@reviewer`...).
+3. **Định danh Tác nhân (Agent Attribution Engine)**: Xóa bỏ hoàn toàn "Cline edit file", mọi tin nhắn, lệnh terminal và khối diff file đều mang Avatar, Tên và Màu sắc nhận diện rõ ràng của Agent thực thi.
+4. **Thanh Điều Hướng Thu Gọn (Collapsible Sidebar)**: Chuyển đổi linh hoạt giữa Expanded mode (160-280px) và Collapsed Mini mode (48px) kèm đèn trạng thái nhấp nháy, tối ưu diện tích hiển thị trên VS Code.
 
 ---
 

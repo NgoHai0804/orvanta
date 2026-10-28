@@ -38,6 +38,7 @@ import { isOptionsAskActive } from "@/components/chat/chat-view/shared/buttonCon
 import { canRestoreWorkspaceFromMessage } from "@/components/chat/chat-view/utils/messageUtils"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import { CloudProvisioningRow } from "@/components/cloud/CloudProvisioningRow"
+import { AgentBadge } from "@/components/common/AgentBadge"
 import { WithCopyButton } from "@/components/common/CopyButton"
 import Thumbnails from "@/components/common/Thumbnails"
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
@@ -102,7 +103,7 @@ const InvisibleSpacer = () => <div aria-hidden className="h-px" />
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {
-		const { isLast, onHeightChange, message } = props
+		const { isLast, onHeightChange } = props
 		// Store the previous height to compare with the current height
 		// This allows us to detect changes without causing re-renders
 		const prevHeightRef = useRef(0)
@@ -134,6 +135,146 @@ const ChatRow = memo(
 )
 
 export default ChatRow
+
+const TeamRunTaskCard = memo(
+	({ tool, message, type = "assign" }: { tool: any; message?: any; type?: "assign" | "handoff" | "message" }) => {
+		const [isExpanded, setIsExpanded] = useState(false)
+		let parsed: any = {}
+		try {
+			parsed = JSON.parse(tool.content || "{}")
+		} catch {}
+
+		const senderId = message?.agentId || "coordinator"
+		const senderName = message?.agentDisplayName || (senderId === "coordinator" ? "Coordinator" : senderId)
+		const recipientId =
+			parsed.agentId || parsed.assignee || parsed.toAgentId || (type === "handoff" ? "coordinator" : "agent")
+		const recipientName = recipientId === "coordinator" ? "Coordinator" : recipientId
+
+		const rawInstruction =
+			parsed.instruction ||
+			parsed.description ||
+			parsed.prompt ||
+			parsed.task ||
+			parsed.summary ||
+			parsed.body ||
+			tool.path ||
+			""
+		const firstLine = rawInstruction
+			? rawInstruction
+					.split("\n")[0]
+					.replace(/^[#\s*-]+/, "")
+					.slice(0, 100)
+			: ""
+		const summaryText =
+			parsed.title ||
+			parsed.taskTitle ||
+			parsed.subject ||
+			firstLine ||
+			(rawInstruction ? rawInstruction.slice(0, 140) : "")
+
+		// Title header: Ai giao cho ai / Ai báo cáo cho ai
+		let headerIcon = "📋"
+		let headerTitle = `${senderName} giao việc cho @${recipientId}`
+		if (type === "handoff") {
+			headerIcon = "📤"
+			headerTitle = `@${senderId} báo cáo kết quả cho ${recipientName}`
+		} else if (type === "message") {
+			headerIcon = "💬"
+			headerTitle = `${senderName} gửi tin nhắn cho @${recipientId}`
+		}
+
+		return (
+			<div className="rounded-md border border-indigo-500/30 bg-indigo-500/10 p-2.5 text-xs flex flex-col gap-1.5 my-1.5 transition-all">
+				{/* Header line: Ai giao cho ai / Ai báo cáo cho ai + toggle button */}
+				<div className="flex items-center justify-between gap-2">
+					<div
+						className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer select-none"
+						onClick={() => setIsExpanded(!isExpanded)}>
+						<button
+							className="text-indigo-400 hover:text-indigo-300 p-0.5 shrink-0"
+							title={isExpanded ? "Thu gọn chi tiết" : "Xem toàn bộ nội dung"}
+							type="button">
+							{isExpanded ? <ChevronDownIcon className="size-3.5" /> : <ChevronRightIcon className="size-3.5" />}
+						</button>
+						<span className="shrink-0">{headerIcon}</span>
+						<span className="font-semibold text-foreground truncate">{headerTitle}</span>
+					</div>
+					<div className="flex items-center gap-1.5 shrink-0">
+						{recipientId && recipientId !== "coordinator" && (
+							<button
+								className="rounded bg-indigo-500/20 px-2 py-0.5 text-[11px] text-indigo-300 hover:bg-indigo-500/30 cursor-pointer font-mono transition-colors"
+								onClick={() => {
+									window.postMessage({ type: "orvanta_switch_channel", channelId: recipientId }, "*")
+								}}
+								title={`Chuyển tới kênh @${recipientId}`}
+								type="button">
+								@{recipientId}
+							</button>
+						)}
+						<button
+							className="rounded bg-surface-secondary/70 px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground hover:bg-surface-secondary cursor-pointer transition-colors"
+							onClick={() => {
+								window.postMessage({ type: "orvanta_switch_tab", tab: "console" }, "*")
+							}}
+							title="Xem tổng quan #team-feed"
+							type="button">
+							#team-feed
+						</button>
+					</div>
+				</div>
+
+				{/* 1 - 2 dòng tóm tắt nội dung bên dưới tiêu đề */}
+				{summaryText && (
+					<div
+						className="text-[11.5px] text-foreground/80 line-clamp-2 leading-relaxed pl-6 cursor-pointer hover:text-foreground transition-colors"
+						onClick={() => setIsExpanded(!isExpanded)}
+						title="Bấm để xem đầy đủ chi tiết">
+						{summaryText}
+					</div>
+				)}
+
+				{/* Khối xem chi tiết đầy đủ (sổ hết không có thanh cuộn) */}
+				{isExpanded && (
+					<div className="border-t border-indigo-500/20 pt-2.5 flex flex-col gap-2 text-[11px] text-muted-foreground pl-1">
+						{parsed.taskId && (
+							<div className="flex items-center gap-1 font-mono text-[11px]">
+								<span className="opacity-60">Mã nhiệm vụ:</span>
+								<span className="text-foreground font-semibold">#{parsed.taskId}</span>
+							</div>
+						)}
+						{parsed.deliverableArtifactPath && (
+							<div className="flex items-center gap-1.5 font-mono text-[11px] text-indigo-300">
+								<span>📦 Sản phẩm bàn giao:</span>
+								<span className="font-semibold underline select-all">{parsed.deliverableArtifactPath}</span>
+							</div>
+						)}
+						{rawInstruction && (
+							<div className="flex flex-col gap-1">
+								<span className="font-semibold text-foreground">
+									{type === "handoff" ? "Nội dung báo cáo chi tiết:" : "Nội dung yêu cầu chi tiết:"}
+								</span>
+								{/* Sổ hết không có max-h hay overflow-y-auto */}
+								<div className="bg-surface-secondary/50 rounded p-2.5 text-foreground/90 whitespace-pre-wrap font-mono text-[11px] leading-relaxed border border-border/50 select-text">
+									{rawInstruction}
+								</div>
+							</div>
+						)}
+						{parsed.context && (
+							<div className="flex flex-col gap-1">
+								<span className="font-semibold text-foreground">Ngữ cảnh bổ sung:</span>
+								<div className="bg-surface-secondary/30 rounded p-2 text-foreground/80 font-mono text-[10.5px] select-text">
+									{typeof parsed.context === "string"
+										? parsed.context
+										: JSON.stringify(parsed.context, null, 2)}
+								</div>
+							</div>
+						)}
+					</div>
+				)}
+			</div>
+		)
+	},
+)
 
 export const ChatRowContent = memo(
 	({
@@ -412,19 +553,54 @@ export const ChatRowContent = memo(
 				case "editedExistingFile":
 					const content = tool?.content || ""
 					const isApplyingPatch = content?.startsWith("%%bash") && !content.endsWith("*** End Patch\nEOF")
+					const actorName =
+						message.agentDisplayName ??
+						message.agent_display_name ??
+						(message.agentId ? `@${message.agentId}` : undefined)
 					const editToolTitle = isApplyingPatch
-						? "Cline is creating patches to edit this file:"
-						: "Cline wants to edit this file:"
+						? actorName
+							? `${actorName} đang tạo patch sửa file này:`
+							: "Đang tạo patch sửa file này:"
+						: actorName
+							? `${actorName} muốn sửa file này:`
+							: "Yêu cầu sửa file này:"
+					const isPurposeLockDenied =
+						tool?.content?.includes("purpose_lock_denied") ||
+						tool?.diff?.includes("purpose_lock_denied") ||
+						Boolean(tool.path && tool.path.includes(".orvanta/org/agents") && tool.path.endsWith("profile.md"))
 					return (
 						<div>
 							<div className={HEADER_CLASSNAMES}>
 								<PencilIcon className="size-2" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
+								{(message.agentId || message.agent_id) && (
+									<AgentBadge
+										agentId={message.agentId ?? message.agent_id}
+										displayName={message.agentDisplayName ?? message.agent_display_name}
+										role={message.agentRole ?? message.agent_role}
+										size="sm"
+									/>
+								)}
 								<span style={{ fontWeight: "bold" }}>{editToolTitle}</span>
 							</div>
+							{isPurposeLockDenied && (
+								<div className="rounded border border-rose-500/40 bg-rose-500/15 p-2.5 text-xs flex flex-col gap-1 my-2">
+									<div className="flex items-center gap-2 font-semibold text-rose-400">
+										<span>🔒</span>
+										<span>Từ chối chỉnh sửa: File được bảo vệ bởi Purpose-Lock</span>
+									</div>
+									<div className="text-[11px] text-muted-foreground">
+										Tác nhân không được phép tự ý thay đổi file cấu hình/hồ sơ <code>{tool.path}</code>. Hành
+										động đã bị hệ thống bảo mật chặn lại.
+									</div>
+								</div>
+							)}
 							{backgroundEditEnabled && tool.path && (tool.diff || tool.content) ? (
 								<DiffEditRow
+									agentDisplayName={message.agentDisplayName ?? message.agent_display_name}
+									agentId={message.agentId ?? message.agent_id}
+									agentRole={message.agentRole ?? message.agent_role}
 									canOpenFile={!currentCloudTask}
 									isLoading={message.partial}
 									patch={tool.diff || tool.content!}
@@ -471,6 +647,9 @@ export const ChatRowContent = memo(
 							</div>
 							{backgroundEditEnabled && tool.path && tool.content ? (
 								<DiffEditRow
+									agentDisplayName={message.agentDisplayName ?? message.agent_display_name}
+									agentId={message.agentId ?? message.agent_id}
+									agentRole={message.agentRole ?? message.agent_role}
 									canOpenFile={!currentCloudTask}
 									patch={tool.content}
 									path={tool.path}
@@ -704,11 +883,25 @@ export const ChatRowContent = memo(
 						</div>
 					)
 				case "useSkill":
+					const skillActor =
+						message.agentDisplayName ??
+						message.agent_display_name ??
+						(message.agentId ? `@${message.agentId}` : undefined)
 					return (
 						<div>
 							<div className={HEADER_CLASSNAMES}>
 								<LightbulbIcon className="size-2" />
-								<span className="font-bold">Cline loaded the skill:</span>
+								{(message.agentId || message.agent_id) && (
+									<AgentBadge
+										agentId={message.agentId ?? message.agent_id}
+										displayName={message.agentDisplayName ?? message.agent_display_name}
+										role={message.agentRole ?? message.agent_role}
+										size="sm"
+									/>
+								)}
+								<span className="font-bold">
+									{skillActor ? `${skillActor} đã nạp kỹ năng:` : "Đã nạp kỹ năng:"}
+								</span>
 							</div>
 							<div className="bg-code border border-editor-group-border overflow-hidden rounded-xs py-2.25 px-2.5">
 								<span className="ph-no-capture font-medium">{tool.path}</span>
@@ -716,31 +909,13 @@ export const ChatRowContent = memo(
 						</div>
 					)
 				case "team_run_task": {
-					let parsed: any = {}
-					try {
-						parsed = JSON.parse(tool.content || "{}")
-					} catch {}
-					const taskName = parsed.task || parsed.taskId || tool.path || "nhiệm vụ"
-					const agentName = parsed.agentId || parsed.assignee || "agent"
-					return (
-						<div className="rounded border border-indigo-500/30 bg-indigo-500/10 p-2 text-xs flex items-center justify-between gap-2 my-1">
-							<div className="flex items-center gap-1.5 min-w-0">
-								<span className="text-indigo-400">📋</span>
-								<span className="truncate">
-									Đã giao <strong>{taskName}</strong> →{" "}
-									<span className="font-mono text-indigo-300">@{agentName}</span>
-								</span>
-							</div>
-							<button
-								className="rounded bg-indigo-500/20 px-2 py-0.5 text-[11px] text-indigo-300 hover:bg-indigo-500/30 shrink-0 cursor-pointer"
-								onClick={() => {
-									window.postMessage({ type: "orvanta_switch_tab", tab: "war-room", filterTask: taskName }, "*")
-								}}
-								type="button">
-								War room
-							</button>
-						</div>
-					)
+					return <TeamRunTaskCard message={message} tool={tool} type="assign" />
+				}
+				case "orvanta_submit_handoff": {
+					return <TeamRunTaskCard message={message} tool={tool} type="handoff" />
+				}
+				case "team_send_message": {
+					return <TeamRunTaskCard message={message} tool={tool} type="message" />
 				}
 				case "orvanta_request_decision": {
 					let parsed: any = {}
@@ -986,6 +1161,9 @@ export const ChatRowContent = memo(
 						return (
 							<div>
 								<ThinkingRow
+									agentDisplayName={message.agentDisplayName ?? message.agent_display_name}
+									agentId={message.agentId ?? message.agent_id}
+									agentRole={message.agentRole ?? message.agent_role}
 									isExpanded={(isReasoningStreaming && hasReasoningText) || isExpanded}
 									isStreaming={isReasoningStreaming}
 									isVisible={true}

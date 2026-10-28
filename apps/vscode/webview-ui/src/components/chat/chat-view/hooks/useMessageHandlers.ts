@@ -1,10 +1,12 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import type { OrvantaRosterAgent } from "@shared/proto/cline/orvanta"
+import { OrvantaSendAgentDirectMessageRequest } from "@shared/proto/cline/orvanta"
 import { AskResponseRequest, NewTaskRequest } from "@shared/proto/cline/task"
 import { IntentEvent } from "@shared/proto/cline/ui"
 import { useCallback, useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { SlashServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
+import { OrvantaServiceClient, SlashServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { buttonsForPhase, getTurnStateMessage } from "../shared/buttonConfig"
 import type { ButtonActionInvocation, ChatState, MessageHandlers } from "../types/chatTypes"
 
@@ -29,7 +31,11 @@ function isCompactionCommand(text: string): boolean {
  * Custom hook for managing message handlers
  * Handles sending messages, button clicks, and task management
  */
-export function useMessageHandlers(messages: ClineMessage[], chatState: ChatState): MessageHandlers {
+export function useMessageHandlers(
+	messages: ClineMessage[],
+	chatState: ChatState,
+	focusAgent?: OrvantaRosterAgent,
+): MessageHandlers {
 	const { backgroundCommandRunning, turnState, cloudSessionsEnabled, cloudTaskTarget } = useExtensionState()
 	const {
 		setInputValue,
@@ -194,6 +200,38 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						setPendingUserMessage((current) => (current === optimisticMessage ? undefined : current))
 					}
 				}
+
+				// If sending to a specific teammate agent (not Coordinator / Lead), route via Orvanta direct steer
+				if (focusAgent && focusAgent.id !== "coordinator" && focusAgent.role !== "lead") {
+					clearSentMessageState()
+					const { id, optimisticMessage } = beginPendingResponse({
+						ts: Date.now(),
+						type: "say",
+						say: "user_feedback",
+						text: `[Chỉ đạo 1:1 @${focusAgent.id}]: ${messageToSend}`,
+						images: submittedImages,
+						files: submittedFiles,
+						partial: false,
+						agentId: focusAgent.id,
+						agentDisplayName: focusAgent.displayName,
+						agentRole: focusAgent.role,
+					})
+					try {
+						await OrvantaServiceClient.sendAgentDirectMessage(
+							OrvantaSendAgentDirectMessageRequest.create({
+								agentId: focusAgent.id,
+								message: messageToSend,
+								subject: `Chỉ đạo từ CEO tới ${focusAgent.displayName || focusAgent.id}`,
+							}),
+						)
+					} catch (err) {
+						rollbackPendingResponse(id, optimisticMessage)
+						restorePendingMessageState()
+						console.error("Failed to send direct message to agent:", err)
+					}
+					return
+				}
+
 				const sendAskResponseWithPendingState = async (
 					request: ReturnType<typeof AskResponseRequest.create>,
 					options: { showPendingMessage?: boolean } = {},

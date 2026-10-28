@@ -246,6 +246,9 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 				) : (
 					// Complete - always show collapsible thinking section
 					<ThinkingRow
+						agentDisplayName={message.agentDisplayName ?? message.agent_display_name}
+						agentId={message.agentId ?? message.agent_id}
+						agentRole={message.agentRole ?? message.agent_role}
 						isExpanded={isExpanded}
 						isVisible={true}
 						onToggle={handleToggle}

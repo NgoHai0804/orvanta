@@ -222,6 +222,13 @@ export interface ClineMessage {
 	conversationHistoryIndex?: number
 	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
 	modelInfo?: ClineMessageModelInfo
+	// Orvanta v0.0.4 Agent Attribution
+	agentId?: string
+	agentDisplayName?: string
+	agentRole?: string
+	agent_id?: string
+	agent_display_name?: string
+	agent_role?: string
 }
 
 export type ClineAsk =

@@ -39,7 +39,7 @@ const mocks = vi.hoisted(() => {
 		loadCompany: vi.fn(() => Promise.resolve({ status: "missing" })),
 		listAgentProfiles: vi.fn(() => Promise.resolve([])),
 		getAgentProfile: vi.fn(() => Promise.resolve(undefined)),
-		getAgentMemory: vi.fn(() => Promise.resolve("")),
+		getAgentMemory: vi.fn((_root: string, _agentId: string) => Promise.resolve("")),
 		stateManager: {
 			getApiConfiguration: vi.fn(() => ({
 				actModeApiProvider: "anthropic",

@@ -1,19 +1,12 @@
 import { Controller } from "@core/controller/index"
 import { serviceHandlers } from "@generated/hosts/vscode/protobus-services"
 import { GrpcRecorderBuilder } from "@/core/controller/grpc-recorder/grpc-recorder.builder"
-import { GrpcRequestRegistry } from "@/core/controller/grpc-request-registry"
 import { ExtensionMessage } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import { GrpcCancel, GrpcRequest } from "@/shared/WebviewMessage"
 
-/**
- * Type definition for a streaming response handler
- */
-export type StreamingResponseHandler<TResponse> = (
-	response: TResponse,
-	isLast?: boolean,
-	sequenceNumber?: number,
-) => Promise<void>
+import { getRequestRegistry, type StreamingResponseHandler } from "./grpc-request-registry"
+export { getRequestRegistry, type StreamingResponseHandler }
 
 export type PostMessageToWebview = (message: ExtensionMessage) => Thenable<boolean | undefined>
 
@@ -161,7 +154,7 @@ async function handleStreamingRequest(
  * @param request The cancellation request
  */
 export async function handleGrpcRequestCancel(postMessageToWebview: PostMessageToWebview, request: GrpcCancel) {
-	const cancelled = requestRegistry.cancelRequest(request.request_id)
+	const cancelled = getRequestRegistry().cancelRequest(request.request_id)
 
 	if (cancelled) {
 		// Send a cancellation confirmation
@@ -176,17 +169,6 @@ export async function handleGrpcRequestCancel(postMessageToWebview: PostMessageT
 	} else {
 		Logger.log(`[DEBUG] Request not found for cancellation: ${request.request_id}`)
 	}
-}
-
-// Registry to track active gRPC requests and their cleanup functions
-const requestRegistry = new GrpcRequestRegistry()
-
-/**
- * Get the request registry instance
- * This allows other parts of the code to access the registry
- */
-export function getRequestRegistry(): GrpcRequestRegistry {
-	return requestRegistry
 }
 
 function getHandler(serviceName: string, methodName: string): any {

@@ -4,6 +4,7 @@ import type { OrvantaAgentCard, OrvantaCardBufferLine, OrvantaRosterAgent } from
 
 const BUFFER_MAX = 20
 const COMPLETED_TTL_MS = 30_000
+const LINE_MAX_LENGTH = 500
 
 export type CardStatus = "idle" | "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted" | "stopped"
 
@@ -26,7 +27,7 @@ function pushLine(buf: OrvantaCardBufferLine[], line: OrvantaCardBufferLine): Or
 	return next.length > BUFFER_MAX ? next.slice(next.length - BUFFER_MAX) : next
 }
 
-function trunc(text: string, max = 160): string {
+function trunc(text: string, max = LINE_MAX_LENGTH): string {
 	return text.length <= max ? text : `${text.slice(0, max)}…`
 }
 
@@ -38,27 +39,29 @@ function appendDelta(card: CardState, chunk: string, kind: "text" | "think"): vo
 		const part = lines[i]
 		if (i === 0 && card.buffer.length > 0) {
 			const last = card.buffer[card.buffer.length - 1]
-			if (last.kind === kind && last.text.length < 80) {
-				const available = 80 - last.text.length
+			if (last.kind === kind && last.text.length < LINE_MAX_LENGTH) {
+				const available = LINE_MAX_LENGTH - last.text.length
 				if (part.length <= available) {
 					last.text += part
 					continue
 				}
 				last.text += part.slice(0, available)
 				const remainder = part.slice(available)
-				if (remainder) {
-					card.buffer = pushLine(card.buffer, { kind, text: `${prefix}${trunc(remainder, 80)}` })
+				if (remainder.trim().length > 0) {
+					card.buffer = pushLine(card.buffer, { kind, text: `${prefix}${trunc(remainder, LINE_MAX_LENGTH)}` })
 				}
 				continue
 			}
 		}
 		if (part.trim().length > 0) {
-			card.buffer = pushLine(card.buffer, { kind, text: `${prefix}${trunc(part, 80)}` })
+			card.buffer = pushLine(card.buffer, { kind, text: `${prefix}${trunc(part, LINE_MAX_LENGTH)}` })
 		}
 	}
 }
 export class WarRoomTracker {
 	private readonly cards = new Map<string, CardState>()
+	private readonly transcripts = new Map<string, OrvantaCardBufferLine[]>()
+	private readonly transcriptLineCompleted = new Map<string, boolean>()
 	private readonly listeners = new Set<() => void>()
 	private tickTimer: ReturnType<typeof setInterval> | undefined
 
@@ -157,7 +160,9 @@ export class WarRoomTracker {
 				if (!card) break
 				const msg = trunc(e.message ?? e.run?.currentActivity ?? "")
 				if (msg) {
-					card.buffer = pushLine(card.buffer, { kind: "progress", text: msg })
+					const line: OrvantaCardBufferLine = { kind: "progress", text: msg }
+					card.buffer = pushLine(card.buffer, line)
+					this.pushToTranscript(card.id, line)
 					this.notify()
 				}
 				break
@@ -183,7 +188,9 @@ export class WarRoomTracker {
 				if (!card) break
 				card.status = "failed"
 				card.startedAt = undefined
-				card.buffer = pushLine(card.buffer, { kind: "error", text: trunc(e.run?.error ?? e.reason ?? "Loi khong ro") })
+				const line: OrvantaCardBufferLine = { kind: "error", text: trunc(e.run?.error ?? e.reason ?? "Loi khong ro") }
+				card.buffer = pushLine(card.buffer, line)
+				this.pushToTranscript(card.id, line)
 				this.notify()
 				break
 			}
@@ -223,28 +230,36 @@ export class WarRoomTracker {
 				if (et === "content_start") {
 					if (ae.contentType === "text" && ae.text) {
 						appendDelta(card, ae.text, "text")
+						this.appendTranscriptDelta(aid, ae.text, "text")
 						this.notify()
 					} else if (ae.contentType === "reasoning" && ae.reasoning) {
 						appendDelta(card, ae.reasoning, "think")
+						this.appendTranscriptDelta(aid, ae.reasoning, "think")
 						this.notify()
 					} else if (ae.contentType === "tool") {
-						card.buffer = pushLine(card.buffer, { kind: "tool_start", text: `▸ ${ae.toolName ?? "tool"}` })
+						const line: OrvantaCardBufferLine = { kind: "tool_start", text: `▸ ${ae.toolName ?? "tool"}` }
+						card.buffer = pushLine(card.buffer, line)
+						this.pushToTranscript(aid, line)
 						this.notify()
 					}
 				} else if (et === "content_update") {
 					if (ae.update) {
 						const up = typeof ae.update === "string" ? ae.update : JSON.stringify(ae.update)
-						card.buffer = pushLine(card.buffer, { kind: "progress", text: trunc(up, 160) })
+						const line: OrvantaCardBufferLine = { kind: "progress", text: trunc(up, 160) }
+						card.buffer = pushLine(card.buffer, line)
+						this.pushToTranscript(aid, line)
 						this.notify()
 					}
 				} else if (et === "content_end") {
 					if (ae.contentType === "tool") {
 						const isErr = Boolean(ae.error)
 						const out = ae.error ?? ae.output ?? ""
-						card.buffer = pushLine(card.buffer, {
+						const line: OrvantaCardBufferLine = {
 							kind: "tool_result",
 							text: `◂ ${isErr ? "err" : "ok"} ${trunc(typeof out === "string" ? out : JSON.stringify(out), 160)}`,
-						})
+						}
+						card.buffer = pushLine(card.buffer, line)
+						this.pushToTranscript(aid, line)
 						this.notify()
 					}
 				} else if (et === "usage") {
@@ -259,16 +274,22 @@ export class WarRoomTracker {
 					}
 					this.notify()
 				} else if (et === "tool_start" || et === "tool_use") {
-					card.buffer = pushLine(card.buffer, { kind: "tool_start", text: `▸ ${ae.toolName ?? ae.name ?? "tool"}` })
+					const line: OrvantaCardBufferLine = { kind: "tool_start", text: `▸ ${ae.toolName ?? ae.name ?? "tool"}` }
+					card.buffer = pushLine(card.buffer, line)
+					this.pushToTranscript(aid, line)
 					this.notify()
 				} else if (et === "tool_result") {
-					card.buffer = pushLine(card.buffer, {
+					const line: OrvantaCardBufferLine = {
 						kind: "tool_result",
 						text: `◂ ${ae.isError ? "err" : "ok"} ${trunc(String(ae.result ?? ae.output ?? ""), 160)}`,
-					})
+					}
+					card.buffer = pushLine(card.buffer, line)
+					this.pushToTranscript(aid, line)
 					this.notify()
 				} else if (et === "deny" || et === "purpose_lock_deny") {
-					card.buffer = pushLine(card.buffer, { kind: "deny", text: `✕ lock ${ae.toolName ?? ae.tool ?? "tool"}` })
+					const line: OrvantaCardBufferLine = { kind: "deny", text: `✕ lock ${ae.toolName ?? ae.tool ?? "tool"}` }
+					card.buffer = pushLine(card.buffer, line)
+					this.pushToTranscript(aid, line)
 					this.notify()
 				}
 				break
@@ -292,6 +313,89 @@ export class WarRoomTracker {
 		}))
 	}
 
+	getCard(agentId: string): OrvantaAgentCard | undefined {
+		const card = this.cards.get(agentId)
+		if (!card) return undefined
+		const now = Date.now()
+		return {
+			id: card.id,
+			displayName: card.displayName,
+			role: card.role,
+			status: card.status,
+			taskTitle: card.taskTitle,
+			elapsedSeconds: card.status === "running" && card.startedAt ? Math.floor((now - card.startedAt) / 1000) : 0,
+			buffer: card.buffer.map((line) => ({ kind: line.kind, text: line.text })),
+			isEphemeral: card.isEphemeral,
+			inputTokens: card.inputTokens,
+			outputTokens: card.outputTokens,
+			cost: card.cost,
+		}
+	}
+
+	getAgentTranscript(agentId: string): OrvantaCardBufferLine[] {
+		const transcript = this.transcripts.get(agentId)
+		if (transcript && transcript.length > 0) {
+			return transcript.map((l) => ({ kind: l.kind, text: l.text }))
+		}
+		const card = this.cards.get(agentId)
+		return card ? card.buffer.map((l) => ({ kind: l.kind, text: l.text })) : []
+	}
+
+	recordDirectMessage(agentId: string, message: string, subject?: string): void {
+		const card = this.cards.get(agentId)
+		const label = subject
+			? `[CEO ➜ @${card?.displayName ?? agentId}] (${subject}): ${message}`
+			: `[CEO ➜ @${card?.displayName ?? agentId}]: ${message}`
+		const line: OrvantaCardBufferLine = {
+			kind: "text",
+			text: trunc(label, 160),
+		}
+		if (card) {
+			card.buffer = pushLine(card.buffer, line)
+		}
+		this.pushToTranscript(agentId, line)
+		this.notify()
+	}
+
+	private pushToTranscript(agentId: string, line: OrvantaCardBufferLine): void {
+		const list = this.transcripts.get(agentId) ?? []
+		const updated = pushLine(list, line)
+		this.transcripts.set(agentId, updated.length > 500 ? updated.slice(updated.length - 500) : updated)
+		this.transcriptLineCompleted.set(agentId, true)
+	}
+
+	private appendTranscriptDelta(agentId: string, chunk: string, kind: "text" | "think"): void {
+		const list = this.transcripts.get(agentId) ?? []
+		const prefix = kind === "think" ? "think: " : ""
+		const lines = chunk.split("\n")
+		const isPrevLineCompleted = Boolean(this.transcriptLineCompleted.get(agentId))
+		let updated = [...list]
+		for (let i = 0; i < lines.length; i++) {
+			const part = lines[i]
+			if (i === 0 && updated.length > 0 && !isPrevLineCompleted) {
+				const last = updated[updated.length - 1]
+				if (last.kind === kind && last.text.length < LINE_MAX_LENGTH) {
+					const available = LINE_MAX_LENGTH - last.text.length
+					if (part.length <= available) {
+						last.text += part
+						continue
+					}
+					last.text += part.slice(0, available)
+					const remainder = part.slice(available)
+					if (remainder.trim().length > 0) {
+						updated = pushLine(updated, { kind, text: `${prefix}${trunc(remainder, LINE_MAX_LENGTH)}` })
+					}
+					continue
+				}
+			}
+			if (part.trim().length > 0) {
+				updated = pushLine(updated, { kind, text: `${prefix}${trunc(part, LINE_MAX_LENGTH)}` })
+			}
+		}
+		this.transcripts.set(agentId, updated.length > 500 ? updated.slice(updated.length - 500) : updated)
+		this.transcriptLineCompleted.set(agentId, chunk.endsWith("\n"))
+	}
+
 	subscribeChange(listener: () => void): () => void {
 		this.listeners.add(listener)
 		return () => this.listeners.delete(listener)
@@ -299,6 +403,8 @@ export class WarRoomTracker {
 
 	reset(): void {
 		this.cards.clear()
+		this.transcripts.clear()
+		this.transcriptLineCompleted.clear()
 		this.stopTick()
 		this.notify()
 	}

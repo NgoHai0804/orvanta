@@ -1,6 +1,7 @@
-import { act, render, waitFor } from "@testing-library/react"
+import type { ClineMessage } from "@shared/ExtensionMessage"
+import { act, render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
-import { CommandOutputContent } from "./CommandOutputRow"
+import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
 
 vi.mock("../common/CodeBlock", () => ({
 	default: ({ source }: { source: string }) => <pre>{source}</pre>,
@@ -75,5 +76,54 @@ describe("CommandOutputContent", () => {
 
 		await act(async () => {})
 		expect(onOutputChange).not.toHaveBeenCalled()
+	})
+})
+
+describe("CommandOutputRow", () => {
+	it("renders AgentBadge when agent metadata is present on message", () => {
+		const message: ClineMessage = {
+			ts: Date.now(),
+			type: "say",
+			say: "command",
+			text: "bun test",
+			agentId: "implementer",
+			agentDisplayName: "Dave",
+			agentRole: "implementer",
+		}
+
+		render(
+			<CommandOutputRow
+				isOutputFullyExpanded={false}
+				message={message}
+				setIsOutputFullyExpanded={vi.fn()}
+				title={<span>Terminal Command</span>}
+			/>,
+		)
+
+		const badge = screen.getByTestId("agent-badge")
+		expect(badge).toBeInTheDocument()
+		expect(badge.textContent).toContain("Dave")
+		expect(screen.getByText("Terminal Command")).toBeInTheDocument()
+	})
+
+	it("renders normally without AgentBadge when message has no agent metadata", () => {
+		const message: ClineMessage = {
+			ts: Date.now(),
+			type: "say",
+			say: "command",
+			text: "bun test",
+		}
+
+		render(
+			<CommandOutputRow
+				isOutputFullyExpanded={false}
+				message={message}
+				setIsOutputFullyExpanded={vi.fn()}
+				title={<span>Terminal Command</span>}
+			/>,
+		)
+
+		expect(screen.queryByText("Implementer · Dave")).toBeNull()
+		expect(screen.getByText("Terminal Command")).toBeInTheDocument()
 	})
 })
