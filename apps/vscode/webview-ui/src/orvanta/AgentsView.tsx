@@ -1,8 +1,57 @@
 import { OrvantaAgentProfile, type OrvantaCompanyResponse, type OrvantaRosterAgent } from "@shared/proto/cline/orvanta"
-import { useMemo, useState } from "react"
+import {
+	type KeyboardEvent,
+	type MouseEvent as ReactMouseEvent,
+	useCallback,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react"
 import { AgentEditor } from "./AgentEditor"
 import { AgentTreeChart } from "./AgentTreeChart"
 import { buildAgentTree } from "./tree-utils"
+
+export const AGENTS_SPLIT_MIN_TREE = 180
+export const AGENTS_SPLIT_MIN_EDITOR = 220
+export const AGENTS_SPLIT_DIVIDER = 12
+export const AGENTS_SPLIT_DEFAULT_RATIO = 0.42
+export const AGENTS_SPLIT_STORAGE_KEY = "orvanta_agents_split_tree_height"
+
+export function clampAgentsSplitTreeHeight(treeHeight: number, containerHeight: number): number {
+	if (!Number.isFinite(treeHeight)) {
+		return AGENTS_SPLIT_MIN_TREE
+	}
+	if (!Number.isFinite(containerHeight) || containerHeight <= 0) {
+		return Math.max(AGENTS_SPLIT_MIN_TREE, treeHeight)
+	}
+	const available = Math.max(0, containerHeight - AGENTS_SPLIT_DIVIDER)
+	if (available <= AGENTS_SPLIT_MIN_TREE + AGENTS_SPLIT_MIN_EDITOR) {
+		const reservedEditor = Math.min(AGENTS_SPLIT_MIN_EDITOR, Math.floor(available / 2))
+		const maxTree = Math.max(0, available - reservedEditor)
+		return Math.max(0, Math.min(maxTree, treeHeight))
+	}
+	const maxTree = available - AGENTS_SPLIT_MIN_EDITOR
+	return Math.max(AGENTS_SPLIT_MIN_TREE, Math.min(maxTree, treeHeight))
+}
+
+export function defaultAgentsSplitTreeHeight(containerHeight: number): number {
+	if (containerHeight <= 0) {
+		return AGENTS_SPLIT_MIN_TREE
+	}
+	return clampAgentsSplitTreeHeight(Math.round(containerHeight * AGENTS_SPLIT_DEFAULT_RATIO), containerHeight)
+}
+
+function readStoredTreeHeight(): number | null {
+	try {
+		const raw = localStorage.getItem(AGENTS_SPLIT_STORAGE_KEY)
+		if (!raw) return null
+		const parsed = Number.parseInt(raw, 10)
+		return Number.isFinite(parsed) ? parsed : null
+	} catch {
+		return null
+	}
+}
 
 export type AgentsViewProps = {
 	company?: OrvantaCompanyResponse | null
@@ -104,6 +153,87 @@ const AgentsView = ({
 
 	const [selectedAgentId, setSelectedAgentId] = useState<string>("coordinator")
 	const [newProfileDraft, setNewProfileDraft] = useState<OrvantaAgentProfile | null>(null)
+	const containerRef = useRef<HTMLDivElement>(null)
+	const [treeHeight, setTreeHeight] = useState(() => readStoredTreeHeight() ?? AGENTS_SPLIT_MIN_TREE)
+	const [isDragging, setIsDragging] = useState(false)
+	const dragRef = useRef({ active: false, startY: 0, startHeight: 0 })
+
+	useLayoutEffect(() => {
+		const el = containerRef.current
+		if (!el) return
+
+		setTreeHeight(
+			clampAgentsSplitTreeHeight(readStoredTreeHeight() ?? defaultAgentsSplitTreeHeight(el.clientHeight), el.clientHeight),
+		)
+
+		if (typeof ResizeObserver === "undefined") return
+		const observer = new ResizeObserver(() => {
+			if (dragRef.current.active) return
+			setTreeHeight((current) => clampAgentsSplitTreeHeight(current, el.clientHeight))
+		})
+		observer.observe(el)
+		return () => observer.disconnect()
+	}, [])
+
+	const persistTreeHeight = useCallback((height: number) => {
+		try {
+			localStorage.setItem(AGENTS_SPLIT_STORAGE_KEY, String(height))
+		} catch {
+			// Ignore quota / private-mode failures.
+		}
+	}, [])
+
+	const onDividerMouseDown = useCallback(
+		(event: ReactMouseEvent) => {
+			if (event.button !== 0) return
+			event.preventDefault()
+			dragRef.current = { active: true, startY: event.clientY, startHeight: treeHeight }
+			setIsDragging(true)
+			document.body.style.cursor = "row-resize"
+			document.body.style.userSelect = "none"
+
+			const onMouseMove = (moveEvent: MouseEvent) => {
+				if (!dragRef.current.active) return
+				const delta = moveEvent.clientY - dragRef.current.startY
+				const containerHeight = containerRef.current?.clientHeight ?? 0
+				setTreeHeight(clampAgentsSplitTreeHeight(dragRef.current.startHeight + delta, containerHeight))
+			}
+
+			const onMouseUp = () => {
+				dragRef.current.active = false
+				setIsDragging(false)
+				document.body.style.cursor = ""
+				document.body.style.userSelect = ""
+				window.removeEventListener("mousemove", onMouseMove)
+				window.removeEventListener("mouseup", onMouseUp)
+				setTreeHeight((current) => {
+					persistTreeHeight(current)
+					return current
+				})
+			}
+
+			window.addEventListener("mousemove", onMouseMove)
+			window.addEventListener("mouseup", onMouseUp)
+		},
+		[persistTreeHeight, treeHeight],
+	)
+
+	const onDividerKeyDown = useCallback(
+		(event: KeyboardEvent) => {
+			const step = event.shiftKey ? 40 : 16
+			let next: number | undefined
+			if (event.key === "ArrowUp") next = treeHeight - step
+			else if (event.key === "ArrowDown") next = treeHeight + step
+			else if (event.key === "Home") next = AGENTS_SPLIT_MIN_TREE
+			else if (event.key === "End") next = Number.POSITIVE_INFINITY
+			if (next === undefined) return
+			event.preventDefault()
+			const clamped = clampAgentsSplitTreeHeight(next, containerRef.current?.clientHeight ?? 0)
+			setTreeHeight(clamped)
+			persistTreeHeight(clamped)
+		},
+		[persistTreeHeight, treeHeight],
+	)
 
 	// Determine existing IDs
 	const existingIds = useMemo(() => {
@@ -192,11 +322,12 @@ const AgentsView = ({
 	return (
 		<div
 			className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#0a0e1a] text-slate-200"
-			data-testid="agents-view">
-			{/* Top Panel: Tree Chart (Split 42%) */}
+			data-testid="agents-view"
+			ref={containerRef}>
 			<div
 				className="flex shrink-0 flex-col overflow-hidden border-b border-border-panel"
-				style={{ height: "42%", minHeight: "220px" }}>
+				data-testid="agents-tree-panel"
+				style={{ height: treeHeight }}>
 				<AgentTreeChart
 					onAddAgent={handleAddAgent}
 					onSelectAgent={handleSelectAgent}
@@ -205,15 +336,26 @@ const AgentsView = ({
 				/>
 			</div>
 
-			{/* Split Divider / Resizer Bar */}
+			{/* biome-ignore lint/a11y/useSemanticElements: a separator role is the ARIA pattern for a resize splitter */}
 			<div
-				className="flex h-2 w-full shrink-0 items-center justify-center bg-slate-900 border-y border-border-panel/40 cursor-row-resize hover:bg-indigo-950/40 transition-colors"
-				data-testid="split-divider">
-				<div className="h-0.5 w-10 rounded-full bg-slate-600" />
+				aria-label="Kéo để đổi kích thước sơ đồ và chi tiết agent"
+				aria-orientation="horizontal"
+				aria-valuemin={AGENTS_SPLIT_MIN_TREE}
+				aria-valuenow={treeHeight}
+				className={`group flex h-3 w-full shrink-0 cursor-row-resize items-center justify-center border-y border-border-panel/40 bg-slate-900 select-none touch-none ${
+					isDragging ? "bg-indigo-950" : "hover:bg-indigo-950/40"
+				}`}
+				data-testid="split-divider"
+				onKeyDown={onDividerKeyDown}
+				onMouseDown={onDividerMouseDown}
+				role="separator"
+				tabIndex={0}>
+				<div
+					className={`h-1 w-12 rounded-full ${isDragging ? "bg-indigo-400" : "bg-slate-600 group-hover:bg-indigo-400"}`}
+				/>
 			</div>
 
-			{/* Bottom Panel: Agent Detail Editor (58% flex-1) */}
-			<div className="flex min-h-0 flex-1 flex-col overflow-hidden relative">
+			<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 				{activeProfile ? (
 					<AgentEditor
 						allProfiles={profilesMap}

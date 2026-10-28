@@ -1,9 +1,21 @@
 import { OrvantaAgentProfile, type OrvantaCompanyResponse } from "@shared/proto/cline/orvanta"
 import { fireEvent, render, screen } from "@testing-library/react"
-import { describe, expect, it, vi } from "vitest"
-import AgentsView from "./AgentsView"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import AgentsView, {
+	AGENTS_SPLIT_DIVIDER,
+	AGENTS_SPLIT_MIN_EDITOR,
+	AGENTS_SPLIT_MIN_TREE,
+	AGENTS_SPLIT_STORAGE_KEY,
+	clampAgentsSplitTreeHeight,
+} from "./AgentsView"
 
 describe("AgentsView", () => {
+	afterEach(() => {
+		localStorage.removeItem(AGENTS_SPLIT_STORAGE_KEY)
+		document.body.style.cursor = ""
+		document.body.style.userSelect = ""
+	})
+
 	const mockCompany: OrvantaCompanyResponse = {
 		company: {
 			name: "Acme Corp",
@@ -68,6 +80,86 @@ describe("AgentsView", () => {
 		expect(screen.getByTestId("agent-tree-chart")).toBeInTheDocument()
 		expect(screen.getByTestId("split-divider")).toBeInTheDocument()
 		expect(screen.getByTestId("agent-editor-panel")).toBeInTheDocument()
+	})
+
+	it("keeps the editor in document flow so the detail pane has height", () => {
+		render(<AgentsView company={mockCompany} />)
+
+		const editor = screen.getByTestId("agent-editor-panel")
+		expect(editor.className).not.toMatch(/\babsolute\b/)
+		expect(editor.className).toMatch(/\bh-full\b/)
+		expect(screen.getByText(/Sửa agent:/)).toBeVisible()
+		expect(screen.getByTestId("editor-tab-profile")).toBeVisible()
+	})
+
+	it("shows coordinator details when the real proto company shape has agents but no nested profiles", () => {
+		const protoCompany: OrvantaCompanyResponse = {
+			status: "ready",
+			errors: [],
+			id: "co-1",
+			name: "Acme",
+			purpose: "Build",
+			teamName: "Core",
+			agents: [
+				{
+					id: "coordinator",
+					displayName: "Coordinator",
+					role: "lead",
+					status: "idle",
+					reportsTo: undefined,
+				},
+			],
+			tasksJson: "",
+		}
+
+		render(<AgentsView company={protoCompany} />)
+
+		expect(screen.getByTestId("agent-editor-panel")).toBeVisible()
+		expect(screen.getByPlaceholderText("Tên agent")).toHaveValue("Coordinator")
+	})
+
+	it("clamps the split so the editor never collapses below its minimum", () => {
+		const container = 800
+		const maxTree = container - AGENTS_SPLIT_DIVIDER - AGENTS_SPLIT_MIN_EDITOR
+		expect(clampAgentsSplitTreeHeight(10, container)).toBe(AGENTS_SPLIT_MIN_TREE)
+		expect(clampAgentsSplitTreeHeight(9999, container)).toBe(maxTree)
+		expect(clampAgentsSplitTreeHeight(300, container)).toBe(300)
+	})
+
+	it("resizes the tree panel when dragging the split divider", () => {
+		render(<AgentsView company={mockCompany} />)
+
+		const view = screen.getByTestId("agents-view")
+		Object.defineProperty(view, "clientHeight", { configurable: true, value: 800 })
+
+		const treePanel = screen.getByTestId("agents-tree-panel")
+		const startHeight = Number.parseInt(treePanel.style.height, 10)
+		expect(startHeight).toBeGreaterThan(0)
+
+		const divider = screen.getByTestId("split-divider")
+		fireEvent.mouseDown(divider, { clientY: 300 })
+		fireEvent.mouseMove(window, { clientY: 380 })
+		fireEvent.mouseUp(window)
+
+		const resized = Number.parseInt(treePanel.style.height, 10)
+		expect(resized).toBe(clampAgentsSplitTreeHeight(startHeight + 80, 800))
+		expect(screen.getByTestId("agent-editor-panel")).toBeVisible()
+	})
+
+	it("does not let a drag shrink the editor below the minimum", () => {
+		render(<AgentsView company={mockCompany} />)
+
+		const view = screen.getByTestId("agents-view")
+		Object.defineProperty(view, "clientHeight", { configurable: true, value: 800 })
+
+		const divider = screen.getByTestId("split-divider")
+		fireEvent.mouseDown(divider, { clientY: 200 })
+		fireEvent.mouseMove(window, { clientY: 2000 })
+		fireEvent.mouseUp(window)
+
+		const treePanel = screen.getByTestId("agents-tree-panel")
+		const height = Number.parseInt(treePanel.style.height, 10)
+		expect(height).toBe(800 - AGENTS_SPLIT_DIVIDER - AGENTS_SPLIT_MIN_EDITOR)
 	})
 
 	it("defaults to selecting coordinator in editor with coordinator disabled id", () => {

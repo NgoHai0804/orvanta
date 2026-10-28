@@ -282,7 +282,7 @@ export const AgentEditor = ({
 
 	return (
 		<div
-			className="absolute inset-0 z-30 flex flex-col bg-(--vscode-editor-background) text-sm text-(--vscode-foreground)"
+			className="relative flex h-full min-h-0 w-full flex-col bg-[#0b1021] text-sm text-slate-100"
 			data-testid="agent-editor-panel">
 			<div className="flex shrink-0 items-center justify-between border-b border-border-panel px-4 py-2.5">
 				<div className="flex items-center gap-2">

@@ -352,7 +352,7 @@ export const AgentTreeChart = ({ tree, selectedAgentId, onSelectAgent, onAddAgen
 			</div>
 
 			{/* Chart Viewport */}
-			<div className="flex-1 overflow-auto p-6 flex justify-center items-start min-h-[220px]">
+			<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-6">
 				{tree ? (
 					<div
 						style={{
