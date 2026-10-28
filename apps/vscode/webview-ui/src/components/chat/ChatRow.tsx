@@ -136,145 +136,157 @@ const ChatRow = memo(
 
 export default ChatRow
 
-const TeamRunTaskCard = memo(
-	({ tool, message, type = "assign" }: { tool: any; message?: any; type?: "assign" | "handoff" | "message" }) => {
-		const [isExpanded, setIsExpanded] = useState(false)
-		let parsed: any = {}
-		try {
-			parsed = JSON.parse(tool.content || "{}")
-		} catch {}
+interface TeamRunTaskCardProps {
+	tool: { content?: string; path?: string }
+	message?: { agentId?: string; agentDisplayName?: string }
+	type?: "assign" | "handoff" | "message"
+}
 
-		const senderId = message?.agentId || "coordinator"
-		const senderName = message?.agentDisplayName || (senderId === "coordinator" ? "Coordinator" : senderId)
-		const recipientId =
-			parsed.agentId || parsed.assignee || parsed.toAgentId || (type === "handoff" ? "coordinator" : "agent")
-		const recipientName = recipientId === "coordinator" ? "Coordinator" : recipientId
+interface TeamRunTaskPayload {
+	agentId?: string
+	assignee?: string
+	toAgentId?: string
+	instruction?: string
+	description?: string
+	prompt?: string
+	task?: string
+	summary?: string
+	body?: string
+	title?: string
+	taskTitle?: string
+	subject?: string
+}
 
-		const rawInstruction =
-			parsed.instruction ||
-			parsed.description ||
-			parsed.prompt ||
-			parsed.task ||
-			parsed.summary ||
-			parsed.body ||
-			tool.path ||
-			""
-		const firstLine = rawInstruction
-			? rawInstruction
-					.split("\n")[0]
-					.replace(/^[#\s*-]+/, "")
-					.slice(0, 100)
-			: ""
-		const summaryText =
-			parsed.title ||
-			parsed.taskTitle ||
-			parsed.subject ||
-			firstLine ||
-			(rawInstruction ? rawInstruction.slice(0, 140) : "")
+const TeamRunTaskCard = memo(({ tool, message, type = "assign" }: TeamRunTaskCardProps) => {
+	const [isExpanded, setIsExpanded] = useState(false)
+	let parsed: TeamRunTaskPayload = {}
+	try {
+		parsed = JSON.parse(tool.content || "{}") as TeamRunTaskPayload
+	} catch {}
 
-		// Title header: Ai giao cho ai / Ai báo cáo cho ai
-		let headerIcon = "📋"
-		let headerTitle = `${senderName} giao việc cho @${recipientId}`
-		if (type === "handoff") {
-			headerIcon = "📤"
-			headerTitle = `@${senderId} báo cáo kết quả cho ${recipientName}`
-		} else if (type === "message") {
-			headerIcon = "💬"
-			headerTitle = `${senderName} gửi tin nhắn cho @${recipientId}`
-		}
+	const senderId = message?.agentId || "coordinator"
+	const senderName = message?.agentDisplayName || (senderId === "coordinator" ? "Coordinator" : senderId)
+	const recipientId = parsed.agentId || parsed.assignee || parsed.toAgentId || (type === "handoff" ? "coordinator" : "agent")
+	const recipientName = recipientId === "coordinator" ? "Coordinator" : recipientId
 
-		return (
-			<div className="rounded-md border border-indigo-500/30 bg-indigo-500/10 p-2.5 text-xs flex flex-col gap-1.5 my-1.5 transition-all">
-				{/* Header line: Ai giao cho ai / Ai báo cáo cho ai + toggle button */}
-				<div className="flex items-center justify-between gap-2">
-					<div
-						className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer select-none"
-						onClick={() => setIsExpanded(!isExpanded)}>
-						<button
-							className="text-indigo-400 hover:text-indigo-300 p-0.5 shrink-0"
-							title={isExpanded ? "Thu gọn chi tiết" : "Xem toàn bộ nội dung"}
-							type="button">
-							{isExpanded ? <ChevronDownIcon className="size-3.5" /> : <ChevronRightIcon className="size-3.5" />}
-						</button>
-						<span className="shrink-0">{headerIcon}</span>
-						<span className="font-semibold text-foreground truncate">{headerTitle}</span>
-					</div>
-					<div className="flex items-center gap-1.5 shrink-0">
-						{recipientId && recipientId !== "coordinator" && (
-							<button
-								className="rounded bg-indigo-500/20 px-2 py-0.5 text-[11px] text-indigo-300 hover:bg-indigo-500/30 cursor-pointer font-mono transition-colors"
-								onClick={() => {
-									window.postMessage({ type: "orvanta_switch_channel", channelId: recipientId }, "*")
-								}}
-								title={`Chuyển tới kênh @${recipientId}`}
-								type="button">
-								@{recipientId}
-							</button>
-						)}
-						<button
-							className="rounded bg-surface-secondary/70 px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground hover:bg-surface-secondary cursor-pointer transition-colors"
-							onClick={() => {
-								window.postMessage({ type: "orvanta_switch_tab", tab: "console" }, "*")
-							}}
-							title="Xem tổng quan #team-feed"
-							type="button">
-							#team-feed
-						</button>
-					</div>
+	const rawInstruction =
+		parsed.instruction ||
+		parsed.description ||
+		parsed.prompt ||
+		parsed.task ||
+		parsed.summary ||
+		parsed.body ||
+		tool.path ||
+		""
+	const firstLine = rawInstruction
+		? rawInstruction
+				.split("\n")[0]
+				.replace(/^[#\s*-]+/, "")
+				.slice(0, 100)
+		: ""
+	const summaryText =
+		parsed.title || parsed.taskTitle || parsed.subject || firstLine || (rawInstruction ? rawInstruction.slice(0, 140) : "")
+
+	// Title header: Ai giao cho ai / Ai báo cáo cho ai
+	let headerIcon = "📋"
+	let headerTitle = `${senderName} giao việc cho @${recipientId}`
+	if (type === "handoff") {
+		headerIcon = "📤"
+		headerTitle = `@${senderId} báo cáo kết quả cho ${recipientName}`
+	} else if (type === "message") {
+		headerIcon = "💬"
+		headerTitle = `${senderName} gửi tin nhắn cho @${recipientId}`
+	}
+
+	return (
+		<div className="rounded-md border border-indigo-500/30 bg-indigo-500/10 p-2.5 text-xs flex flex-col gap-1.5 my-1.5 transition-all">
+			{/* Header line: Ai giao cho ai / Ai báo cáo cho ai + toggle button */}
+			<div className="flex items-center justify-between gap-2">
+				<div
+					className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer select-none"
+					onClick={() => setIsExpanded(!isExpanded)}>
+					<button
+						className="text-indigo-400 hover:text-indigo-300 p-0.5 shrink-0"
+						title={isExpanded ? "Thu gọn chi tiết" : "Xem toàn bộ nội dung"}
+						type="button">
+						{isExpanded ? <ChevronDownIcon className="size-3.5" /> : <ChevronRightIcon className="size-3.5" />}
+					</button>
+					<span className="shrink-0">{headerIcon}</span>
+					<span className="font-semibold text-foreground truncate">{headerTitle}</span>
 				</div>
-
-				{/* 1 - 2 dòng tóm tắt nội dung bên dưới tiêu đề */}
-				{summaryText && (
-					<div
-						className="text-[11.5px] text-foreground/80 line-clamp-2 leading-relaxed pl-6 cursor-pointer hover:text-foreground transition-colors"
-						onClick={() => setIsExpanded(!isExpanded)}
-						title="Bấm để xem đầy đủ chi tiết">
-						{summaryText}
-					</div>
-				)}
-
-				{/* Khối xem chi tiết đầy đủ (sổ hết không có thanh cuộn) */}
-				{isExpanded && (
-					<div className="border-t border-indigo-500/20 pt-2.5 flex flex-col gap-2 text-[11px] text-muted-foreground pl-1">
-						{parsed.taskId && (
-							<div className="flex items-center gap-1 font-mono text-[11px]">
-								<span className="opacity-60">Mã nhiệm vụ:</span>
-								<span className="text-foreground font-semibold">#{parsed.taskId}</span>
-							</div>
-						)}
-						{parsed.deliverableArtifactPath && (
-							<div className="flex items-center gap-1.5 font-mono text-[11px] text-indigo-300">
-								<span>📦 Sản phẩm bàn giao:</span>
-								<span className="font-semibold underline select-all">{parsed.deliverableArtifactPath}</span>
-							</div>
-						)}
-						{rawInstruction && (
-							<div className="flex flex-col gap-1">
-								<span className="font-semibold text-foreground">
-									{type === "handoff" ? "Nội dung báo cáo chi tiết:" : "Nội dung yêu cầu chi tiết:"}
-								</span>
-								{/* Sổ hết không có max-h hay overflow-y-auto */}
-								<div className="bg-surface-secondary/50 rounded p-2.5 text-foreground/90 whitespace-pre-wrap font-mono text-[11px] leading-relaxed border border-border/50 select-text">
-									{rawInstruction}
-								</div>
-							</div>
-						)}
-						{parsed.context && (
-							<div className="flex flex-col gap-1">
-								<span className="font-semibold text-foreground">Ngữ cảnh bổ sung:</span>
-								<div className="bg-surface-secondary/30 rounded p-2 text-foreground/80 font-mono text-[10.5px] select-text">
-									{typeof parsed.context === "string"
-										? parsed.context
-										: JSON.stringify(parsed.context, null, 2)}
-								</div>
-							</div>
-						)}
-					</div>
-				)}
+				<div className="flex items-center gap-1.5 shrink-0">
+					{recipientId && recipientId !== "coordinator" && (
+						<button
+							className="rounded bg-indigo-500/20 px-2 py-0.5 text-[11px] text-indigo-300 hover:bg-indigo-500/30 cursor-pointer font-mono transition-colors"
+							onClick={() => {
+								window.postMessage({ type: "orvanta_switch_channel", channelId: recipientId }, "*")
+							}}
+							title={`Chuyển tới kênh @${recipientId}`}
+							type="button">
+							@{recipientId}
+						</button>
+					)}
+					<button
+						className="rounded bg-surface-secondary/70 px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground hover:bg-surface-secondary cursor-pointer transition-colors"
+						onClick={() => {
+							window.postMessage({ type: "orvanta_switch_tab", tab: "console" }, "*")
+						}}
+						title="Xem tổng quan #team-feed"
+						type="button">
+						#team-feed
+					</button>
+				</div>
 			</div>
-		)
-	},
-)
+
+			{/* 1 - 2 dòng tóm tắt nội dung bên dưới tiêu đề */}
+			{summaryText && (
+				<div
+					className="text-[11.5px] text-foreground/80 line-clamp-2 leading-relaxed pl-6 cursor-pointer hover:text-foreground transition-colors"
+					onClick={() => setIsExpanded(!isExpanded)}
+					title="Bấm để xem đầy đủ chi tiết">
+					{summaryText}
+				</div>
+			)}
+
+			{/* Khối xem chi tiết đầy đủ (sổ hết không có thanh cuộn) */}
+			{isExpanded && (
+				<div className="border-t border-indigo-500/20 pt-2.5 flex flex-col gap-2 text-[11px] text-muted-foreground pl-1">
+					{parsed.taskId && (
+						<div className="flex items-center gap-1 font-mono text-[11px]">
+							<span className="opacity-60">Mã nhiệm vụ:</span>
+							<span className="text-foreground font-semibold">#{parsed.taskId}</span>
+						</div>
+					)}
+					{parsed.deliverableArtifactPath && (
+						<div className="flex items-center gap-1.5 font-mono text-[11px] text-indigo-300">
+							<span>📦 Sản phẩm bàn giao:</span>
+							<span className="font-semibold underline select-all">{parsed.deliverableArtifactPath}</span>
+						</div>
+					)}
+					{rawInstruction && (
+						<div className="flex flex-col gap-1">
+							<span className="font-semibold text-foreground">
+								{type === "handoff" ? "Nội dung báo cáo chi tiết:" : "Nội dung yêu cầu chi tiết:"}
+							</span>
+							{/* Sổ hết không có max-h hay overflow-y-auto */}
+							<div className="bg-surface-secondary/50 rounded p-2.5 text-foreground/90 whitespace-pre-wrap font-mono text-[11px] leading-relaxed border border-border/50 select-text">
+								{rawInstruction}
+							</div>
+						</div>
+					)}
+					{parsed.context && (
+						<div className="flex flex-col gap-1">
+							<span className="font-semibold text-foreground">Ngữ cảnh bổ sung:</span>
+							<div className="bg-surface-secondary/30 rounded p-2 text-foreground/80 font-mono text-[10.5px] select-text">
+								{typeof parsed.context === "string" ? parsed.context : JSON.stringify(parsed.context, null, 2)}
+							</div>
+						</div>
+					)}
+				</div>
+			)}
+		</div>
+	)
+})
 
 export const ChatRowContent = memo(
 	({

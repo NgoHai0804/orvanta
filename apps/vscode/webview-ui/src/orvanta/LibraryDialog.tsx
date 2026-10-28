@@ -6,6 +6,7 @@ import {
 	OrvantaLoadLibraryRequest,
 	OrvantaSaveLibraryRequest,
 } from "@shared/proto/cline/orvanta"
+import { IconX } from "@tabler/icons-react"
 import { useCallback, useEffect, useState } from "react"
 import { OrvantaServiceClient } from "@/services/grpc-client"
 
@@ -217,7 +218,7 @@ const LibraryDialog = ({ mode: initialMode, onClose, currentCompany, onCompanyLo
 	)
 
 	const renderLoadList = () => (
-		<div className="flex flex-col gap-2 overflow-y-auto max-h-[60vh] text-xs">
+		<div className="flex flex-col gap-2 scroller-y max-h-[60vh] text-xs">
 			{loading && <div className="p-4 text-center opacity-60">Đang quét thư viện…</div>}
 			{!loading && entries.length === 0 && <div className="p-4 text-center opacity-60">Thư viện chưa có bản lưu nào.</div>}
 			{!loading &&
@@ -291,7 +292,7 @@ const LibraryDialog = ({ mode: initialMode, onClose, currentCompany, onCompanyLo
 
 	return (
 		<div className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 p-4">
-			<div className="flex max-h-[90vh] max-w-md w-full flex-col gap-3 rounded border border-border-panel bg-(--vscode-editor-background) p-4 shadow-xl">
+			<div className="flex max-h-[90vh] max-w-md w-full flex-col gap-3 rounded-lg border border-border-panel bg-(--vscode-editor-background) p-4 shadow-xl">
 				{/* Header */}
 				<div className="flex items-center justify-between border-b border-border-panel pb-2">
 					<div className="flex items-center gap-2">
@@ -326,8 +327,11 @@ const LibraryDialog = ({ mode: initialMode, onClose, currentCompany, onCompanyLo
 							Lưu công ty
 						</button>
 					</div>
-					<button className="text-xs opacity-60 hover:opacity-100" onClick={onClose} type="button">
-						✕
+					<button
+						className="text-xs opacity-60 hover:opacity-100 cursor-pointer p-0.5 rounded"
+						onClick={onClose}
+						type="button">
+						<IconX size={14} stroke={1.5} />
 					</button>
 				</div>
 

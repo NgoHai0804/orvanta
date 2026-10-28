@@ -1,5 +1,5 @@
 import type { OrvantaRosterAgent } from "@shared/proto/cline/orvanta"
-import { ArrowLeft } from "lucide-react"
+import { IconArrowLeft } from "@tabler/icons-react"
 import { useMemo } from "react"
 import { AgentBadge } from "@/components/common/AgentBadge"
 import { TeamFeedView } from "./TeamFeedView"
@@ -64,7 +64,7 @@ export function ConsoleView({
 									onClick={() => onSelectAgent("team-feed")}
 									title="Quay lại #team-feed"
 									type="button">
-									<ArrowLeft className="size-3.5" />
+									<IconArrowLeft className="shrink-0" size={14} stroke={1.5} />
 									<span className="font-mono text-[11px]">#team-feed</span>
 								</button>
 								<div className="h-3 w-[1px] bg-border-panel" />

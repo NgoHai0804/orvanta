@@ -1,5 +1,22 @@
 import type { OrvantaRosterAgent } from "@shared/proto/cline/orvanta"
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+	type Icon,
+	IconBolt,
+	IconChevronDown,
+	IconChevronUp,
+	IconCode,
+	IconHash,
+	IconLayoutSidebarLeftCollapse,
+	IconLayoutSidebarLeftExpand,
+	IconPencil,
+	IconRobot,
+	IconRuler,
+	IconSearch,
+	IconSpeakerphone,
+	IconStar,
+	IconTarget,
+} from "@tabler/icons-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 const MIN_SIDEBAR_WIDTH = 140
@@ -44,17 +61,39 @@ function sortAgents(agents: OrvantaRosterAgent[]): OrvantaRosterAgent[] {
 	})
 }
 
-function getAgentRoleIcon(role: string, id: string): string {
+/** Map role/id → Tabler icon component. Ref: specs/web/styles/icons.md */
+const AGENT_ROLE_ICON_RULES: Array<{ match: (r: string, i: string) => boolean; icon: Icon }> = [
+	{ match: (r, i) => r === "lead" || i === "coordinator", icon: IconStar },
+	{ match: (r, i) => r === "architect" || i.includes("architect"), icon: IconRuler },
+	{
+		match: (r, i) => r === "implementer" || r === "coder" || i.includes("implementer") || i.includes("coder"),
+		icon: IconCode,
+	},
+	{
+		match: (r, i) => r === "reviewer" || r === "auditor" || i.includes("reviewer") || i.includes("auditor"),
+		icon: IconSearch,
+	},
+	{ match: (r, i) => r === "copywriter" || r === "content" || i.includes("writer"), icon: IconPencil },
+	{ match: (r, _i) => r === "sales" || r === "outreach", icon: IconTarget },
+	{
+		match: (r, i) => r === "ephemeral" || r === "guest" || i.startsWith("guest-") || i.startsWith("ephemeral-"),
+		icon: IconBolt,
+	},
+]
+
+export function getAgentRoleIconComponent(role: string, id: string): Icon {
 	const r = (role || "").toLowerCase()
 	const i = (id || "").toLowerCase()
-	if (r === "lead" || i === "coordinator") return "⭐"
-	if (r === "architect" || i.includes("architect")) return "📐"
-	if (r === "implementer" || r === "coder" || i.includes("implementer") || i.includes("coder")) return "💻"
-	if (r === "reviewer" || r === "auditor" || i.includes("reviewer") || i.includes("auditor")) return "🔍"
-	if (r === "copywriter" || r === "content" || i.includes("writer")) return "📝"
-	if (r === "sales" || r === "outreach") return "🎯"
-	if (r === "ephemeral" || r === "guest" || i.startsWith("guest-") || i.startsWith("ephemeral-")) return "⚡"
-	return "🤖"
+	return AGENT_ROLE_ICON_RULES.find(({ match }) => match(r, i))?.icon ?? IconRobot
+}
+
+function getStatusDotColor(status: string): string {
+	const s = status.toLowerCase()
+	if (s === "running") return "var(--color-status-running, #4ec9b0)"
+	if (s === "idle") return "var(--vscode-charts-green, #4ec9b0)"
+	if (s.startsWith("pending")) return "var(--color-status-pending, #cca700)"
+	if (s === "stopped") return "var(--color-status-stopped, #6e6e6e)"
+	return "var(--vscode-descriptionForeground, #858585)"
 }
 
 export const TeamSidebar: React.FC<TeamSidebarProps> = ({
@@ -191,7 +230,7 @@ export const TeamSidebar: React.FC<TeamSidebarProps> = ({
 		for (const a of sortedAgents) {
 			if (a.status.toLowerCase() === "stopped") {
 				stopped.push(a)
-			} else if (a.id.startsWith("guest-") || a.id.startsWith("ephemeral-") || (a as any).ephemeral) {
+			} else if (a.id.startsWith("guest-") || a.id.startsWith("ephemeral-") || (a as { ephemeral?: boolean }).ephemeral) {
 				ephemeral.push(a)
 			} else {
 				persistent.push(a)
@@ -205,6 +244,7 @@ export const TeamSidebar: React.FC<TeamSidebarProps> = ({
 		const isSelected = focusAgentId === agent.id
 		const isLead = agent.role === "lead" || agent.id === "coordinator"
 		const isRunning = agent.status.toLowerCase() === "running"
+		const AgentIcon = getAgentRoleIconComponent(agent.role, agent.id)
 
 		return (
 			<button
@@ -219,11 +259,15 @@ export const TeamSidebar: React.FC<TeamSidebarProps> = ({
 				onClick={() => onSelectAgent(agent.id)}
 				type="button">
 				<div className="flex w-full items-center justify-between gap-1">
-					<div className="flex items-center gap-1 min-w-0 font-medium truncate">
+					<div className="flex items-center gap-1.5 min-w-0 font-medium truncate">
+						<AgentIcon className="shrink-0 text-muted-foreground" size={14} stroke={1.5} />
 						<span className="truncate">{agent.displayName}</span>
 						{isLead && (
-							<span className="text-amber-400 shrink-0" title="Coordinator">
-								★
+							<span
+								className="text-amber-400 shrink-0 inline-flex items-center"
+								data-testid="lead-star"
+								title="Coordinator">
+								<IconStar fill="currentColor" size={12} stroke={2} />
 							</span>
 						)}
 					</div>
@@ -243,7 +287,7 @@ export const TeamSidebar: React.FC<TeamSidebarProps> = ({
 		const isSelected = focusAgentId === agent.id
 		const isLead = agent.role === "lead" || agent.id === "coordinator"
 		const isRunning = agent.status.toLowerCase() === "running"
-		const icon = getAgentRoleIcon(agent.role, agent.id)
+		const AgentIcon = getAgentRoleIconComponent(agent.role, agent.id)
 		const isLockDenied = lockDeniedAgentIds.includes(agent.id)
 
 		const button = (
@@ -259,7 +303,12 @@ export const TeamSidebar: React.FC<TeamSidebarProps> = ({
 				onClick={() => onSelectAgent(agent.id)}
 				title={`${agent.displayName} (@${agent.id}) - ${agent.status}`}
 				type="button">
-				<span className="text-base select-none leading-none">{icon}</span>
+				<AgentIcon className="select-none" size={16} stroke={1.5} />
+				{isLead && (
+					<span className="absolute -top-0.5 -right-0.5 text-[8px] leading-none" title="Coordinator">
+						<IconStar className="text-amber-400" size={8} stroke={2} />
+					</span>
+				)}
 				{isRunning ? (
 					<span
 						className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-violet-400 border-2 border-(--vscode-sideBar-background) animate-pulse"
@@ -272,9 +321,8 @@ export const TeamSidebar: React.FC<TeamSidebarProps> = ({
 					/>
 				) : (
 					<span
-						className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-2 border-(--vscode-sideBar-background) ${
-							agent.status.toLowerCase() === "idle" ? "bg-emerald-500/80" : "bg-muted-foreground/60"
-						}`}
+						className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-2 border-(--vscode-sideBar-background)"
+						style={{ backgroundColor: getStatusDotColor(agent.status) }}
 					/>
 				)}
 			</button>
@@ -289,8 +337,9 @@ export const TeamSidebar: React.FC<TeamSidebarProps> = ({
 						className="bg-(--vscode-editor-background) text-(--vscode-editor-foreground) border border-border-panel p-2.5 shadow-xl min-w-44 max-w-64 flex flex-col gap-1 text-xs z-50"
 						side="right">
 						<div className="flex items-center justify-between font-semibold gap-2">
-							<span className="truncate">
-								{icon} {agent.displayName}
+							<span className="truncate flex items-center gap-1">
+								<AgentIcon size={14} stroke={1.5} />
+								<span>{agent.displayName}</span>
 							</span>
 							<span className="text-[10px] px-1 py-0.5 rounded bg-surface-secondary text-description uppercase">
 								{isLead ? "Lead" : agent.role}
@@ -331,7 +380,7 @@ export const TeamSidebar: React.FC<TeamSidebarProps> = ({
 						onClick={toggleCollapse}
 						title="Mở rộng thanh kênh (Ctrl+B)"
 						type="button">
-						»
+						<IconLayoutSidebarLeftExpand size={16} stroke={1.5} />
 					</button>
 				</div>
 			) : (
@@ -344,13 +393,13 @@ export const TeamSidebar: React.FC<TeamSidebarProps> = ({
 						onClick={toggleCollapse}
 						title="Thu gọn thanh kênh (Ctrl+B)"
 						type="button">
-						«
+						<IconLayoutSidebarLeftCollapse size={16} stroke={1.5} />
 					</button>
 				</div>
 			)}
 
 			{/* Agent List */}
-			<nav aria-label="Danh sách agent" className="flex-1 overflow-y-auto p-1">
+			<nav aria-label="Danh sách agent" className="flex-1 scroller-y p-1">
 				{isCollapsed ? (
 					<div className="flex flex-col gap-0.5 items-center">
 						{/* Mini #team-feed channel button */}
@@ -369,7 +418,7 @@ export const TeamSidebar: React.FC<TeamSidebarProps> = ({
 										onClick={() => onSelectAgent("team-feed")}
 										title="Kênh chung #team-feed"
 										type="button">
-										<span className="font-mono text-base font-bold leading-none select-none">#</span>
+										<IconHash className="select-none" size={16} stroke={2} />
 									</button>
 								</TooltipTrigger>
 								<TooltipContent
@@ -377,7 +426,7 @@ export const TeamSidebar: React.FC<TeamSidebarProps> = ({
 									className="bg-(--vscode-editor-background) text-(--vscode-editor-foreground) border border-border-panel p-2 shadow-xl text-xs z-50"
 									side="right">
 									<div className="font-semibold flex items-center gap-1.5">
-										<span>📢</span>
+										<IconSpeakerphone size={14} stroke={1.5} />
 										<span>#team-feed</span>
 									</div>
 									<div className="text-[11px] text-muted-foreground">Kênh tổng quan toàn đội</div>
@@ -420,7 +469,7 @@ export const TeamSidebar: React.FC<TeamSidebarProps> = ({
 								data-testid="channel-team-feed"
 								onClick={() => onSelectAgent("team-feed")}
 								type="button">
-								<span className="font-mono text-sm leading-none opacity-80">#</span>
+								<IconHash className="opacity-80 shrink-0" size={14} stroke={2} />
 								<span className="truncate">team-feed</span>
 							</button>
 						</div>
@@ -448,7 +497,11 @@ export const TeamSidebar: React.FC<TeamSidebarProps> = ({
 									onClick={() => setShowStopped(!showStopped)}
 									type="button">
 									<span>Đã dừng ({stoppedAgents.length})</span>
-									<span className="text-[10px]">{showStopped ? "▲" : "▼"}</span>
+									{showStopped ? (
+										<IconChevronUp size={14} stroke={1.5} />
+									) : (
+										<IconChevronDown size={14} stroke={1.5} />
+									)}
 								</button>
 								{showStopped && (
 									<div className="flex flex-col gap-0.5 mt-0.5 opacity-60">

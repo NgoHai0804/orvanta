@@ -1,4 +1,5 @@
 ﻿import type { OrvantaAgentCard, OrvantaWarRoomSnapshot } from "@shared/proto/cline/orvanta"
+import { IconPlayerPause, IconPlayerPlay, IconX } from "@tabler/icons-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { WarRoomFilter } from "./useWarRoom"
 
@@ -119,7 +120,7 @@ function AgentCard({ card, onExpand, onTalk }: AgentCardProps) {
 				</div>
 			</div>
 			<div
-				className="flex-1 overflow-y-auto px-2 py-1 font-mono text-[10px] leading-relaxed min-h-[80px] max-h-[160px]"
+				className="flex-1 scroller-y px-2 py-1 font-mono text-[10px] leading-relaxed min-h-20 max-h-40"
 				onScroll={handleScroll}
 				ref={scrollRef}>
 				{card.buffer.length === 0 ? (
@@ -194,10 +195,10 @@ function ExpandPanel({ card, onClose, onTalk }: ExpandPanelProps) {
 					</button>
 					<button
 						aria-label="Dong expand"
-						className="rounded px-2 py-0.5 text-[10px] hover:bg-surface-secondary"
+						className="rounded px-2 py-0.5 text-[10px] hover:bg-surface-secondary cursor-pointer flex items-center justify-center"
 						onClick={onClose}
 						type="button">
-						×
+						<IconX size={14} stroke={1.5} />
 					</button>
 				</div>
 			</div>
@@ -221,7 +222,7 @@ function ExpandPanel({ card, onClose, onTalk }: ExpandPanelProps) {
 					<span className="font-mono">{card.cost > 0 ? `$${card.cost.toFixed(4)}` : "—"}</span>
 				</div>
 			</div>
-			<div className="flex-1 overflow-y-auto p-3 font-mono text-xs leading-relaxed">
+			<div className="flex-1 scroller-y p-3 font-mono text-xs leading-relaxed">
 				{card.buffer.length === 0 ? (
 					<p className="text-muted-foreground italic">Chua co hoat dong nao trong run nay.</p>
 				) : (
@@ -367,11 +368,21 @@ export function WarRoomView({ snapshot, paused, filter, onPauseToggle, onFilterC
 						))}
 					</fieldset>
 					<button
-						className={`rounded px-2 py-0.5 text-[10px] ${paused ? "bg-indigo-500/30 text-indigo-200 border border-indigo-500/50" : "bg-surface-secondary opacity-80 hover:opacity-100"}`}
+						className={`rounded px-2 py-0.5 text-[10px] inline-flex items-center gap-1 cursor-pointer ${paused ? "bg-indigo-500/30 text-indigo-200 border border-indigo-500/50" : "bg-surface-secondary opacity-80 hover:opacity-100"}`}
 						onClick={() => onPauseToggle(!paused)}
 						title={paused ? "Runtime van chay. Click de tiep tuc stream." : "Dung cap nhat UI (runtime van chay)"}
 						type="button">
-						{paused ? "▶ Resume" : "⏸ Pause"}
+						{paused ? (
+							<>
+								<IconPlayerPlay size={10} stroke={1.5} />
+								<span>Resume</span>
+							</>
+						) : (
+							<>
+								<IconPlayerPause size={10} stroke={1.5} />
+								<span>Pause</span>
+							</>
+						)}
 					</button>
 				</div>
 				{paused && <p className="mt-1 text-[10px] text-indigo-300 italic">Paused · runtime van chay</p>}
@@ -399,7 +410,7 @@ export function WarRoomView({ snapshot, paused, filter, onPauseToggle, onFilterC
 					</div>
 				)}
 			</div>
-			<div className="flex-1 overflow-y-auto p-2">
+			<div className="flex-1 scroller-y p-2">
 				{filteredCards.length === 0 ? (
 					<div className="flex items-center justify-center py-8 text-xs text-muted-foreground italic">
 						Khong ai khop filter. Xoa filter?

@@ -6,14 +6,14 @@
  * and extracts them to dist-standalone/ripgrep-binaries/
  */
 
-import { exec } from "child_process"
-import fs from "fs"
-import https from "https"
-import path from "path"
-import { pipeline } from "stream/promises"
+import { exec } from "node:child_process"
+import fs from "node:fs"
+import https from "node:https"
+import path from "node:path"
+import { pipeline } from "node:stream/promises"
+import { promisify } from "node:util"
+import { createGunzip } from "node:zlib"
 import * as tar from "tar"
-import { promisify } from "util"
-import { createGunzip } from "zlib"
 
 const execAsync = promisify(exec)
 
@@ -121,8 +121,12 @@ async function extractZip(zipPath, destDir) {
 	console.log(`  Extracting zip to: ${destDir}`)
 
 	try {
-		// Use -o to overwrite existing files without prompting
-		await execAsync(`unzip -o -q "${zipPath}" -d "${destDir}"`)
+		if (process.platform === "win32") {
+			await execAsync(`tar -xf "${zipPath}" -C "${destDir}"`)
+		} else {
+			// Use -o to overwrite existing files without prompting
+			await execAsync(`unzip -o -q "${zipPath}" -d "${destDir}"`)
+		}
 
 		// Find the extracted directory (usually ripgrep-VERSION-arch)
 		const items = fs.readdirSync(destDir)
@@ -229,7 +233,7 @@ async function main() {
 	}
 
 	// Print summary
-	console.log("\n" + "=".repeat(50))
+	console.log(`\n${"=".repeat(50)}`)
 	console.log("📊 Summary:")
 	console.log("=".repeat(50))
 

@@ -1,6 +1,20 @@
 import { PURPOSE_TEMPLATE } from "@cline/shared/orvanta"
 import { StringRequest } from "@shared/proto/cline/common"
 import type { OrvantaAgentProfile, OrvantaCompanyResponse, OrvantaDecisionItem } from "@shared/proto/cline/orvanta"
+import {
+	IconAlertTriangle,
+	IconArrowRight,
+	IconCopy,
+	IconDots,
+	IconDownload,
+	IconFileCode,
+	IconFolder,
+	IconLoader2,
+	IconRefresh,
+	IconTrash,
+	IconUpload,
+	IconX,
+} from "@tabler/icons-react"
 import { useMemo, useState } from "react"
 import MarkdownBlock from "@/components/common/MarkdownBlock"
 import { OrvantaServiceClient } from "@/services/grpc-client"
@@ -148,7 +162,7 @@ const HomeView = ({
 	if (loading && company.status === "missing" && !company.id) {
 		return (
 			<div className="flex flex-1 items-center justify-center p-4 text-xs opacity-70">
-				<span className="codicon codicon-loading codicon-modifier-spin mr-2" />
+				<IconLoader2 className="animate-spin mr-2" size={16} stroke={1.5} />
 				Đang tải…
 			</div>
 		)
@@ -190,7 +204,7 @@ const HomeView = ({
 		})()
 
 		return (
-			<div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 text-sm">
+			<div className="flex min-h-0 flex-1 flex-col gap-3 scroller-y p-3 text-sm">
 				<header className="flex items-start justify-between">
 					<div>
 						<h2 className="text-base font-semibold">{company.name}</h2>
@@ -198,74 +212,80 @@ const HomeView = ({
 					</div>
 					<div className="flex items-center gap-1.5">
 						<button
-							className="rounded px-1.5 py-0.5 text-xs opacity-70 hover:bg-white/10 hover:opacity-100 disabled:opacity-40"
+							className="rounded p-1 text-xs opacity-70 hover:bg-(--vscode-list-hoverBackground) hover:opacity-100 disabled:opacity-40 cursor-pointer flex items-center justify-center transition-colors"
 							disabled={syncing}
 							onClick={handleSync}
 							title="Đồng bộ công ty"
 							type="button">
-							<span className={`codicon codicon-sync ${syncing ? "codicon-modifier-spin" : ""}`} />
+							<IconRefresh className={syncing ? "animate-spin" : ""} size={14} stroke={1.5} />
 						</button>
 						<div className="relative">
 							<button
-								className="rounded px-2 py-0.5 text-xs font-bold opacity-70 hover:bg-white/10 hover:opacity-100"
+								className="rounded p-1 text-xs opacity-70 hover:bg-(--vscode-list-hoverBackground) hover:opacity-100 cursor-pointer flex items-center justify-center transition-colors"
 								onClick={() => setShowMenu((prev) => !prev)}
 								title="Tùy chọn công ty"
 								type="button">
-								···
+								<IconDots size={16} stroke={1.5} />
 							</button>
 							{showMenu && (
-								<div className="absolute right-0 top-full z-20 mt-1 min-w-40 rounded border border-border-panel bg-(--vscode-editor-background) p-1 shadow-xl">
+								<div className="absolute right-0 top-full z-20 mt-1 min-w-44 rounded-md border border-border-panel bg-(--vscode-editor-background) p-1 shadow-xl">
 									<button
-										className="w-full rounded px-2.5 py-1 text-left text-xs hover:bg-white/5"
+										className="w-full rounded px-2.5 py-1 text-left text-xs hover:bg-(--vscode-list-hoverBackground) flex items-center gap-2 cursor-pointer transition-colors"
 										onClick={() => {
 											setShowMenu(false)
 											setNoticeMessage("Thư mục cấu hình công ty: .orvanta/")
 										}}
 										type="button">
-										Mở thư mục .orvanta
+										<IconFolder className="shrink-0 text-muted-foreground" size={13} stroke={1.5} />
+										<span>Mở thư mục .orvanta</span>
 									</button>
 									<button
-										className="w-full rounded px-2.5 py-1 text-left text-xs hover:bg-white/5"
+										className="w-full rounded px-2.5 py-1 text-left text-xs hover:bg-(--vscode-list-hoverBackground) flex items-center gap-2 cursor-pointer transition-colors"
 										onClick={handleCopyPurpose}
 										type="button">
-										Sao chép Purpose
+										<IconCopy className="shrink-0 text-muted-foreground" size={13} stroke={1.5} />
+										<span>Sao chép Purpose</span>
 									</button>
 									<button
-										className="w-full rounded px-2.5 py-1 text-left text-xs hover:bg-white/5"
+										className="w-full rounded px-2.5 py-1 text-left text-xs hover:bg-(--vscode-list-hoverBackground) flex items-center gap-2 cursor-pointer transition-colors"
 										onClick={() => {
 											setShowMenu(false)
 											setShowViewCompanyJson(true)
 										}}
 										type="button">
-										Xem company.json
+										<IconFileCode className="shrink-0 text-muted-foreground" size={13} stroke={1.5} />
+										<span>Xem company.json</span>
 									</button>
 									<button
-										className="w-full rounded px-2.5 py-1 text-left text-xs hover:bg-white/5"
+										className="w-full rounded px-2.5 py-1 text-left text-xs hover:bg-(--vscode-list-hoverBackground) flex items-center gap-2 cursor-pointer transition-colors"
 										onClick={() => {
 											setShowMenu(false)
 											setLibraryDialogMode("save")
 										}}
 										type="button">
-										Lưu vào thư viện…
+										<IconDownload className="shrink-0 text-muted-foreground" size={13} stroke={1.5} />
+										<span>Lưu vào thư viện…</span>
 									</button>
 									<button
-										className="w-full rounded px-2.5 py-1 text-left text-xs hover:bg-white/5"
+										className="w-full rounded px-2.5 py-1 text-left text-xs hover:bg-(--vscode-list-hoverBackground) flex items-center gap-2 cursor-pointer transition-colors"
 										onClick={() => {
 											setShowMenu(false)
 											setLibraryDialogMode("load")
 										}}
 										type="button">
-										Tải từ thư viện…
+										<IconUpload className="shrink-0 text-muted-foreground" size={13} stroke={1.5} />
+										<span>Tải từ thư viện…</span>
 									</button>
 									<div className="my-1 border-t border-border-panel" />
 									<button
-										className="w-full rounded px-2.5 py-1 text-left text-xs text-red-400 hover:bg-red-500/10"
+										className="w-full rounded px-2.5 py-1 text-left text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2 cursor-pointer transition-colors"
 										onClick={() => {
 											setShowMenu(false)
 											setShowDeleteCompanyModal(true)
 										}}
 										type="button">
-										Xóa công ty…
+										<IconTrash className="shrink-0 text-red-400" size={13} stroke={1.5} />
+										<span>Xóa công ty…</span>
 									</button>
 								</div>
 							)}
@@ -277,10 +297,11 @@ const HomeView = ({
 					<div className="flex items-center justify-between rounded bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 text-xs text-blue-300">
 						<span>{noticeMessage}</span>
 						<button
-							className="ml-2 opacity-60 hover:opacity-100"
+							aria-label="Đóng thông báo"
+							className="ml-2 opacity-60 hover:opacity-100 cursor-pointer p-0.5"
 							onClick={() => setNoticeMessage(null)}
 							type="button">
-							✕
+							<IconX size={12} stroke={1.5} />
 						</button>
 					</div>
 				)}
@@ -288,11 +309,11 @@ const HomeView = ({
 				{hasInterrupted && (
 					<div className="flex items-center justify-between rounded bg-amber-500/10 border border-amber-500/30 p-2.5 text-xs text-amber-300">
 						<div className="flex items-center gap-2">
-							<span className="codicon codicon-warning text-amber-400" />
+							<IconAlertTriangle className="text-amber-400 shrink-0" size={15} stroke={1.5} />
 							<span>Phiên làm việc trước bị gián đoạn (interrupted).</span>
 						</div>
 						<button
-							className="rounded bg-amber-600 px-2.5 py-1 text-xs text-white hover:bg-amber-500 font-medium"
+							className="rounded bg-amber-600 px-2.5 py-1 text-xs text-white hover:bg-amber-500 font-medium inline-flex items-center gap-1 cursor-pointer"
 							onClick={() => {
 								window.postMessage(
 									{
@@ -304,7 +325,8 @@ const HomeView = ({
 								)
 							}}
 							type="button">
-							Tiếp tục →
+							<span>Tiếp tục</span>
+							<IconArrowRight size={12} stroke={1.5} />
 						</button>
 					</div>
 				)}
@@ -319,10 +341,12 @@ const HomeView = ({
 								</span>
 							</div>
 							<button
-								className="text-xs text-(--vscode-textLink-foreground) hover:underline"
+								aria-label="Mở Inbox →"
+								className="text-xs text-(--vscode-textLink-foreground) hover:underline inline-flex items-center gap-1 cursor-pointer"
 								onClick={() => onOpenInbox()}
 								type="button">
-								Mở Inbox →
+								<span>Mở Inbox</span>
+								<IconArrowRight size={12} stroke={1.5} />
 							</button>
 						</div>
 						{inboxPending.length === 0 ? (
@@ -428,7 +452,8 @@ const HomeView = ({
 							</span>
 						</div>
 						<button
-							className="text-xs text-(--vscode-textLink-foreground) hover:underline flex items-center gap-1"
+							aria-label="Xem sơ đồ cây & Quản lý Agents →"
+							className="text-xs text-(--vscode-textLink-foreground) hover:underline flex items-center gap-1 cursor-pointer"
 							onClick={() => {
 								if (onTabChange) {
 									onTabChange("agents")
@@ -437,7 +462,8 @@ const HomeView = ({
 								}
 							}}
 							type="button">
-							Xem sơ đồ cây & Quản lý Agents →
+							<span>Xem sơ đồ cây & Quản lý Agents</span>
+							<IconArrowRight size={12} stroke={1.5} />
 						</button>
 					</div>
 					<div className="flex flex-wrap items-center gap-4 text-xs">
@@ -505,17 +531,18 @@ const HomeView = ({
 				{/* View company.json Modal */}
 				{showViewCompanyJson && (
 					<div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 p-4">
-						<div className="flex max-w-md w-full flex-col gap-3 rounded border border-border-panel bg-(--vscode-editor-background) p-4 shadow-xl">
+						<div className="flex max-w-md w-full flex-col gap-3 rounded-md border border-border-panel bg-(--vscode-editor-background) p-4 shadow-xl">
 							<div className="flex items-center justify-between">
 								<h3 className="font-semibold text-sm">company.json</h3>
 								<button
-									className="text-xs opacity-60 hover:opacity-100"
+									aria-label="Đóng"
+									className="text-xs opacity-60 hover:opacity-100 cursor-pointer p-0.5 rounded"
 									onClick={() => setShowViewCompanyJson(false)}
 									type="button">
-									✕
+									<IconX size={14} stroke={1.5} />
 								</button>
 							</div>
-							<pre className="overflow-auto max-h-64 rounded border border-border-panel bg-black/40 p-2 font-mono text-[11px]">
+							<pre className="scroller max-h-64 rounded border border-border-panel bg-black/40 p-2 font-mono text-[11px]">
 								{JSON.stringify(
 									{
 										id: company.id,
@@ -530,7 +557,7 @@ const HomeView = ({
 							</pre>
 							<div className="flex justify-end">
 								<button
-									className="rounded border border-border-panel px-3 py-1 text-xs hover:bg-white/5"
+									className="rounded border border-border-panel px-3 py-1 text-xs hover:bg-(--vscode-list-hoverBackground) cursor-pointer"
 									onClick={() => setShowViewCompanyJson(false)}
 									type="button">
 									Đóng
@@ -543,14 +570,15 @@ const HomeView = ({
 				{/* Delete Company Modal */}
 				{showDeleteCompanyModal && (
 					<div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 p-4">
-						<div className="flex max-w-sm w-full flex-col gap-3 rounded border border-red-500/40 bg-(--vscode-editor-background) p-4 shadow-xl">
+						<div className="flex max-w-sm w-full flex-col gap-3 rounded-md border border-red-500/40 bg-(--vscode-editor-background) p-4 shadow-xl">
 							<div className="flex items-center justify-between">
 								<h3 className="font-semibold text-sm text-red-400">Xóa công ty</h3>
 								<button
-									className="text-xs opacity-60 hover:opacity-100"
+									aria-label="Đóng"
+									className="text-xs opacity-60 hover:opacity-100 cursor-pointer p-0.5 rounded"
 									onClick={() => setShowDeleteCompanyModal(false)}
 									type="button">
-									✕
+									<IconX size={14} stroke={1.5} />
 								</button>
 							</div>
 							<p className="text-xs opacity-80">
@@ -644,7 +672,7 @@ const CreateCompanyForm = ({
 	const displayError = clientError || error
 
 	return (
-		<form className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 text-sm" onSubmit={handleSubmit}>
+		<form className="flex min-h-0 flex-1 flex-col gap-3 scroller-y p-3 text-sm" onSubmit={handleSubmit}>
 			<h2 className="text-base font-semibold">Lập công ty cho folder này</h2>
 			<label className="flex flex-col gap-1">
 				<span className="text-xs font-bold uppercase tracking-wide opacity-70">Tên</span>

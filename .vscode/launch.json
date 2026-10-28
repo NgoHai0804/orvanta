@@ -16,6 +16,8 @@
 				"saoudrizwan.claude-dev", // Avoid conflicts with installed Cline
 				"--disable-extension",
 				"saoudrizwan.cline-nightly", // Avoid conflicts with installed Cline Nightly
+				"--disable-extension",
+				"oven.bun-vscode", // Avoid port 63343 conflict with installed Bun extension
 				"${workspaceFolder}/apps/vscode",
 				"--disable-extensions"
 			],
@@ -41,6 +43,8 @@
 				"saoudrizwan.claude-dev", // Avoid conflicts with installed Cline
 				"--disable-extension",
 				"saoudrizwan.cline-nightly", // Avoid conflicts with installed Cline Nightly
+				"--disable-extension",
+				"oven.bun-vscode", // Avoid port 63343 conflict with installed Bun extension
 				"${workspaceFolder}/apps/vscode"
 			],
 			"outFiles": [
@@ -66,6 +70,8 @@
 				"saoudrizwan.claude-dev", // Avoid conflicts with installed Cline
 				"--disable-extension",
 				"saoudrizwan.cline-nightly", // Avoid conflicts with installed Cline Nightly
+				"--disable-extension",
+				"oven.bun-vscode", // Avoid port 63343 conflict with installed Bun extension
 				"${workspaceFolder}/apps/vscode"
 			],
 			"outFiles": [
@@ -93,6 +99,8 @@
 				"saoudrizwan.claude-dev", // Avoid conflicts with installed Cline
 				"--disable-extension",
 				"saoudrizwan.cline-nightly", // Avoid conflicts with installed Cline Nightly
+				"--disable-extension",
+				"oven.bun-vscode", // Avoid port 63343 conflict with installed Bun extension
 				"--extensionDevelopmentPath=${workspaceFolder}/apps/vscode",
 				"${workspaceFolder}/apps/vscode"
 			],

@@ -19,6 +19,7 @@ https://github.com/gitkraken/vscode-gitlens/blob/b1d71d4844523e8b2ef16f9e007068e
 html {
 	height: 100%;
 	width: 100%;
+	overflow: hidden; /* Prevent full-page scroll – content scrolls inside panels */
 }
 
 body {
@@ -27,13 +28,97 @@ body {
 	line-height: 1.25;
 	height: 100%;
 	width: 100%;
+	overflow: hidden; /* Prevent full-page scroll */
 	background-color: var(--vscode-sideBar-background);
 }
 
 #root {
 	height: 100%;
 	width: 100%;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden; /* Children handle their own scroll */
 }
+
+/* ============================================================
+   .scroller – Thin scrollbar standard class
+   Ref: specs/web/styles/scroll.md
+   Apply to any scrollable content area (overflow: auto).
+   ============================================================ */
+.scroller {
+	overflow: auto;
+	scrollbar-width: thin; /* Firefox */
+	scrollbar-color: var(--vscode-scrollbarSlider-background, rgba(100, 100, 100, 0.4)) transparent;
+}
+
+.scroller::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+
+.scroller::-webkit-scrollbar-thumb {
+	background: var(--vscode-scrollbarSlider-background, rgba(100, 100, 100, 0.4));
+	border-radius: 3px;
+}
+
+.scroller::-webkit-scrollbar-thumb:hover {
+	background: var(--vscode-scrollbarSlider-hoverBackground, rgba(100, 100, 100, 0.7));
+}
+
+.scroller::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+/* Vertical-only scroll variant */
+.scroller-y {
+	overflow-x: hidden;
+	overflow-y: auto;
+	scrollbar-width: thin;
+	scrollbar-color: var(--vscode-scrollbarSlider-background, rgba(100, 100, 100, 0.4)) transparent;
+}
+
+.scroller-y::-webkit-scrollbar {
+	width: 6px;
+}
+
+.scroller-y::-webkit-scrollbar-thumb {
+	background: var(--vscode-scrollbarSlider-background, rgba(100, 100, 100, 0.4));
+	border-radius: 3px;
+}
+
+.scroller-y::-webkit-scrollbar-thumb:hover {
+	background: var(--vscode-scrollbarSlider-hoverBackground, rgba(100, 100, 100, 0.7));
+}
+
+.scroller-y::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+/* Horizontal-only scroll variant */
+.scroller-x {
+	overflow-x: auto;
+	overflow-y: hidden;
+	scrollbar-width: thin;
+	scrollbar-color: var(--vscode-scrollbarSlider-background, rgba(100, 100, 100, 0.4)) transparent;
+}
+
+.scroller-x::-webkit-scrollbar {
+	height: 4px;
+}
+
+.scroller-x::-webkit-scrollbar-thumb {
+	background: var(--vscode-scrollbarSlider-background, rgba(100, 100, 100, 0.4));
+	border-radius: 2px;
+}
+
+.scroller-x::-webkit-scrollbar-thumb:hover {
+	background: var(--vscode-scrollbarSlider-hoverBackground, rgba(100, 100, 100, 0.7));
+}
+
+.scroller-x::-webkit-scrollbar-track {
+	background: transparent;
+}
+/* ============================================================ */
 
 body.scrollable,
 .scrollable,

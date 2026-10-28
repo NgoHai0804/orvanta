@@ -42,7 +42,7 @@ describe("TeamSidebar", () => {
 		const buttons = screen.getAllByRole("button").filter((b) => b.getAttribute("data-testid")?.startsWith("agent-row-"))
 		expect(buttons).toHaveLength(3)
 		expect(buttons[0]).toHaveAttribute("data-testid", "agent-row-coordinator")
-		expect(buttons[0]).toHaveTextContent("★")
+		expect(buttons[0].querySelector('[data-testid="lead-star"]')).toBeInTheDocument()
 	})
 
 	it("highlights the focused agent with aria-current", () => {
@@ -88,21 +88,21 @@ describe("TeamSidebar", () => {
 		expect(sidebar).toHaveAttribute("data-collapsed", "false")
 
 		const toggleButton = screen.getByTestId("sidebar-toggle-button")
-		expect(toggleButton).toHaveTextContent("«")
+		expect(toggleButton).toHaveAttribute("title", "Thu gọn thanh kênh (Ctrl+B)")
 
 		// Click to collapse
 		fireEvent.click(toggleButton)
 
 		expect(sidebar).toHaveStyle({ width: "48px" })
 		expect(sidebar).toHaveAttribute("data-collapsed", "true")
-		expect(screen.getByTestId("sidebar-toggle-button")).toHaveTextContent("»")
+		expect(screen.getByTestId("sidebar-toggle-button")).toHaveAttribute("title", "Mở rộng thanh kênh (Ctrl+B)")
 
 		// Click to expand again
 		fireEvent.click(screen.getByTestId("sidebar-toggle-button"))
 
 		expect(sidebar).toHaveStyle({ width: "190px" })
 		expect(sidebar).toHaveAttribute("data-collapsed", "false")
-		expect(screen.getByTestId("sidebar-toggle-button")).toHaveTextContent("«")
+		expect(screen.getByTestId("sidebar-toggle-button")).toHaveAttribute("title", "Thu gọn thanh kênh (Ctrl+B)")
 	})
 
 	it("persists collapsed state to localStorage and restores it on mount", () => {
@@ -116,7 +116,7 @@ describe("TeamSidebar", () => {
 		const sidebar = screen.getByTestId("orvanta-team-sidebar")
 		expect(sidebar).toHaveStyle({ width: "48px" })
 		expect(sidebar).toHaveAttribute("data-collapsed", "true")
-		expect(screen.getByTestId("sidebar-toggle-button")).toHaveTextContent("»")
+		expect(screen.getByTestId("sidebar-toggle-button")).toHaveAttribute("title", "Mở rộng thanh kênh (Ctrl+B)")
 
 		// Expand it
 		fireEvent.click(screen.getByTestId("sidebar-toggle-button"))

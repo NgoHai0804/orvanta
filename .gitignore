@@ -22,6 +22,8 @@ CLAUDE.local.md
 
 apps/vscode/webview-ui/src/**/*.js
 apps/vscode/webview-ui/src/**/*.js.map
+apps/vscode/src/**/*.js
+apps/vscode/src/**/*.js.map
 
 # Ignore coverage directories and files
 coverage

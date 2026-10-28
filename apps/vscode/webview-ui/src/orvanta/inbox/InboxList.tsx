@@ -1,3 +1,4 @@
+import { IconCheck } from "@tabler/icons-react"
 import { type AnyDecisionItem, type InboxSubTab, TYPE_LABELS, URGENCY_LABELS } from "./inbox-types"
 
 interface InboxListProps {
@@ -10,10 +11,15 @@ interface InboxListProps {
 export function InboxList({ items, selectedId, activeSubTab, onSelect }: InboxListProps) {
 	if (items.length === 0) {
 		return (
-			<div className="p-4 text-center text-xs text-muted-foreground">
-				{activeSubTab === "pending" && "🎉 Đội không cần bạn lúc này."}
-				{activeSubTab === "deferred" && "Không có quyết định nào để sau."}
-				{activeSubTab === "history" && "Chưa có quyết định nào trong lịch sử."}
+			<div className="p-4 text-center text-xs text-muted-foreground flex items-center justify-center gap-1.5">
+				{activeSubTab === "pending" && (
+					<>
+						<IconCheck className="text-emerald-400" size={14} stroke={2} />
+						<span>Đội không cần bạn lúc này.</span>
+					</>
+				)}
+				{activeSubTab === "deferred" && <span>Không có quyết định nào để sau.</span>}
+				{activeSubTab === "history" && <span>Chưa có quyết định nào trong lịch sử.</span>}
 			</div>
 		)
 	}

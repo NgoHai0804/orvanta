@@ -4,13 +4,13 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-	"inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 cursor-pointer [&_svg]:size-2 overflow-hidden",
+	"inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 cursor-pointer overflow-hidden transition-colors",
 	{
 		variants: {
 			variant: {
-				default: "bg-button-background text-primary-foreground hover:bg-button-hover",
+				default: "bg-button-background text-button-foreground hover:bg-button-hover",
 				secondary:
-					"bg-button-secondary-background text-button-secondary-foreground hover:bg-button-secondary-background-hover shadow-sm shadow-button-secondary-background/50",
+					"bg-button-secondary-background text-button-secondary-foreground hover:bg-button-secondary-background-hover border border-border-panel/40",
 				error: "bg-error text-background hover:bg-error/90 shadow-sm shadow-error/50",
 				outline: "hover:bg-accent/10 border border-accent/20 shadow-sm shadow-accent/50",
 				"outline-primary":
@@ -25,12 +25,13 @@ const buttonVariants = cva(
 				danger: "bg-[#c42b2b] border-[#c42b2b]! text-white! hover:bg-[#a82424]! hover:border-[#a82424]! active:bg-[#8f1f1f]! active:border-[#8f1f1f]!",
 			},
 			size: {
-				default: "py-1.5 px-4 [&_svg]:size-3",
-				sm: "py-1 px-3 text-sm [&_svg]:size-2",
-				xs: "p-1 text-xs [&_svg]:size-2",
-				lg: "py-4 px-8 [&_svg]:size-4 font-medium",
-				icon: "px-0.5 m-0 [&_svg]:size-2",
-				header: "py-1 px-4 [&_svg]:size-2.5",
+				default: "h-[28px] py-1 px-3 [&_svg]:size-4",
+				sm: "h-[24px] py-0.5 px-2.5 text-xs [&_svg]:size-3.5",
+				xs: "h-[20px] p-1 text-[11px] [&_svg]:size-3",
+				lg: "h-[32px] py-1.5 px-4 font-medium [&_svg]:size-4",
+				icon: "h-[28px] w-[28px] p-0 [&_svg]:size-4",
+				"icon-sm": "h-[24px] w-[24px] p-0 [&_svg]:size-3.5",
+				header: "h-[26px] py-0.5 px-3 [&_svg]:size-3.5",
 			},
 		},
 		defaultVariants: {

@@ -139,7 +139,7 @@ export const ToolsPermissionsTab = ({
 					</div>
 
 					<div
-						className="flex flex-wrap gap-1.5 min-h-[36px] p-1.5 rounded bg-slate-900/60 border border-slate-800"
+						className="flex flex-wrap gap-1.5 min-h-9 p-1.5 rounded bg-slate-900/60 border border-slate-800"
 						data-testid="allow-tools-chips">
 						{allowTools.map((t) => (
 							<span
@@ -219,7 +219,7 @@ export const ToolsPermissionsTab = ({
 					</div>
 
 					<div
-						className="flex flex-wrap gap-1.5 min-h-[36px] p-1.5 rounded bg-slate-900/60 border border-slate-800"
+						className="flex flex-wrap gap-1.5 min-h-9 p-1.5 rounded bg-slate-900/60 border border-slate-800"
 						data-testid="deny-tools-chips">
 						{denyTools.map((t) => (
 							<span
@@ -304,7 +304,7 @@ export const ToolsPermissionsTab = ({
 					</div>
 
 					<div
-						className="flex flex-wrap gap-1.5 min-h-[36px] p-1.5 rounded bg-slate-900/60 border border-slate-800"
+						className="flex flex-wrap gap-1.5 min-h-9 p-1.5 rounded bg-slate-900/60 border border-slate-800"
 						data-testid="allow-paths-chips">
 						{allowPaths.map((p) => (
 							<span
@@ -373,7 +373,7 @@ export const ToolsPermissionsTab = ({
 					</div>
 
 					<div
-						className="flex flex-wrap gap-1.5 min-h-[36px] p-1.5 rounded bg-slate-900/60 border border-slate-800"
+						className="flex flex-wrap gap-1.5 min-h-9 p-1.5 rounded bg-slate-900/60 border border-slate-800"
 						data-testid="deny-write-paths-chips">
 						{/* Mandatory Locked Paths */}
 						{MANDATORY_DENY_WRITE_PATHS.map((p) => (

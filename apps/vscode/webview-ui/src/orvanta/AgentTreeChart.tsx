@@ -1,3 +1,18 @@
+import {
+	type Icon,
+	IconCheck,
+	IconCode,
+	IconCrown,
+	IconFile,
+	IconPlus,
+	IconRobot,
+	IconSearch,
+	IconShield,
+	IconSitemap,
+	IconSparkles,
+	IconWorld,
+	IconX,
+} from "@tabler/icons-react"
 import { useMemo, useState } from "react"
 import type { AgentTreeNode } from "./tree-utils"
 
@@ -12,7 +27,7 @@ export interface AgentTreeChartProps {
 interface TemplateOption {
 	id: string
 	label: string
-	icon: string
+	icon: Icon
 	description: string
 }
 
@@ -20,54 +35,54 @@ export const TEMPLATES: TemplateOption[] = [
 	{
 		id: "implementer",
 		label: "Implementer",
-		icon: "💻",
+		icon: IconCode,
 		description: "Viết code trong scope task, tuân thủ nguyên tắc không nới epic.",
 	},
 	{
 		id: "reviewer",
 		label: "Reviewer",
-		icon: "🔍",
+		icon: IconSearch,
 		description: "Review code và kết quả theo purpose và tiêu chuẩn chất lượng.",
 	},
 	{
 		id: "researcher",
 		label: "Researcher",
-		icon: "🌐",
+		icon: IconWorld,
 		description: "Nghiên cứu tài liệu, kiến trúc, công nghệ và phân tích giải pháp.",
 	},
 	{
 		id: "skeptic",
 		label: "Skeptic",
-		icon: "🛡️",
+		icon: IconShield,
 		description: "Chỉ trích phản biện, tìm điểm yếu, edge cases và rủi ro kiến trúc.",
 	},
 	{
 		id: "blank",
 		label: "Blank",
-		icon: "📄",
+		icon: IconFile,
 		description: "Tạo agent trống từ đầu, tự định nghĩa vai trò và hướng dẫn.",
 	},
 ]
 
-function getRoleMeta(role: string, id: string): { icon: string; border: string; bg: string } {
+function getRoleMeta(role: string, id: string): { Icon: Icon; border: string; bg: string } {
 	const lowerId = id.toLowerCase()
 	const lowerRole = role.toLowerCase()
 	if (lowerId === "coordinator" || lowerRole === "lead") {
-		return { icon: "👑", border: "border-amber-500/50", bg: "bg-amber-950/40 text-amber-300" }
+		return { Icon: IconCrown, border: "border-amber-500/50", bg: "bg-amber-950/40 text-amber-300" }
 	}
 	if (lowerId.includes("impl") || lowerId.includes("dev") || lowerId.includes("coder")) {
-		return { icon: "💻", border: "border-blue-500/50", bg: "bg-blue-950/40 text-blue-300" }
+		return { Icon: IconCode, border: "border-blue-500/50", bg: "bg-blue-950/40 text-blue-300" }
 	}
 	if (lowerId.includes("review")) {
-		return { icon: "🔍", border: "border-purple-500/50", bg: "bg-purple-950/40 text-purple-300" }
+		return { Icon: IconSearch, border: "border-purple-500/50", bg: "bg-purple-950/40 text-purple-300" }
 	}
 	if (lowerId.includes("research")) {
-		return { icon: "🌐", border: "border-cyan-500/50", bg: "bg-cyan-950/40 text-cyan-300" }
+		return { Icon: IconWorld, border: "border-cyan-500/50", bg: "bg-cyan-950/40 text-cyan-300" }
 	}
 	if (lowerId.includes("skeptic") || lowerId.includes("guard")) {
-		return { icon: "🛡️", border: "border-amber-600/50", bg: "bg-amber-950/40 text-amber-300" }
+		return { Icon: IconShield, border: "border-amber-600/50", bg: "bg-amber-950/40 text-amber-300" }
 	}
-	return { icon: "🤖", border: "border-slate-700", bg: "bg-slate-800/60 text-slate-300" }
+	return { Icon: IconRobot, border: "border-slate-700", bg: "bg-slate-800/60 text-slate-300" }
 }
 
 function countTotalNodes(root: AgentTreeNode | null): number {
@@ -103,7 +118,7 @@ const AgentCard = ({
 
 	return (
 		<div
-			className={`relative group w-[185px] min-w-[170px] max-w-[200px] rounded-lg p-2.5 transition-all duration-200 cursor-pointer select-none text-left flex flex-col gap-1.5 ${
+			className={`relative group w-46.25 min-w-42.5 max-w-50 rounded-lg p-2.5 transition-all duration-200 cursor-pointer select-none text-left flex flex-col gap-1.5 ${
 				isSelected
 					? "border-indigo-500 ring-2 ring-indigo-500/50 bg-indigo-950/30 shadow-lg shadow-indigo-500/20"
 					: "bg-[#141b34] border border-slate-800 shadow-sm hover:border-indigo-400/60 hover:bg-[#1a2344] hover:-translate-y-0.5 hover:shadow-md hover:shadow-indigo-500/10"
@@ -116,9 +131,9 @@ const AgentCard = ({
 			<div className="flex items-center justify-between gap-1.5">
 				<div className="flex items-center gap-1.5 min-w-0">
 					<div
-						className={`h-7 w-7 rounded-md border flex items-center justify-center text-sm shrink-0 ${meta.border} ${meta.bg}`}
+						className={`h-7 w-7 rounded-md border flex items-center justify-center shrink-0 ${meta.border} ${meta.bg}`}
 						title={node.displayName}>
-						{meta.icon}
+						<meta.Icon size={14} stroke={1.5} />
 					</div>
 					<div className="flex items-center gap-1">
 						{isRunning && (
@@ -175,8 +190,10 @@ const AgentCard = ({
 				)}
 
 				{isSelected && (
-					<span className="text-[9px] font-medium text-indigo-400 flex items-center gap-0.5">
-						<span>✓</span> Đang chọn
+					<span className="text-[9px] font-medium text-indigo-400 flex items-center gap-1">
+						<IconCheck size={11} stroke={2} />
+						<span className="sr-only">✓</span>
+						<span>Đang chọn</span>
 					</span>
 				)}
 			</div>
@@ -301,9 +318,7 @@ export const AgentTreeChart = ({ tree, selectedAgentId, onSelectAgent, onAddAgen
 			{/* Top Chart Header / Toolbar */}
 			<div className="flex items-center justify-between px-3 py-2 border-b border-border-panel bg-[#10162a]/90 backdrop-blur-xs shrink-0 z-10">
 				<div className="flex items-center gap-2">
-					<span aria-label="tree" className="text-base" role="img">
-						🌳
-					</span>
+					<IconSitemap className="text-indigo-400 shrink-0" size={16} stroke={1.5} />
 					<span className="font-semibold text-xs text-white">Sơ đồ tổ chức</span>
 					<span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">
 						{totalAgents} agents
@@ -341,18 +356,18 @@ export const AgentTreeChart = ({ tree, selectedAgentId, onSelectAgent, onAddAgen
 
 					{/* + Thêm Agent button */}
 					<button
-						className="flex items-center gap-1 px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors shadow-xs"
+						className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors shadow-xs cursor-pointer"
 						data-testid="add-agent-button"
 						onClick={() => setShowAddModal(true)}
 						type="button">
-						<span>+</span>
+						<IconPlus size={13} stroke={2} />
 						<span>Thêm Agent</span>
 					</button>
 				</div>
 			</div>
 
 			{/* Chart Viewport */}
-			<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-6">
+			<div className="flex min-h-0 flex-1 items-start justify-center scroller p-6">
 				{tree ? (
 					<div
 						style={{
@@ -383,14 +398,14 @@ export const AgentTreeChart = ({ tree, selectedAgentId, onSelectAgent, onAddAgen
 					<div className="w-full max-w-md rounded-lg border border-border-panel bg-[#141b34] p-4 shadow-xl flex flex-col gap-3">
 						<div className="flex items-center justify-between border-b border-white/10 pb-2">
 							<div className="flex items-center gap-2">
-								<span className="text-base">✨</span>
+								<IconSparkles className="text-indigo-400" size={16} stroke={1.5} />
 								<h3 className="font-semibold text-sm text-white">Thêm Agent mới</h3>
 							</div>
 							<button
-								className="text-xs text-slate-400 hover:text-white px-1.5 py-0.5 rounded"
+								className="text-xs text-slate-400 hover:text-white p-1 rounded cursor-pointer"
 								onClick={() => setShowAddModal(false)}
 								type="button">
-								✕
+								<IconX size={14} stroke={1.5} />
 							</button>
 						</div>
 
@@ -398,30 +413,35 @@ export const AgentTreeChart = ({ tree, selectedAgentId, onSelectAgent, onAddAgen
 							Chọn một mẫu Agent được cấu hình sẵn theo vai trò chuyên biệt hoặc bắt đầu với mẫu trống:
 						</p>
 
-						<div className="flex flex-col gap-2 max-h-[320px] overflow-y-auto pr-1">
-							{TEMPLATES.map((tmpl) => (
-								<button
-									className="flex items-start gap-3 p-2.5 rounded-lg border border-slate-800 bg-[#0e1428] hover:border-indigo-500 hover:bg-[#161f3e] transition-all text-left group cursor-pointer"
-									data-testid={`template-card-${tmpl.id}`}
-									key={tmpl.id}
-									onClick={() => handleSelectTemplate(tmpl.id)}
-									type="button">
-									<span className="text-xl shrink-0 p-1 rounded bg-white/5 border border-white/10">
-										{tmpl.icon}
-									</span>
-									<div className="min-w-0">
-										<div className="font-semibold text-xs text-white group-hover:text-indigo-300 transition-colors">
-											{tmpl.label}
+						<div className="flex flex-col gap-2 max-h-80 scroller-y pr-1">
+							{TEMPLATES.map((tmpl) => {
+								const TmplIcon = tmpl.icon
+								return (
+									<button
+										className="flex items-start gap-3 p-2.5 rounded-lg border border-slate-800 bg-[#0e1428] hover:border-indigo-500 hover:bg-[#161f3e] transition-all text-left group cursor-pointer"
+										data-testid={`template-card-${tmpl.id}`}
+										key={tmpl.id}
+										onClick={() => handleSelectTemplate(tmpl.id)}
+										type="button">
+										<span className="p-1.5 rounded-md bg-white/5 border border-white/10 shrink-0 text-indigo-300">
+											<TmplIcon size={18} stroke={1.5} />
+										</span>
+										<div className="min-w-0">
+											<div className="font-semibold text-xs text-white group-hover:text-indigo-300 transition-colors">
+												{tmpl.label}
+											</div>
+											<div className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">
+												{tmpl.description}
+											</div>
 										</div>
-										<div className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">{tmpl.description}</div>
-									</div>
-								</button>
-							))}
+									</button>
+								)
+							})}
 						</div>
 
 						<div className="flex justify-end pt-2 border-t border-white/10">
 							<button
-								className="px-3 py-1 text-xs rounded border border-border-panel text-slate-300 hover:bg-white/5 transition-colors"
+								className="px-3 py-1 text-xs rounded border border-border-panel text-slate-300 hover:bg-white/5 transition-colors cursor-pointer"
 								onClick={() => setShowAddModal(false)}
 								type="button">
 								Hủy

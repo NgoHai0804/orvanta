@@ -1,7 +1,8 @@
-import { Activity, Radio, Sparkles } from "lucide-react"
+import { IconActivity, IconBroadcast, IconClock, IconCornerDownRight, IconHash, IconSparkles } from "@tabler/icons-react"
 import { useEffect, useMemo, useRef } from "react"
 import { AgentBadge } from "@/components/common/AgentBadge"
 import { cn } from "@/lib/utils"
+import { getAgentRoleIconComponent } from "./TeamSidebar"
 import { useWarRoom } from "./useWarRoom"
 
 export interface TeamFeedViewProps {
@@ -22,17 +23,6 @@ interface TimelineEntry {
 function formatElapsed(seconds: number): string {
 	if (seconds < 60) return `${seconds}s`
 	return `${Math.floor(seconds / 60)}m${(seconds % 60).toString().padStart(2, "0")}s`
-}
-
-function getRoleIcon(role: string, id: string): string {
-	const lower = (role || id || "").toLowerCase()
-	if (lower.includes("lead") || lower.includes("coordinator")) return "⭐"
-	if (lower.includes("architect") || lower.includes("system")) return "📐"
-	if (lower.includes("implementer") || lower.includes("coder") || lower.includes("dev")) return "💻"
-	if (lower.includes("reviewer") || lower.includes("audit") || lower.includes("test")) return "🔍"
-	if (lower.includes("copywriter") || lower.includes("content") || lower.includes("writer")) return "📝"
-	if (lower.includes("sales") || lower.includes("outreach") || lower.includes("marketing")) return "🎯"
-	return "⚡"
 }
 
 export function TeamFeedView({ onSelectAgent, companyName }: TeamFeedViewProps) {
@@ -96,8 +86,8 @@ export function TeamFeedView({ onSelectAgent, companyName }: TeamFeedViewProps) 
 			{/* Channel Header */}
 			<div className="flex shrink-0 items-center justify-between border-b border-border-panel bg-(--vscode-sideBar-background)/50 px-4 py-2.5">
 				<div className="flex items-center gap-2 min-w-0">
-					<div className="flex h-6 w-6 items-center justify-center rounded-md bg-indigo-500/10 text-indigo-400 font-mono font-bold text-sm">
-						#
+					<div className="flex h-6 w-6 items-center justify-center rounded-md bg-indigo-500/10 text-indigo-400">
+						<IconHash size={16} stroke={2} />
 					</div>
 					<div className="flex flex-col min-w-0">
 						<span className="font-semibold text-sm truncate flex items-center gap-2">
@@ -128,26 +118,26 @@ export function TeamFeedView({ onSelectAgent, companyName }: TeamFeedViewProps) 
 			<div className="shrink-0 border-b border-border-panel bg-(--vscode-sideBar-background)/40 p-2.5 space-y-1.5">
 				<div className="flex items-center justify-between text-xs font-semibold text-description uppercase tracking-wider">
 					<span className="flex items-center gap-1.5 text-[11px]">
-						<Radio className="size-3 text-indigo-400" />
+						<IconBroadcast className="text-indigo-400" size={14} stroke={1.5} />
 						Mini War Room ({agents.length} nhân sự)
 					</span>
 					<span className="text-[10px] font-normal text-muted-foreground">Click thẻ để mở kênh riêng</span>
 				</div>
 
 				{agents.length === 0 ? (
-					<div className="rounded border border-dashed border-border-panel p-2 text-center text-xs text-muted-foreground">
+					<div className="rounded-md border border-dashed border-border-panel p-2 text-center text-xs text-muted-foreground">
 						Chưa có thông tin nhân sự. Các thẻ trạng thái sẽ xuất hiện khi session khởi động.
 					</div>
 				) : (
 					<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5">
 						{agents.map((agent) => {
 							const isRunning = agent.status === "running"
-							const roleIcon = getRoleIcon(agent.role, agent.id)
+							const AgentIcon = getAgentRoleIconComponent(agent.role, agent.id)
 
 							return (
 								<button
 									className={cn(
-										"flex flex-col text-left p-1.5 rounded border transition-all cursor-pointer bg-(--vscode-sideBar-background)",
+										"flex flex-col text-left p-1.5 rounded-md border transition-all cursor-pointer bg-(--vscode-sideBar-background)",
 										"hover:border-indigo-500/50 hover:shadow-xs",
 										{
 											"border-violet-500 ring-1 ring-violet-500/30 shadow-violet-500/5": isRunning,
@@ -159,8 +149,8 @@ export function TeamFeedView({ onSelectAgent, companyName }: TeamFeedViewProps) 
 									onClick={() => onSelectAgent?.(agent.id)}
 									type="button">
 									<div className="flex items-center justify-between gap-1 w-full mb-0.5">
-										<div className="flex items-center gap-1 min-w-0">
-											<span className="text-xs select-none">{roleIcon}</span>
+										<div className="flex items-center gap-1.5 min-w-0">
+											<AgentIcon className="shrink-0 text-muted-foreground" size={13} stroke={1.5} />
 											<span className="font-semibold text-[11px] truncate">
 												{agent.displayName || agent.id}
 											</span>
@@ -182,8 +172,9 @@ export function TeamFeedView({ onSelectAgent, companyName }: TeamFeedViewProps) 
 									<div className="flex items-center justify-between text-[9px] text-muted-foreground/60 mt-0.5 pt-0.5 border-t border-border-panel/40">
 										<span>@{agent.id}</span>
 										{isRunning && agent.elapsedSeconds > 0 && (
-											<span className="font-mono text-violet-400">
-												⏱ {formatElapsed(agent.elapsedSeconds)}
+											<span className="font-mono text-violet-400 flex items-center gap-0.5">
+												<IconClock size={10} stroke={1.5} />
+												{formatElapsed(agent.elapsedSeconds)}
 											</span>
 										)}
 									</div>
@@ -198,19 +189,19 @@ export function TeamFeedView({ onSelectAgent, companyName }: TeamFeedViewProps) 
 			<div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-(--vscode-editor-background)">
 				<div className="flex shrink-0 items-center justify-between px-3 py-1.5 border-b border-border-panel/40 bg-(--vscode-sideBar-background)/20 text-xs">
 					<span className="flex items-center gap-1.5 text-description uppercase tracking-wider text-[11px] font-semibold">
-						<Activity className="size-3 text-emerald-400" />
+						<IconActivity className="text-emerald-400" size={14} stroke={1.5} />
 						Dòng Thời Gian Hoạt Động (Global Activity Timeline)
 					</span>
 					<span className="text-[10px] font-mono text-muted-foreground">{timelineEntries.length} sự kiện</span>
 				</div>
 
 				<div
-					className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1.5 pb-6"
+					className="flex-1 min-h-0 scroller-y p-3 space-y-1.5 pb-6"
 					data-testid="timeline-container"
 					ref={timelineScrollRef}>
 					{timelineEntries.length === 0 ? (
 						<div className="h-full flex flex-col items-center justify-center py-12 text-center text-xs text-muted-foreground space-y-2">
-							<Sparkles className="size-6 text-muted-foreground/30 animate-pulse" />
+							<IconSparkles className="text-muted-foreground/30 animate-pulse" size={24} stroke={1.5} />
 							<div className="font-medium text-foreground/80">Kênh chung #team-feed đang chờ hoạt động.</div>
 							<div className="text-[11px] opacity-70 max-w-sm">
 								Các hoạt động của các agent (suy nghĩ, gọi công cụ, sửa code, chạy lệnh...) sẽ tự động hiển thị
@@ -225,7 +216,7 @@ export function TeamFeedView({ onSelectAgent, companyName }: TeamFeedViewProps) 
 							return (
 								<div
 									className={cn(
-										"flex items-start gap-2 text-xs py-1 px-1.5 rounded hover:bg-surface-secondary/40 transition-colors",
+										"flex items-start gap-2 text-xs py-1 px-1.5 rounded hover:bg-(--vscode-list-hoverBackground) transition-colors",
 										{
 											"mt-1 pt-1.5 border-t border-border-panel/20": !isSameSpeaker && idx > 0,
 										},
@@ -243,11 +234,13 @@ export function TeamFeedView({ onSelectAgent, companyName }: TeamFeedViewProps) 
 												size="sm"
 											/>
 										) : (
-											<div className="text-[10px] font-mono text-muted-foreground/40 pl-2">↳</div>
+											<div className="text-[10px] font-mono text-muted-foreground/40 pl-2">
+												<IconCornerDownRight size={10} stroke={1.5} />
+											</div>
 										)}
 									</div>
 									<span
-										className={cn("flex-1 break-words font-mono text-[11px] leading-relaxed", {
+										className={cn("flex-1 wrap-break-word font-mono text-[11px] leading-relaxed", {
 											"text-rose-400": entry.kind === "error",
 											"text-amber-400": entry.kind === "deny",
 											"text-violet-300": entry.kind === "tool_start",

@@ -137,7 +137,7 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 	reasoningContent,
 	responseStarted,
 	clineMessages,
-	mode,
+	mode: _mode,
 	handleToggle,
 	isExpanded,
 	message,

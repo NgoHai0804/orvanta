@@ -1,3 +1,4 @@
+import { type Icon, IconHome, IconInbox, IconTerminal2, IconUsers } from "@tabler/icons-react"
 import { useState } from "react"
 import AgentsView from "./AgentsView"
 import HomeView from "./HomeView"
@@ -40,20 +41,23 @@ const OrvantaShell = ({ activeTab: rawActiveTab, onTabChange, inboxFocusId: prop
 	const tabs: Array<{
 		id: OrvantaTab
 		label: string
+		icon: Icon
 		enabled: boolean
 		title?: string
 		badge?: number
 	}> = [
-		{ id: "home", label: "Home", enabled: true },
+		{ id: "home", label: "Home", icon: IconHome, enabled: true },
 		{
 			id: "agents",
 			label: "Agents",
+			icon: IconUsers,
 			enabled: isCompanyReady,
 			title: isCompanyReady ? "Sơ đồ tổ chức & quản lý Agents" : "Lập công ty để mở Agents",
 		},
 		{
 			id: "inbox",
 			label: "Inbox",
+			icon: IconInbox,
 			enabled: isCompanyReady,
 			title: isCompanyReady ? "Hộp thư quyết định của CEO" : "Lập công ty trên Home để mở Inbox",
 			badge: pendingCount,
@@ -61,6 +65,7 @@ const OrvantaShell = ({ activeTab: rawActiveTab, onTabChange, inboxFocusId: prop
 		{
 			id: "console",
 			label: "Console",
+			icon: IconTerminal2,
 			enabled: true,
 			title: "Trung tâm tác chiến đa kênh (Console)",
 		},
@@ -70,66 +75,84 @@ const OrvantaShell = ({ activeTab: rawActiveTab, onTabChange, inboxFocusId: prop
 
 	return (
 		<div className={isFullView ? "flex h-full min-h-0 flex-1 flex-col overflow-hidden" : "shrink-0"}>
-			<nav className="flex shrink-0 gap-1 border-b border-border-panel bg-[#0b1021] px-2 py-1">
-				{tabs.map((tab) => (
-					<button
-						aria-label={tab.id === "inbox" && tab.badge && tab.badge > 0 ? `Inbox, ${tab.badge} pending` : tab.label}
-						className={`rounded px-2.5 py-1 text-xs flex items-center gap-1.5 font-medium transition-colors ${
-							activeTab === tab.id
-								? "bg-indigo-600 text-white shadow-xs"
-								: "text-slate-300 hover:text-white hover:bg-white/5"
-						} disabled:cursor-not-allowed disabled:opacity-40`}
-						disabled={!tab.enabled}
-						key={tab.id}
-						onClick={() => {
-							if (tab.id === "inbox") {
-								setLocalInboxFocusId(undefined)
+			<nav
+				aria-label="Điều hướng chính"
+				className="flex shrink-0 items-center gap-1 border-b border-border-panel bg-(--vscode-sideBar-background) px-2 py-1">
+				{tabs.map((tab) => {
+					const TabIcon = tab.icon
+					const isSelected = activeTab === tab.id
+					return (
+						<button
+							aria-current={isSelected ? "page" : undefined}
+							aria-label={
+								tab.id === "inbox" && tab.badge && tab.badge > 0 ? `Inbox, ${tab.badge} pending` : tab.label
 							}
-							onTabChange(tab.id)
-						}}
-						title={tab.title}
-						type="button">
-						<span>{tab.label}</span>
-						{tab.badge !== undefined && tab.badge > 0 && (
-							<span className="rounded-full bg-violet-600 px-1.5 py-0.2 text-[10px] text-white font-semibold">
-								{tab.badge > 99 ? "99+" : tab.badge}
-							</span>
-						)}
-					</button>
-				))}
+							className={`rounded-md px-2.5 py-1 text-xs flex items-center gap-1.5 font-medium transition-colors cursor-pointer select-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
+								isSelected
+									? "bg-(--vscode-button-background) text-(--vscode-button-foreground) shadow-xs"
+									: "text-muted-foreground hover:text-foreground hover:bg-(--vscode-list-hoverBackground)"
+							} disabled:cursor-not-allowed disabled:opacity-40`}
+							disabled={!tab.enabled}
+							key={tab.id}
+							onClick={() => {
+								if (tab.id === "inbox") {
+									setLocalInboxFocusId(undefined)
+								}
+								onTabChange(tab.id)
+							}}
+							title={tab.title}
+							type="button">
+							<TabIcon aria-hidden="true" className="shrink-0" size={13} stroke={1.5} />
+							<span>{tab.label}</span>
+							{tab.badge !== undefined && tab.badge > 0 && (
+								<span className="rounded-full bg-(--vscode-badge-background) px-1.5 py-0.2 text-[10px] text-(--vscode-badge-foreground) font-semibold">
+									{tab.badge > 99 ? "99+" : tab.badge}
+								</span>
+							)}
+						</button>
+					)
+				})}
 			</nav>
-			{activeTab === "home" && (
-				<HomeView
-					company={company}
-					createError={createError}
-					creating={creating}
-					inboxPending={pending}
-					loading={loading}
-					onCreate={createCompany}
-					onDeleteAgentProfile={deleteAgentProfile}
-					onOpenInbox={(focusId) => {
-						setLocalInboxFocusId(focusId)
-						onTabChange("inbox")
-					}}
-					onRequestDecision={requestDecision}
-					onSaveAgentProfile={saveAgentProfile}
-					onTabChange={onTabChange}
-				/>
-			)}
-			{activeTab === "agents" && (
-				<AgentsView company={company} onDeleteAgentProfile={deleteAgentProfile} onSaveAgentProfile={saveAgentProfile} />
-			)}
-			{activeTab === "inbox" && (
-				<InboxView
-					deferred={deferred}
-					error={inboxError}
-					focusId={effectiveInboxFocusId}
-					history={history}
-					loading={inboxLoading}
-					onRefresh={refreshInbox}
-					onResolve={resolveDecision}
-					pending={pending}
-				/>
+			{isFullView && (
+				<div className="flex-1 min-h-0 overflow-hidden">
+					{activeTab === "home" && (
+						<HomeView
+							company={company}
+							createError={createError}
+							creating={creating}
+							inboxPending={pending}
+							loading={loading}
+							onCreate={createCompany}
+							onDeleteAgentProfile={deleteAgentProfile}
+							onOpenInbox={(focusId) => {
+								setLocalInboxFocusId(focusId)
+								onTabChange("inbox")
+							}}
+							onRequestDecision={requestDecision}
+							onSaveAgentProfile={saveAgentProfile}
+							onTabChange={onTabChange}
+						/>
+					)}
+					{activeTab === "agents" && (
+						<AgentsView
+							company={company}
+							onDeleteAgentProfile={deleteAgentProfile}
+							onSaveAgentProfile={saveAgentProfile}
+						/>
+					)}
+					{activeTab === "inbox" && (
+						<InboxView
+							deferred={deferred}
+							error={inboxError}
+							focusId={effectiveInboxFocusId}
+							history={history}
+							loading={inboxLoading}
+							onRefresh={refreshInbox}
+							onResolve={resolveDecision}
+							pending={pending}
+						/>
+					)}
+				</div>
 			)}
 		</div>
 	)

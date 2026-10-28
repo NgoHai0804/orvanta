@@ -1,4 +1,5 @@
 import type { Boolean, EmptyRequest } from "@shared/proto/cline/common"
+import { IconArrowRight, IconX } from "@tabler/icons-react"
 import { useCallback, useEffect, useState } from "react"
 import AccountView from "./components/account/AccountView"
 import ChatErrorBoundary from "./components/chat/ChatErrorBoundary"
@@ -217,7 +218,7 @@ const AppContent = () => {
 	const showOnboarding = showWelcome && orvantaTab === "console"
 
 	return (
-		<div className="flex h-full min-h-0 w-full flex-col">
+		<div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
 			{(accountSwitch || accountSwitchError) && !showAccount && (
 				<div className="z-50 bg-editor-background p-2 text-xs" role="status">
 					{accountSwitch
@@ -243,7 +244,7 @@ const AppContent = () => {
 			{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
 			{!overlayOpen && <OrvantaShell activeTab={orvantaTab} inboxFocusId={inboxFocusId} onTabChange={setOrvantaTab} />}
 			{showOnboarding && !overlayOpen && (
-				<div className="min-h-0 flex-1 overflow-auto">
+				<div className="min-h-0 flex-1 scroller">
 					<OnboardingView />
 				</div>
 			)}
@@ -279,17 +280,18 @@ const AppContent = () => {
 								<span>Lập công ty trên Home để quản lý đội.</span>
 								<div className="flex items-center gap-2">
 									<button
-										className="text-(--vscode-textLink-foreground) hover:underline"
+										className="text-(--vscode-textLink-foreground) hover:underline inline-flex items-center gap-1 cursor-pointer"
 										onClick={() => setOrvantaTab("home")}
 										type="button">
-										Lập công ty →
+										<span>Lập công ty</span>
+										<IconArrowRight size={12} stroke={1.5} />
 									</button>
 									<button
 										aria-label="Dismiss banner"
-										className="opacity-60 hover:opacity-100"
+										className="opacity-60 hover:opacity-100 cursor-pointer inline-flex items-center justify-center p-0.5 rounded"
 										onClick={dismissChatBanner}
 										type="button">
-										✕
+										<IconX size={12} stroke={1.5} />
 									</button>
 								</div>
 							</div>

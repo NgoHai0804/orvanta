@@ -1,3 +1,4 @@
+import { IconRefresh } from "@tabler/icons-react"
 import { useEffect, useMemo, useState } from "react"
 import type { OrvantaDecisionItem, OrvantaHistoryEntry } from "../../../src/shared/proto/cline/orvanta"
 import { InboxConfirmModal } from "./inbox/InboxConfirmModal"
@@ -87,33 +88,33 @@ export default function InboxView({ pending, deferred, history, loading, error, 
 	return (
 		<div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background text-foreground">
 			{/* Sub-tabs header */}
-			<div className="flex shrink-0 items-center justify-between border-b border-border-panel px-3 py-2">
-				<div className="flex gap-2">
+			<div className="flex shrink-0 items-center justify-between border-b border-border-panel px-3 py-2 bg-(--vscode-sideBar-background)/50">
+				<div className="flex gap-1.5">
 					<button
-						className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+						className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer select-none ${
 							activeSubTab === "pending"
-								? "bg-(--vscode-button-background) text-(--vscode-button-foreground)"
-								: "bg-surface-secondary opacity-75 hover:opacity-100"
+								? "bg-(--vscode-button-background) text-(--vscode-button-foreground) shadow-xs"
+								: "text-muted-foreground hover:text-foreground hover:bg-(--vscode-list-hoverBackground)"
 						}`}
 						onClick={() => setActiveSubTab("pending")}
 						type="button">
 						Chờ duyệt ({pending.length})
 					</button>
 					<button
-						className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+						className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer select-none ${
 							activeSubTab === "deferred"
-								? "bg-(--vscode-button-background) text-(--vscode-button-foreground)"
-								: "bg-surface-secondary opacity-75 hover:opacity-100"
+								? "bg-(--vscode-button-background) text-(--vscode-button-foreground) shadow-xs"
+								: "text-muted-foreground hover:text-foreground hover:bg-(--vscode-list-hoverBackground)"
 						}`}
 						onClick={() => setActiveSubTab("deferred")}
 						type="button">
 						Để sau ({deferred.length})
 					</button>
 					<button
-						className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+						className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer select-none ${
 							activeSubTab === "history"
-								? "bg-(--vscode-button-background) text-(--vscode-button-foreground)"
-								: "bg-surface-secondary opacity-75 hover:opacity-100"
+								? "bg-(--vscode-button-background) text-(--vscode-button-foreground) shadow-xs"
+								: "text-muted-foreground hover:text-foreground hover:bg-(--vscode-list-hoverBackground)"
 						}`}
 						onClick={() => setActiveSubTab("history")}
 						type="button">
@@ -121,21 +122,22 @@ export default function InboxView({ pending, deferred, history, loading, error, 
 					</button>
 				</div>
 				<button
-					className="text-xs text-muted-foreground hover:text-foreground"
+					className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 px-2 py-1 rounded hover:bg-(--vscode-list-hoverBackground) cursor-pointer transition-colors"
 					disabled={loading}
 					onClick={onRefresh}
 					title="Làm mới"
 					type="button">
-					{loading ? "Đang tải..." : "Làm mới"}
+					<IconRefresh className={loading ? "animate-spin" : ""} size={13} stroke={1.5} />
+					<span>{loading ? "Đang tải..." : "Làm mới"}</span>
 				</button>
 			</div>
 			{/* Filter bar */}
-			<div className="flex shrink-0 gap-2 border-b border-border-panel bg-surface-secondary/40 px-3 py-1.5 text-xs">
-				<div className="flex items-center gap-1">
-					<span className="text-muted-foreground">Loại:</span>
+			<div className="flex shrink-0 gap-2 border-b border-border-panel bg-(--vscode-sideBar-background)/30 px-3 py-1.5 text-xs">
+				<div className="flex items-center gap-1.5">
+					<span className="text-muted-foreground text-[11px]">Loại:</span>
 					<select
 						aria-label="Lọc theo loại quyết định"
-						className="rounded border border-border-panel bg-background px-1.5 py-0.5 text-xs text-foreground"
+						className="rounded border border-border-panel bg-(--vscode-dropdown-background) px-1.5 py-0.5 text-xs text-(--vscode-dropdown-foreground) focus:outline-none focus:ring-1 focus:ring-ring"
 						onChange={(e) => setTypeFilter(e.target.value)}
 						value={typeFilter}>
 						<option value="all">Tất cả loại</option>
@@ -151,11 +153,11 @@ export default function InboxView({ pending, deferred, history, loading, error, 
 						<option value="change_policy">Đổi Chính sách</option>
 					</select>
 				</div>
-				<div className="flex items-center gap-1">
-					<span className="text-muted-foreground">Mức độ:</span>
+				<div className="flex items-center gap-1.5">
+					<span className="text-muted-foreground text-[11px]">Mức độ:</span>
 					<select
 						aria-label="Lọc theo mức độ khẩn cấp"
-						className="rounded border border-border-panel bg-background px-1.5 py-0.5 text-xs text-foreground"
+						className="rounded border border-border-panel bg-(--vscode-dropdown-background) px-1.5 py-0.5 text-xs text-(--vscode-dropdown-foreground) focus:outline-none focus:ring-1 focus:ring-ring"
 						onChange={(e) => setUrgencyFilter(e.target.value)}
 						value={urgencyFilter}>
 						<option value="all">Tất cả</option>
@@ -170,7 +172,7 @@ export default function InboxView({ pending, deferred, history, loading, error, 
 
 			{/* List + Detail split layout */}
 			<div className="flex min-h-0 flex-1 overflow-hidden">
-				<div className="flex w-5/12 min-w-[200px] flex-col border-r border-border-panel overflow-y-auto">
+				<div className="flex w-5/12 min-w-[200px] flex-col border-r border-border-panel scroller-y">
 					<InboxList
 						activeSubTab={activeSubTab}
 						items={filteredList}
@@ -178,7 +180,7 @@ export default function InboxView({ pending, deferred, history, loading, error, 
 						selectedId={effectiveSelectedId}
 					/>
 				</div>
-				<div className="flex flex-1 flex-col overflow-y-auto p-4">
+				<div className="flex flex-1 flex-col scroller-y p-4">
 					<InboxDetail activeSubTab={activeSubTab} item={selectedItem} onAction={handleAction} resolving={resolving} />
 				</div>
 			</div>

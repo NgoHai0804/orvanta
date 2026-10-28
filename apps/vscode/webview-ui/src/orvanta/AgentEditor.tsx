@@ -1,5 +1,6 @@
 import { MANDATORY_DENY_WRITE_PATHS } from "@cline/shared/orvanta"
 import { OrvantaAgentProfile, type OrvantaRosterAgent } from "@shared/proto/cline/orvanta"
+import { type Icon, IconBolt, IconBrain, IconCheck, IconFileText, IconTools, IconUser } from "@tabler/icons-react"
 import { useEffect, useMemo, useState } from "react"
 import { InstructionsRulesTab, type WorkspaceRuleItem } from "./InstructionsRulesTab"
 import { ModelParamsTab } from "./ModelParamsTab"
@@ -14,15 +15,15 @@ export type EditorTab = "profile" | "model" | "tools" | "rules" | "skills"
 export interface EditorTabInfo {
 	id: EditorTab
 	label: string
-	icon: string
+	icon: Icon
 }
 
 export const EDITOR_TABS: EditorTabInfo[] = [
-	{ id: "profile", label: "Profile", icon: "👤" },
-	{ id: "model", label: "Model & Thông số", icon: "🧠" },
-	{ id: "tools", label: "Tools", icon: "🛠️" },
-	{ id: "rules", label: "Rules", icon: "📜" },
-	{ id: "skills", label: "Skills", icon: "⚡" },
+	{ id: "profile", label: "Profile", icon: IconUser },
+	{ id: "model", label: "Model & Thông số", icon: IconBrain },
+	{ id: "tools", label: "Tools", icon: IconTools },
+	{ id: "rules", label: "Rules", icon: IconFileText },
+	{ id: "skills", label: "Skills", icon: IconBolt },
 ]
 
 export type AgentEditorProps = {
@@ -327,12 +328,13 @@ export const AgentEditor = ({
 			</div>
 
 			{/* Sub-tabs bar */}
-			<div className="flex items-center gap-1 border-b border-border-panel bg-[#10162a]/90 px-4 py-2 shrink-0 overflow-x-auto">
+			<div className="flex items-center gap-1 border-b border-border-panel bg-[#10162a]/90 px-4 py-2 shrink-0 scroller-x">
 				{EDITOR_TABS.map((tab) => {
 					const isActive = activeTab === tab.id
+					const TabIcon = tab.icon
 					return (
 						<button
-							className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+							className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer select-none ${
 								isActive
 									? "bg-indigo-600 text-white shadow-xs scale-100"
 									: "text-slate-400 hover:text-slate-200 hover:bg-white/5"
@@ -341,20 +343,20 @@ export const AgentEditor = ({
 							key={tab.id}
 							onClick={() => setActiveTab(tab.id)}
 							type="button">
-							<span>{tab.icon}</span>
+							<TabIcon className="shrink-0" size={14} stroke={1.5} />
 							<span>{tab.label}</span>
 						</button>
 					)
 				})}
 			</div>
 
-			<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+			<div className="flex min-h-0 flex-1 flex-col gap-4 scroller-y p-4">
 				{error && <div className="rounded border border-error/50 bg-error/10 p-2.5 text-xs text-error">{error}</div>}
 				{saveSuccess && (
 					<div
 						className="rounded border border-emerald-500/50 bg-emerald-950/30 p-2.5 text-xs text-emerald-300 flex items-center gap-2"
 						data-testid="save-success-banner">
-						<span>✓</span>
+						<IconCheck className="text-emerald-400 shrink-0" size={14} stroke={2} />
 						<span>Đã lưu thông tin agent thành công!</span>
 					</div>
 				)}

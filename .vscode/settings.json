@@ -33,7 +33,13 @@
 		"khóa",
 		"gitcheck",
 		"Flexbox",
-		"cursorrules"
+		"cursorrules",
+		"tabler",
+		"Tabler",
+		"scroller",
+		"Scroller",
+		"msvc",
+		"evals"
 	],
 	// Protobuf settings
 	"protoc": {

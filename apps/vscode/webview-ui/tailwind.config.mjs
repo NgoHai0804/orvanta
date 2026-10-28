@@ -99,6 +99,12 @@ export default {
 				xs: "calc(0.85 * var(--vscode-font-size))",
 				xxs: "calc(0.75 * var(--vscode-font-size))",
 			},
+			borderRadius: {
+				panel: "var(--radius-panel)",
+				"panel-sm": "var(--radius-panel-sm)",
+				"panel-md": "var(--radius-panel-md)",
+				"panel-lg": "var(--radius-panel-lg)",
+			},
 		},
 	},
 	darkMode: "class",

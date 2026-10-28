@@ -1,5 +1,59 @@
 /* Editor theme mapping */
 @theme {
+	/* ============================================================
+	   DESIGN TOKENS – VS Code Panel Context
+	   Ref: specs/web/styles/ (panel-optimized, ~300-400px wide)
+	   ============================================================ */
+
+	/* --- Spacing scale (panel-optimized) --- */
+	--spacing-panel-xs: 4px;
+	--spacing-panel-sm: 8px;
+	--spacing-panel-md: 12px;
+	--spacing-panel-lg: 16px;
+	--spacing-panel-xl: 24px;
+
+	/* --- Border radius tokens --- */
+	--radius-panel: 4px;
+	--radius-panel-sm: 3px;
+	--radius-panel-md: 6px;
+	--radius-panel-lg: 8px;
+	--radius-sm: 4px;
+	--radius-md: 6px;
+	--radius-lg: 8px;
+
+	/* --- Icon sizes (Tabler Icons – stroke 1.5) --- */
+	--icon-size-sm: 16px;
+	--icon-size-md: 20px;
+	--icon-size-lg: 24px;
+	--icon-sm: 16px;
+	--icon-md: 20px;
+	--icon-lg: 24px;
+
+	/* --- Component heights (panel-optimized, smaller than web 32px) --- */
+	--height-nav: 32px;
+	--height-nav-bar: 32px;
+	--height-item: 26px;
+	--height-btn: 26px;
+	--height-btn-sm: 22px;
+
+	/* --- Scrollbar tokens --- */
+	--scrollbar-size: 6px;
+
+	/* --- Surface tokens (supplement VSCode vars) --- */
+	--color-surface: var(--vscode-sideBar-background);
+	--color-surface-secondary: color-mix(in srgb, var(--vscode-sideBar-background) 90%, #ffffff 10%);
+	--color-surface-elevated: var(--vscode-editor-background);
+	--color-surface-raised: var(--vscode-editor-background);
+	--color-divider: var(--vscode-panel-border, #3c3c3c);
+
+	/* --- Status colors (agent status, fallback-safe) --- */
+	--color-status-running: var(--vscode-charts-green, #4ec9b0);
+	--color-status-idle: var(--vscode-descriptionForeground, #858585);
+	--color-status-pending: var(--vscode-charts-yellow, #cca700);
+	--color-status-stopped: var(--vscode-disabledForeground, #6e6e6e);
+
+	/* ============================================================ */
+
 	--color-cline: #9663f1;
 	--color-background: var(--vscode-sideBar-background);
 	--color-border: var(--vscode-focusBorder);
