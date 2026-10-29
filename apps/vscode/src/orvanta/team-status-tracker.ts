@@ -34,6 +34,8 @@ export class TeamStatusTracker {
 	handleTeamEvent(event: TeamEvent): void {
 		if (event.type === TeamMessageType.RunStarted) {
 			this.setAgentRunning(event.run.agentId, true)
+		} else if (event.type === TeamMessageType.TaskStart) {
+			this.setAgentRunning(event.agentId, true)
 		} else if (
 			event.type === TeamMessageType.RunCompleted ||
 			event.type === TeamMessageType.RunFailed ||
@@ -41,6 +43,8 @@ export class TeamStatusTracker {
 			event.type === TeamMessageType.RunInterrupted
 		) {
 			this.setAgentRunning(event.run.agentId, false)
+		} else if (event.type === TeamMessageType.TaskEnd) {
+			this.setAgentRunning(event.agentId, false)
 		}
 	}
 

@@ -191,8 +191,15 @@ export function filterMessagesForAgentChannel(messages: ClineMessage[], selected
 			return coordinationToolInvolvesAgent(coordination, selectedAgentId)
 		}
 		if (coordinatorChannel) {
+			// Keep teammate activity in its own channel. The Coordinator transcript
+			// shows the lead's messages; coordination cards are handled above.
 			const messageAgentId = agentIdOf(message)
-			return !messageAgentId || isCoordinatorChannel(messageAgentId) || message.say === "task" || message.type === "ask"
+			return (
+				!messageAgentId ||
+				agentIdsEqual(messageAgentId, selectedAgentId) ||
+				message.say === "task" ||
+				message.type === "ask"
+			)
 		}
 		return agentIdsEqual(agentIdOf(message), selectedAgentId)
 	})

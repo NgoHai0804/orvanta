@@ -43,6 +43,16 @@ vi.mock("./useWarRoom", () => ({
 		setFilter: vi.fn(),
 	}),
 }))
+vi.mock("@/context/ExtensionStateContext", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@/context/ExtensionStateContext")>()
+	return {
+		...actual,
+		useExtensionState: () => ({
+			currentTaskItem: undefined,
+			taskHistory: [],
+		}),
+	}
+})
 
 vi.mock("@/services/grpc-client", () => ({
 	TaskServiceClient: {
@@ -186,5 +196,25 @@ describe("ConsoleView", () => {
 		expect(hireBtn).toBeInTheDocument()
 		fireEvent.click(hireBtn)
 		expect(onHire).toHaveBeenCalled()
+	})
+	it("renders ChromeTabBar at the root and toggles history drawer", () => {
+		render(
+			<ConsoleView agents={mockAgents} companyName="Acme Corp" focusAgentId="team-feed" onSelectAgent={vi.fn()}>
+				<div data-testid="mock-chat-view">Mock ChatView</div>
+			</ConsoleView>,
+		)
+
+		expect(screen.getByTestId("chrome-tab-bar")).toBeInTheDocument()
+		expect(screen.getByText("Phiên làm việc mới")).toBeInTheDocument()
+
+		// History drawer is initially closed
+		expect(screen.queryByTestId("console-history-drawer")).not.toBeInTheDocument()
+
+		// Click history button on tab bar
+		const historyBtn = screen.getByLabelText("Mở lịch sử cuộc trò chuyện")
+		fireEvent.click(historyBtn)
+
+		// Drawer should now be visible
+		expect(screen.getByTestId("console-history-drawer")).toBeInTheDocument()
 	})
 })

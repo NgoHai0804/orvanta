@@ -2,11 +2,21 @@ import { existsSync } from "node:fs"
 import path from "node:path"
 import type { ClineCoreListHistoryOptions, SessionHistoryRecord } from "@cline/core"
 import type { MessageWithMetadata as SdkMessage } from "@cline/llms"
-import { formatDisplayUserInput, parseUserInputMode } from "@cline/shared"
+import {
+	deleteWorkspaceSession,
+	formatDisplayUserInput,
+	loadWorkspaceTaskMessages,
+	type OrvantaSessionAgentInfo,
+	parseUserInputMode,
+	saveWorkspaceSession,
+	saveWorkspaceTaskMessages,
+	saveWorkspaceTaskMetadata,
+} from "@cline/shared"
 import { resolveSessionDataDir } from "@cline/shared/storage"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import getFolderSize from "get-folder-size"
+import { loadCompany } from "@/orvanta/workspace-store"
 import type { McpHub } from "@/services/mcp/McpHub"
 import type { TelemetryService } from "@/services/telemetry/TelemetryService"
 import { Logger } from "@/shared/services/Logger"
@@ -239,6 +249,10 @@ export class SdkTaskHistory {
 	}
 	private disposed = false
 	private readonly cachedHistoryHostIdleMs = 30_000
+	private readonly pendingDisplayMessageSaves = new Map<
+		string,
+		{ timer: ReturnType<typeof setTimeout>; workspaceRoot: string; messages: ClineMessage[] }
+	>()
 	private readonly metadataHistoryCacheTtlMs = 10_000
 
 	constructor(private readonly options: SdkTaskHistoryOptions) {}
@@ -357,6 +371,7 @@ export class SdkTaskHistory {
 
 	async dispose(): Promise<void> {
 		this.disposed = true
+		await Promise.all([...this.pendingDisplayMessageSaves.keys()].map((taskId) => this.flushDisplayMessages(taskId)))
 		this.invalidateMetadataHistoryCache()
 		if (this.cachedHistoryHostPromise) {
 			await this.cachedHistoryHostPromise.catch(() => undefined)
@@ -499,6 +514,34 @@ export class SdkTaskHistory {
 		return this.withHistoryHost((host) => host.get(taskId) as Promise<SessionHistoryRecord | undefined>)
 	}
 
+	queueDisplayMessagesSave(taskId: string, workspaceRoot: string, messages: ClineMessage[]): void {
+		if (this.isCloudTask(taskId) || !workspaceRoot || messages.length === 0) {
+			return
+		}
+
+		const pending = this.pendingDisplayMessageSaves.get(taskId)
+		if (pending) {
+			clearTimeout(pending.timer)
+		}
+		const snapshot = messages.map((message) => ({ ...message, partial: false }))
+		const timer = setTimeout(() => {
+			void this.flushDisplayMessages(taskId)
+		}, 250)
+		this.pendingDisplayMessageSaves.set(taskId, { timer, workspaceRoot, messages: snapshot })
+	}
+
+	private async flushDisplayMessages(taskId: string): Promise<void> {
+		const pending = this.pendingDisplayMessageSaves.get(taskId)
+		if (!pending) return
+		clearTimeout(pending.timer)
+		this.pendingDisplayMessageSaves.delete(taskId)
+		try {
+			await saveWorkspaceTaskMessages(pending.workspaceRoot, taskId, pending.messages)
+		} catch (error) {
+			Logger.warn(`[SdkTaskHistory] Failed to persist display transcript for ${taskId}:`, error)
+		}
+	}
+
 	async getClineMessages(taskId: string): Promise<ClineMessage[]> {
 		if (this.isCloudTask(taskId)) {
 			// Cloud transcripts are read through the sandbox connection (see SdkCloudSessionCoordinator).
@@ -506,8 +549,41 @@ export class SdkTaskHistory {
 		}
 		const sdkRecord = await this.getSdkRecord(taskId)
 		const legacyTask = this.findLegacyTask(taskId)
+		const workspaceRoot = sdkRecord?.cwd || sdkRecord?.workspaceRoot || legacyTask?.item.cwdOnTaskInitialization
+		if (sdkRecord && workspaceRoot) {
+			try {
+				const persistedDisplayMessages = await loadWorkspaceTaskMessages<ClineMessage>(workspaceRoot, taskId)
+				// Only trust the display artifact as the richer source when it contains
+				// teammate attribution. Older cache files may be Coordinator-only and
+				// must not hide the SDK transcript for non-Orvanta sessions.
+				if (
+					persistedDisplayMessages?.some((message) => {
+						const agentId = message.agentId ?? message.agent_id
+						return Boolean(agentId && agentId.toLowerCase() !== "coordinator")
+					})
+				) {
+					return persistedDisplayMessages
+				}
+			} catch {
+				// Fall through to SDK canonical history.
+			}
+		}
 		if (!sdkRecord && legacyTask) {
 			return readUiMessages(taskId, legacyTask.dataDir)
+		}
+		if (!sdkRecord && !legacyTask) {
+			const cachedRecord = this.metadataHistoryCache?.records.find((record) => record.sessionId === taskId)
+			const cwd = cachedRecord?.cwd
+			if (cwd) {
+				try {
+					const wsMessages = await loadWorkspaceTaskMessages<ClineMessage>(cwd, taskId)
+					if (wsMessages && wsMessages.length > 0) {
+						return wsMessages
+					}
+				} catch {
+					// Fall through to empty
+				}
+			}
 		}
 
 		const sdkMessages = await this.withHistoryHost((host) => host.readMessages(taskId) as Promise<SdkMessage[]>)
@@ -530,10 +606,22 @@ export class SdkTaskHistory {
 				cwd: sdkRecord?.cwd || sdkRecord?.workspaceRoot || undefined,
 			},
 		)
-		if (sdkRecord && legacyTask) {
-			return mergeLegacyUiMessagesWithResumedSdkMessages(readUiMessages(taskId, legacyTask.dataDir), clineMessages)
+		const finalMessages =
+			sdkRecord && legacyTask
+				? mergeLegacyUiMessagesWithResumedSdkMessages(readUiMessages(taskId, legacyTask.dataDir), clineMessages)
+				: clineMessages
+
+		// Cache to .orvanta/history/tasks/<taskId>/ui_messages.json
+		const wsRoot = sdkRecord?.cwd || sdkRecord?.workspaceRoot || legacyTask?.item.cwdOnTaskInitialization
+		if (wsRoot && finalMessages.length > 0) {
+			try {
+				await saveWorkspaceTaskMessages(wsRoot, taskId, finalMessages)
+			} catch {
+				// Non-blocking
+			}
 		}
-		return clineMessages
+
+		return finalMessages
 	}
 
 	/**
@@ -657,6 +745,56 @@ export class SdkTaskHistory {
 			return
 		}
 		await this.updateSession(item.id, item)
+
+		// Mirror to .orvanta/history/ if in an Orvanta workspace
+		const cwd = item.cwdOnTaskInitialization
+		if (cwd) {
+			try {
+				let sessionAgents: OrvantaSessionAgentInfo[] = []
+				try {
+					const load = await loadCompany(cwd)
+					if (load.status === "ready") {
+						sessionAgents = load.roster.agents.map((ra) => ({
+							id: ra.id,
+							displayName: ra.displayName || ra.id,
+							role: ra.role,
+							model: ra.modelId || undefined,
+						}))
+					}
+				} catch {
+					// Fallback if company fails to load
+				}
+
+				await saveWorkspaceSession(cwd, {
+					id: item.id,
+					title: item.task,
+					createdAt: item.ts,
+					updatedAt: Date.now(),
+					tokensIn: item.tokensIn,
+					tokensOut: item.tokensOut,
+					totalCost: item.totalCost,
+					isFavorited: item.isFavorited,
+					agents:
+						item.agents?.map((agent) => ({
+							...agent,
+							role: agent.role === "lead" ? "lead" : "teammate",
+						})) || (sessionAgents.length > 0 ? sessionAgents : undefined),
+					agentIds: item.agentIds || (sessionAgents.length > 0 ? sessionAgents.map((a) => a.id) : undefined),
+					agentTasks: item.agentTasks,
+				})
+
+				if (sessionAgents.length > 0) {
+					await saveWorkspaceTaskMetadata(cwd, item.id, {
+						taskId: item.id,
+						title: item.task,
+						agents: sessionAgents,
+						savedAt: Date.now(),
+					})
+				}
+			} catch {
+				// Non-blocking: workspace might not have .orvanta directory or permission
+			}
+		}
 	}
 
 	private async deleteSession(sessionId: string): Promise<void> {
@@ -666,6 +804,12 @@ export class SdkTaskHistory {
 			return
 		}
 		const legacyTask = this.findLegacyTask(sessionId)
+		let cwd: string | undefined = legacyTask?.dataDir
+		if (!cwd) {
+			const historyItem = await this.findHistoryItem(sessionId)
+			cwd = historyItem?.cwdOnTaskInitialization
+		}
+
 		try {
 			await this.withHistoryHost(async (host) => {
 				await host.delete(sessionId)
@@ -678,6 +822,13 @@ export class SdkTaskHistory {
 		}
 		if (legacyTask) {
 			deleteLegacyTask(sessionId, legacyTask.dataDir)
+		}
+		if (cwd) {
+			try {
+				await deleteWorkspaceSession(cwd, sessionId)
+			} catch {
+				// Non-blocking
+			}
 		}
 		this.invalidateMetadataHistoryCache()
 	}

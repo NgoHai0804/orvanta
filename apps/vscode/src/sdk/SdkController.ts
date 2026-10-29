@@ -777,6 +777,11 @@ export class Controller {
 			taskHistory: this.taskHistory,
 			stateManager: this.stateManager,
 			getTask: () => this.task,
+			persistTeammateTranscript: (messages) => {
+				const taskId = this.task?.taskId
+				const workspaceRoot = this.lastKnownWorkspaceRoot
+				if (taskId && workspaceRoot) this.taskHistory.queueDisplayMessagesSave(taskId, workspaceRoot, messages)
+			},
 			postStateToWebview: () => this.postStateToWebview(),
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			getTurnPhase: () => this.turnStateTracker.currentPhase,

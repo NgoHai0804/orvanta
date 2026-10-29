@@ -178,11 +178,28 @@ describe("filterMessagesForAgentChannel", () => {
 		expect(isNonVisualToolMessage(awaitRuns)).toBe(true)
 	})
 
-	it("keeps teammate work out of the Coordinator channel", () => {
+	it("keeps teammate work out of Coordinator and isolated in each agent channel", () => {
 		const coordinatorView = filterMessagesForAgentChannel(transcript, "coordinator")
+		const coderView = filterMessagesForAgentChannel(transcript, "coder")
+		const reviewerView = filterMessagesForAgentChannel(transcript, "reviewer")
+
 		expect(coordinatorView).not.toContain(coderText)
 		expect(coordinatorView).not.toContain(reviewerText)
 		expect(coordinatorView).toContain(coordinatorText)
+		expect(coderView).toContain(coderText)
+		expect(coderView).not.toContain(reviewerText)
+		expect(reviewerView).toContain(reviewerText)
+		expect(reviewerView).not.toContain(coderText)
+	})
+
+	it("keeps un-attributed system/task messages visible in Coordinator", () => {
+		const unassigned: ClineMessage = { ts: 8, type: "say", say: "text", text: "System notice" }
+		const coordinatorView = filterMessagesForAgentChannel([task, coordinatorText, coderText, unassigned], "coordinator")
+
+		expect(coordinatorView).toContain(task)
+		expect(coordinatorView).toContain(coordinatorText)
+		expect(coordinatorView).toContain(unassigned)
+		expect(coordinatorView).not.toContain(coderText)
 	})
 
 	it("still shows a mis-attributed assignment on Coordinator", () => {

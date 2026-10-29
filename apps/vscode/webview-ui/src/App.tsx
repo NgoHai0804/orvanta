@@ -62,12 +62,6 @@ const AppContent = () => {
 	const focusedAgent = company.agents.find((a) => a.id === effectiveFocusAgentId) ?? coordinatorAgent
 	const overlayOpen = showSettings || showHistory || showMarketplace || showMcp || showAccount || showWorktrees
 
-	useEffect(() => {
-		if (hasCompany && showHistory) {
-			hideHistory()
-		}
-	}, [hasCompany, showHistory, hideHistory])
-
 	const showUpdateAnnouncementModal = useCallback(() => {
 		setShowAnnouncement(true)
 		UiServiceClient.onDidShowAnnouncement({} as EmptyRequest)
@@ -229,7 +223,7 @@ const AppContent = () => {
 				</div>
 			)}
 			{showSettings && <SettingsView navigationRequest={settingsNavigationRequest} onDone={hideSettings} />}
-			{showHistory && !hasCompany && <HistoryView onDone={hideHistory} />}
+			{showHistory && <HistoryView onDone={hideHistory} />}
 			{showMarketplace && <MarketplaceView initialType={mcpTab ? "mcp" : undefined} onDone={closeMarketplaceView} />}
 			{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
 			{showAccount && (

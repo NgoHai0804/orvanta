@@ -36,6 +36,31 @@ describe("SdkSessionEventCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
+	it("persists the full transcript after explicitly attributed teammate messages", async () => {
+		const message: ClineMessage = {
+			ts: 2,
+			type: "say",
+			say: "text",
+			text: "Reviewer checked the implementation",
+			agentId: "reviewer",
+		}
+		const task = {
+			taskId: "session-123",
+			messageStateHandler: { getClineMessages: vi.fn(() => [message]) },
+		} as unknown as MakeCoordinatorInput["task"]
+		const { coordinator, options, event } = makeCoordinator({
+			task,
+			translation: { messages: [message], sessionEnded: false, turnComplete: false },
+		})
+		const persist = vi.fn()
+		options.persistTeammateTranscript = persist
+		Object.assign(event.payload, { teamRole: "teammate", teamAgentId: "reviewer" })
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(persist).toHaveBeenCalledWith([message])
+	})
+
 	it("filters late completion messages after cancellation", async () => {
 		const { coordinator, options, event } = makeCoordinator({
 			activeSession: makeActiveSession({ isRunning: false }),

@@ -2278,29 +2278,32 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 		}
 
 		case "agent_event": {
-			// Sub-agent events should NOT produce ClineMessages in the main chat.
-			// The sub-agent's work is represented by the parent's spawn_agent tool
-			// events (content_start/update/end), which we translate into the rich
-			// SubagentStatusRow UI. Without this filter, every sub-agent tool call,
-			// text output, iteration, and usage event floods the main chat.
+			// Orvanta teammate activity is part of the task transcript, not just a
+			// status summary. Keep it when the event is explicitly attributed to a
+			// team member; continue hiding legacy nested sub-agent events that have no
+			// team identity and the old spawn_agent sub-agent stream.
 			const agentEvent = event.payload.event
+			const payload = event.payload as typeof event.payload & { teamAgentId?: string; teamRole?: string }
+			const teamAgentId = payload.teamAgentId?.trim()
+			const isAttributedTeammate = payload.teamRole === "teammate" && Boolean(teamAgentId)
 			const isToolLifecycleEvent =
 				agentEvent.type === "content_start" || agentEvent.type === "content_update" || agentEvent.type === "content_end"
 			const isSpawnAgentToolEvent =
 				isToolLifecycleEvent && agentEvent.contentType === "tool" && agentEvent.toolName === "spawn_agent"
 
-			// Newer SDK events carry parentAgentId on sub-agent events. Older/local
-			// RuntimeEventAdapter output does not, so while spawn_agent calls are in
-			// flight we also suppress every non-spawn_agent event. This preserves the
-			// parent spawn_agent status updates while hiding sub-agent internals.
-			if (agentEvent.parentAgentId || (state.hasRunningSpawnAgents() && !isSpawnAgentToolEvent)) {
+			// Explicit team attribution distinguishes Orvanta team_run_task activity
+			// from the legacy spawn_agent stream, even when both carry parentAgentId.
+			if (
+				(agentEvent.parentAgentId && !isAttributedTeammate) ||
+				(state.hasRunningSpawnAgents() && !isSpawnAgentToolEvent && !isAttributedTeammate)
+			) {
 				break
 			}
 
 			const rawAgentId =
+				teamAgentId ??
 				(agentEvent as any).agentId ??
 				(agentEvent as any).agent_id ??
-				(event.payload as any)?.teamAgentId ??
 				(event.payload as any)?.agentId ??
 				(event as any)?.agentId
 
@@ -2327,7 +2330,7 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 			result.messages.push(...agentMessages)
 
 			// Check for done/error events
-			if (agentEvent.type === "done") {
+			if (agentEvent.type === "done" && !isAttributedTeammate) {
 				result.turnComplete = true
 				state.setCurrentAgent(undefined)
 			}
@@ -2335,6 +2338,7 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 			// translator's "error" case), so they must not resolve the turn phase.
 			if (
 				agentEvent.type === "error" &&
+				!isAttributedTeammate &&
 				!agentEvent.recoverable &&
 				!state.isSuppressedToolApprovalDenial(agentEvent.error)
 			) {

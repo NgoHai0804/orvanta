@@ -26,6 +26,18 @@ export type HistoryItem = {
 	apiProvider?: string
 	isLegacy?: boolean
 
+	/** Orvanta agents metadata participating in this task */
+	agents?: Array<{
+		id: string
+		displayName: string
+		role?: string
+		avatarUrl?: string
+		model?: string
+	}>
+	agentIds?: string[]
+	/** Map of agentId -> taskId for multi-agent conversations within this session */
+	agentTasks?: Record<string, string>
+
 	/** "cloud" for Cline Cloud sessions; absent/"local" for tasks run in this workspace. */
 	executionTarget?: "local" | "cloud"
 	cloudStatus?: CloudSessionStatus

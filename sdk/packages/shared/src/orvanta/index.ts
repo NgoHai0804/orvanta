@@ -57,6 +57,10 @@ export {
 	ARTIFACTS_RESEARCH_DIR,
 	ARTIFACTS_REVIEWS_DIR,
 	ARTIFACTS_BUILD_DIR,
+	HISTORY_DIRNAME,
+	HISTORY_SESSIONS_FILE,
+	HISTORY_TASKS_DIR,
+
 } from "./paths";
 export {
 	AGENT_TEMPLATES,
@@ -204,6 +208,25 @@ export {
 	type OrvantaSubmitHandoffInput,
 	type SubmitHandoffToolOutput,
 } from "./submit-handoff-tool";
+
+export {
+	type OrvantaSessionAgentInfo,
+	type OrvantaSessionRecord,
+	type OrvantaSessionAgentConversation,
+
+	getWorkspaceHistoryPath,
+	getSessionsFilePath,
+	getTaskDirPath,
+	getTaskUiMessagesFilePath,
+	getTaskMetadataFilePath,
+	loadWorkspaceSessions,
+	saveWorkspaceSession,
+	saveWorkspaceTaskMessages,
+	loadWorkspaceTaskMessages,
+	saveWorkspaceTaskMetadata,
+	loadWorkspaceTaskMetadata,
+	deleteWorkspaceSession,
+} from "./workspace-history-store";
 
 
 

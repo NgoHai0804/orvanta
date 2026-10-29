@@ -128,6 +128,73 @@ describe("MessageTranslatorState", () => {
 	})
 })
 
+describe("translateSessionEvent — explicitly attributed Orvanta teammate events", () => {
+	it("renders teammate text even when it carries parentAgentId", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				teamAgentId: "coder",
+				teamRole: "teammate",
+				event: {
+					type: "content_start",
+					contentType: "text",
+					text: "Created hello.py",
+					parentAgentId: "coordinator",
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					teamAgentId: "coder",
+					teamRole: "teammate",
+					event: { type: "content_end", contentType: "text", text: "Created hello.py" } as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0]).toMatchObject({
+			say: "text",
+			text: "Created hello.py",
+			agentId: "coder",
+			agent_id: "coder",
+			agentRole: "implementer",
+		})
+		expect(endResult.messages).toHaveLength(1)
+		expect(endResult.messages[0]).toMatchObject({
+			say: "text",
+			text: "Created hello.py",
+			agentId: "coder",
+		})
+	})
+
+	it("continues suppressing nested events without explicit team attribution", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_start",
+					contentType: "text",
+					text: "Internal nested agent output",
+					parentAgentId: "coordinator",
+				} as AgentEvent,
+			},
+		}
+
+		expect(translateSessionEvent(event, state).messages).toEqual([])
+	})
+})
+
 // ---------------------------------------------------------------------------
 // translateSessionEvent — chunk events
 // ---------------------------------------------------------------------------
@@ -1455,13 +1522,15 @@ describe("translateSessionEvent — agent_event error", () => {
 		)
 
 		expect(state.wasErrorSeen()).toBe(false)
-		expect(doneResult.messages).toContainEqual({
-			ts: textResult.messages[0].ts,
-			type: "say",
-			say: "plan_completion_result",
-			text: "Here is the plan.",
-			partial: false,
-		})
+		expect(doneResult.messages).toContainEqual(
+			expect.objectContaining({
+				ts: textResult.messages[0].ts,
+				type: "say",
+				say: "plan_completion_result",
+				text: "Here is the plan.",
+				partial: false,
+			}),
+		)
 	})
 
 	it("records the error outcome when the turn terminates with done(reason:'error')", () => {

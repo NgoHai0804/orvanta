@@ -58,6 +58,21 @@ Phiên bản chuẩn hóa toàn diện giao diện người dùng theo Design Sy
 4. **Bố cục 100dvh & Cuộn độc lập**: Khóa chặt viewport, ngăn chặn hoàn toàn cuộn toàn trang, thanh cuộn mảnh `.scroller` 6px.
 5. **Thành phần & Tokens dùng chung**: Tái sử dụng `button`, `badge`, `icon` (`AppIcon`), `tooltip` đồng bộ với `theme.css`.
 
+
+---
+
+### 🌐 [v0.1.0 (Đa Phiên Chat Chrome-like Tabs, Lịch Sử Dự Án & Quản Lý Cuộc Trò Chuyện)](./v0.1.0/README.md)
+Phiên bản nâng cấp năng lực đa nhiệm và quản trị lịch sử hội thoại trên màn hình Console:
+1. **Thanh Tab Đa Phiên Phong Cách Chrome (Chrome-like Tab Bar)**: Cho phép mở nhiều tab chat song song trên Console bao trùm cả Console root; nút `[+]` tạo nhanh task mới; nút `[x]` đóng tab (hỗ trợ click chuột giữa); tự động active tab.
+2. **Khay Lịch Sử Trực Quan (Console History Drawer)**: Nút "Lịch sử" trên thanh tab; ngăn kéo slide-over tìm kiếm toàn năng, hiển thị huy hiệu Agent tham gia và mở lại vào tab mới để tiếp tục chat.
+3. **Xóa Lịch Sử Cuộc Trò Chuyện & Tối Giản Giao Diện**: Nút thùng rác xác nhận inline xóa triệt để phiên trong hệ thống và `.orvanta/history/`; loại bỏ các nút lọc dư thừa.
+4. **Lưu Trữ Bền Vững Đầy Đủ Thông Tin Agent Tại `.orvanta/history/`**: Lưu toàn bộ metadata và snapshot thông tin tất cả các Agent trong repo hiện tại (`sessions.json`, `metadata.json`, `ui_messages.json`).
+5. **Đặc tả chi tiết**:
+   - [`v0.1.0/01-CHROME-TABS-AND-HISTORY-SPEC.md`](./v0.1.0/01-CHROME-TABS-AND-HISTORY-SPEC.md): Kiến trúc Chrome-like Tab Bar & Khay Lịch Sử.
+   - [`v0.1.0/02-HISTORY-MANAGEMENT-AND-CLEANUP-SPEC.md`](./v0.1.0/02-HISTORY-MANAGEMENT-AND-CLEANUP-SPEC.md): Xóa cuộc trò chuyện, Lưu đầy đủ thông tin Agent, Tối giản ô tìm kiếm.
+   - [`v0.1.0/03-CEO-SESSION-MULTI-AGENT-HISTORY-SPEC.md`](./v0.1.0/03-CEO-SESSION-MULTI-AGENT-HISTORY-SPEC.md): Kiến trúc Lịch sử phiên chat của CEO gắn liền với lịch sử hội thoại 1:1 của tất cả các Agent.
+
+
 ---
 
 ## Danh mục tài liệu trong v0.0.2

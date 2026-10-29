@@ -22,3 +22,7 @@ export const ARTIFACTS_SALES_DIR = "artifacts/sales";
 export const ARTIFACTS_RESEARCH_DIR = "artifacts/research";
 export const ARTIFACTS_REVIEWS_DIR = "artifacts/reviews";
 export const ARTIFACTS_BUILD_DIR = "artifacts/build";
+export const HISTORY_DIRNAME = "history";
+export const HISTORY_SESSIONS_FILE = "history/sessions.json";
+export const HISTORY_TASKS_DIR = "history/tasks";
+

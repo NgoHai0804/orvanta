@@ -244,6 +244,9 @@ Mọi thông tin về cơ cấu tổ chức, mục tiêu, bộ nhớ và sản p
 ├── inbox/                         # Hộp thư lưu vết các quyết định của CEO
 │   ├── pending/                   # Các yêu cầu đang chờ phê duyệt
 │   └── resolved/                  # Lịch sử các quyết định đã duyệt/từ chối
+├── history/                       # Lịch sử các cuộc hội thoại & phiên làm việc của repo
+│   ├── sessions.json              # Danh mục các phiên làm việc (tokens, chi phí, metadata)
+│   └── tasks/                     # Transcript chi tiết tin nhắn theo từng Task ID
 └── artifacts/                     # BẰNG CHỨNG DUY NHẤT: Sản phẩm bàn giao
     ├── marketing/                 # Bản thảo chiến dịch, email, bài viết
     ├── sales/                     # Tài liệu bán hàng, kịch bản chào hàng
@@ -275,6 +278,7 @@ Mọi thông tin về cơ cấu tổ chức, mục tiêu, bộ nhớ và sản p
 | **v0.0.3** | *Kiến Trúc Thực Thi Tự Động* | Bộ máy Autonomous Execution: Hub-and-Spoke điều phối có trật tự; Artifact-Driven Deliverables nộp file làm bằng chứng; quy trình Maker-Checker tách biệt; Bounded Feedback Loop tối đa 2 lần; Bộ nhớ 3 tầng. |
 | **v0.0.4** | *Mission Console Tập Trung* | Hợp nhất Chat & War Room thành tab Console duy nhất; kiến trúc Channels (`#team-feed` & `@agent`); Agent Attribution định danh từng dòng code; Sidebar thu gọn linh hoạt 48px. |
 | **v0.0.5** | *Chuẩn Hóa Design System* | Tinh giản giao diện theo chuẩn VS Code; 100% Tabler Icons nét mảnh; khóa tràn khung 100dvh; thanh cuộn siêu mỏng 6px; đồng bộ tokens toàn diện. |
+| **v0.1.0** | *Chrome-like Multi-Chat Tabs & Workspace History* | Thanh Chrome Tab Bar bao trùm ConsoleView Root; hỗ trợ mở và quản lý nhiều cuộc trò chuyện song song; nút tạo tab mới [+]; lưu trữ bền vững lịch sử phiên vào `.orvanta/history/` cùng repo; khay History Drawer xem lại và chat tiếp mượt mà. |
 
 ---
 

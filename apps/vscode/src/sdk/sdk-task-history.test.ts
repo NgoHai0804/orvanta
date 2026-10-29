@@ -1,4 +1,8 @@
+import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import type { SessionHistoryRecord } from "@cline/core"
+import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import getFolderSize from "get-folder-size"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -120,6 +124,31 @@ describe("SdkTaskHistory", () => {
 			cwdOnTaskInitialization: "/repo",
 		})
 		expect(result.ts).toBeGreaterThan(0)
+	})
+
+	it("queues and flushes a teammate-attributed display transcript", async () => {
+		const { history } = makeHistory([])
+		const workspaceRoot = await mkdtemp(join(tmpdir(), "cline-history-"))
+		const teammateMessage: ClineMessage = {
+			ts: 2,
+			type: "say",
+			say: "text",
+			text: "Coder changed the parser",
+			agentId: "coder",
+			agent_id: "coder",
+		}
+
+		try {
+			history.queueDisplayMessagesSave("task-1", workspaceRoot, [teammateMessage])
+			await history.dispose()
+
+			const saved = JSON.parse(
+				await readFile(join(workspaceRoot, ".orvanta", "history", "tasks", "task-1", "ui_messages.json"), "utf8"),
+			) as ClineMessage[]
+			expect(saved).toEqual([{ ...teammateMessage, partial: false }])
+		} finally {
+			await rm(workspaceRoot, { recursive: true, force: true })
+		}
 	})
 
 	it("converts SDK persisted conversation messages to Cline messages", () => {

@@ -25,6 +25,8 @@ export interface SdkSessionEventCoordinatorOptions {
 	messages: SdkMessageCoordinator
 	taskHistory: SdkTaskHistory
 	getTask: () => TaskProxy | undefined
+	/** Persist the live UI transcript when explicitly attributed teammate output arrives. */
+	persistTeammateTranscript?: (messages: ReturnType<TaskProxy["messageStateHandler"]["getClineMessages"]>) => void
 	postStateToWebview: () => Promise<void>
 	stateManager?: StateManager
 	translateSessionEvent?: (event: CoreSessionEvent, state: MessageTranslatorState) => TranslationResult
@@ -95,6 +97,13 @@ export class SdkSessionEventCoordinator {
 
 		if (result.messages.length > 0) {
 			this.options.messages.appendAndEmit(result.messages, event)
+			if (
+				event.type === "agent_event" &&
+				(event.payload as typeof event.payload & { teamRole?: string }).teamRole === "teammate"
+			) {
+				const transcript = this.options.getTask()?.messageStateHandler.getClineMessages()
+				if (transcript) this.options.persistTeammateTranscript?.(transcript)
+			}
 		}
 
 		if (activeSession) {
