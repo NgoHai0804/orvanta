@@ -1,3 +1,4 @@
+import { IconAlertTriangle, IconX } from "@tabler/icons-react"
 import { useMemo, useState } from "react"
 import type { AnyDecisionItem } from "./inbox-types"
 
@@ -31,10 +32,10 @@ export function InboxConfirmModal({ item, action, resolving, onClose, onConfirm 
 	if (isApprove) {
 		if (item.type === "fire_agent") {
 			title = `Xác nhận sa thải Agent '${parsedPayload.agentId}'?`
-			description = "Hành động này sẽ gỡ bỏ agent khỏi roster và dừng các tiến trình liên quan."
+			description = "Hành động này sẽ gỡ bỏ agent khỏi roster và chuyển giao toàn bộ task tồn đọng về cho Coordinator."
 		} else if (item.type === "change_purpose") {
 			title = "Xác nhận đổi Purpose công ty?"
-			description = "Purpose mới sẽ được ghi đè lên purpose.md và áp dụng cho toàn bộ agent."
+			description = "Purpose mới sẽ được ghi đè lên purpose.md và áp dụng để điều hướng lại toàn bộ agent trong công ty."
 		} else if (item.type === "change_policy") {
 			title = `Xác nhận đổi chính sách '${parsedPayload.key}'?`
 			description = `Chính sách '${parsedPayload.key}' sẽ được cập nhật thành '${parsedPayload.to}'.`
@@ -45,24 +46,46 @@ export function InboxConfirmModal({ item, action, resolving, onClose, onConfirm 
 	}
 
 	return (
-		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-			<div className="w-full max-w-md rounded-lg border border-border-panel bg-background p-4 shadow-xl">
-				<h3 className="text-sm font-semibold mb-2">{title}</h3>
-				<p className="text-xs text-muted-foreground mb-3">{description}</p>
-				<div className="mb-3">
-					<label className="text-xs font-medium text-muted-foreground" htmlFor="inbox-action-note">
-						{isMergeReject ? "Lý do từ chối (bắt buộc, ≥ 8 ký tự):" : "Ghi chú (tùy chọn):"}
+		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+			<div className="w-full max-w-md rounded-lg border border-border-panel bg-(--vscode-editor-background) p-4 shadow-xl text-foreground flex flex-col gap-3">
+				<div className="flex items-start justify-between gap-2">
+					<div className="flex items-center gap-2">
+						<IconAlertTriangle
+							className={isApprove ? "text-amber-400 shrink-0" : "text-rose-400 shrink-0"}
+							size={18}
+							stroke={1.5}
+						/>
+						<h3 className="text-sm font-semibold text-foreground leading-snug">{title}</h3>
+					</div>
+					<button
+						aria-label="Đóng modal"
+						className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-(--vscode-list-hoverBackground) transition-colors cursor-pointer"
+						onClick={onClose}
+						type="button">
+						<IconX size={14} stroke={1.5} />
+					</button>
+				</div>
+
+				<p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
+
+				<div>
+					<label className="text-xs font-medium text-foreground block mb-1" htmlFor="inbox-action-note">
+						{isMergeReject ? "Lý do từ chối (bắt buộc, ≥ 8 ký tự):" : "Ghi chú của CEO (tùy chọn):"}
 					</label>
 					<textarea
-						className={`mt-1 w-full rounded border p-2 text-xs text-foreground focus:outline-none ${
+						className={`w-full rounded border p-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring ${
 							isMergeReject && !isRejectNoteValid
 								? "border-rose-500/50 bg-rose-500/10"
-								: "border-border-panel bg-surface-secondary/40"
+								: "border-border-panel bg-(--vscode-input-background)"
 						}`}
 						id="inbox-action-note"
 						onChange={(e) => setNote(e.target.value)}
-						placeholder={isMergeReject ? "Nhập lý do tại sao từ chối merge..." : "Nhập ghi chú hoặc lý do..."}
-						rows={2}
+						placeholder={
+							isMergeReject
+								? "Nhập lý do tại sao từ chối merge..."
+								: "Nhập chỉ đạo hoặc ghi chú thêm cho đội ngũ..."
+						}
+						rows={3}
 						value={note}
 					/>
 					{isMergeReject && !isRejectNoteValid && (
@@ -71,18 +94,19 @@ export function InboxConfirmModal({ item, action, resolving, onClose, onConfirm 
 						</div>
 					)}
 				</div>
-				<div className="flex justify-end gap-2">
+
+				<div className="flex justify-end gap-2 pt-2 border-t border-border-panel">
 					<button
-						className="rounded px-3 py-1 text-xs text-muted-foreground hover:bg-surface-secondary"
+						className="rounded px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground border border-border-panel hover:bg-(--vscode-list-hoverBackground) cursor-pointer transition-colors"
 						disabled={resolving}
 						onClick={onClose}
 						type="button">
 						Hủy
 					</button>
 					<button
-						className={`rounded px-3 py-1 text-xs font-medium text-white ${
+						className={`rounded px-3 py-1.5 text-xs font-medium text-white transition-colors cursor-pointer ${
 							isApprove ? "bg-emerald-600 hover:bg-emerald-500" : "bg-rose-600 hover:bg-rose-500"
-						} disabled:opacity-50`}
+						} disabled:opacity-50 disabled:cursor-not-allowed`}
 						disabled={resolving || !isRejectNoteValid}
 						onClick={() => onConfirm(note)}
 						type="button">

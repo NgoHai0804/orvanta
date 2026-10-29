@@ -1,3 +1,4 @@
+import { IconInfoCircle, IconX } from "@tabler/icons-react"
 import { useState } from "react"
 
 interface EditPurposeModalProps {
@@ -30,18 +31,25 @@ export default function EditPurposeModal({ currentPurpose, submitting, onClose, 
 	return (
 		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
 			<form
-				className="w-full max-w-lg rounded-lg border border-border-panel bg-background p-4 shadow-xl space-y-3"
+				className="w-full max-w-lg max-h-[90%] overflow-y-auto scroller-y rounded-lg border border-border-panel bg-background p-4 shadow-xl space-y-3"
 				onSubmit={handleSubmit}>
 				<div className="flex items-center justify-between border-b border-border-panel pb-2">
 					<h3 className="text-sm font-semibold">Đề xuất đổi Purpose công ty</h3>
-					<button className="text-xs text-muted-foreground hover:text-foreground" onClick={onClose} type="button">
-						✕
+					<button
+						aria-label="Đóng"
+						className="text-xs text-muted-foreground hover:text-foreground p-0.5 rounded cursor-pointer"
+						onClick={onClose}
+						type="button">
+						<IconX size={14} stroke={1.5} />
 					</button>
 				</div>
 
-				<div className="rounded bg-amber-500/10 border border-amber-500/20 p-2 text-xs text-amber-300">
-					ℹ️ Khi gửi đề xuất, một quyết định sẽ được tạo trong <strong>Inbox</strong> để CEO phê duyệt. File purpose.md
-					trên đĩa chưa đổi cho tới khi duyệt.
+				<div className="rounded bg-amber-500/10 border border-amber-500/20 p-2 text-xs text-amber-300 flex items-start gap-1.5">
+					<IconInfoCircle className="shrink-0 text-amber-400 mt-0.5" size={14} stroke={1.5} />
+					<span>
+						Khi gửi đề xuất, một quyết định sẽ được tạo trong <strong>Inbox</strong> để CEO phê duyệt. File purpose.md
+						trên đĩa chưa đổi cho tới khi duyệt.
+					</span>
 				</div>
 
 				{error && (

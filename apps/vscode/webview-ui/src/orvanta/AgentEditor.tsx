@@ -1,6 +1,31 @@
 import { MANDATORY_DENY_WRITE_PATHS } from "@cline/shared/orvanta"
 import { OrvantaAgentProfile, type OrvantaRosterAgent } from "@shared/proto/cline/orvanta"
-import { type Icon, IconBolt, IconBrain, IconCheck, IconFileText, IconTools, IconUser } from "@tabler/icons-react"
+import {
+	type Icon,
+	IconAlertCircle,
+	IconAlertTriangle,
+	IconBrain,
+	IconBroadcast,
+	IconCheck,
+	IconCode,
+	IconCompass,
+	IconDeviceFloppy,
+	IconFileText,
+	IconMessage,
+	IconPencil,
+	IconRobot,
+	IconRuler,
+	IconSearch,
+	IconShieldExclamation as IconShieldAlert,
+	IconShieldLock,
+	IconSparkles,
+	IconStar,
+	IconTarget,
+	IconTools,
+	IconTrash,
+	IconUser,
+	IconX,
+} from "@tabler/icons-react"
 import { useEffect, useMemo, useState } from "react"
 import { InstructionsRulesTab, type WorkspaceRuleItem } from "./InstructionsRulesTab"
 import { ModelParamsTab } from "./ModelParamsTab"
@@ -20,11 +45,40 @@ export interface EditorTabInfo {
 
 export const EDITOR_TABS: EditorTabInfo[] = [
 	{ id: "profile", label: "Profile", icon: IconUser },
-	{ id: "model", label: "Model & Thông số", icon: IconBrain },
+	{ id: "model", label: "Thông số", icon: IconBrain },
 	{ id: "tools", label: "Tools", icon: IconTools },
 	{ id: "rules", label: "Rules", icon: IconFileText },
-	{ id: "skills", label: "Skills", icon: IconBolt },
+	{ id: "skills", label: "Skills", icon: IconSparkles },
 ]
+
+function getAgentRoleIcon(role: string, id: string) {
+	const lowerId = id.toLowerCase()
+	if (role === "lead" || lowerId.includes("lead") || lowerId === "coordinator") {
+		return { icon: IconStar, color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/30" }
+	}
+	if (lowerId.includes("coder") || lowerId.includes("dev") || lowerId.includes("implementer")) {
+		return { icon: IconCode, color: "text-violet-400", bg: "bg-violet-500/10 border-violet-500/30" }
+	}
+	if (lowerId.includes("review") || lowerId.includes("audit") || lowerId.includes("qa")) {
+		return { icon: IconSearch, color: "text-indigo-400", bg: "bg-indigo-500/10 border-indigo-500/30" }
+	}
+	if (lowerId.includes("arch")) {
+		return { icon: IconRuler, color: "text-sky-400", bg: "bg-sky-500/10 border-sky-500/30" }
+	}
+	if (lowerId.includes("research")) {
+		return { icon: IconCompass, color: "text-teal-400", bg: "bg-teal-500/10 border-teal-500/30" }
+	}
+	if (lowerId.includes("skeptic") || lowerId.includes("critic")) {
+		return { icon: IconShieldAlert, color: "text-rose-400", bg: "bg-rose-500/10 border-rose-500/30" }
+	}
+	if (lowerId.includes("writer") || lowerId.includes("doc")) {
+		return { icon: IconPencil, color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/30" }
+	}
+	if (lowerId.includes("sale") || lowerId.includes("outreach")) {
+		return { icon: IconTarget, color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/30" }
+	}
+	return { icon: IconRobot, color: "text-slate-300", bg: "bg-slate-500/10 border-slate-500/30" }
+}
 
 export type AgentEditorProps = {
 	initialProfile: OrvantaAgentProfile
@@ -125,25 +179,18 @@ export const AgentEditor = ({
 	}, [id, isCoordinator, availableRosterAgents, allProfiles])
 
 	const handleQuickChat = () => {
-		if (onChatWithAgent) {
-			onChatWithAgent(id)
+		const targetId = id || initialProfile.id
+		if (onChatWithAgent && targetId) {
+			onChatWithAgent(targetId)
 		} else {
 			window.postMessage(
 				{
 					type: "orvanta_switch_tab",
 					tab: "chat",
-					contextAgent: { id, displayName },
+					agentId: targetId,
 				},
 				"*",
 			)
-		}
-	}
-
-	const handleQuickWarRoom = () => {
-		if (onOpenWarRoom) {
-			onOpenWarRoom()
-		} else {
-			window.postMessage({ type: "orvanta_switch_tab", tab: "war-room" }, "*")
 		}
 	}
 
@@ -281,63 +328,96 @@ export const AgentEditor = ({
 		}
 	}
 
+	const avatarInfo = getAgentRoleIcon(role, id || initialProfile.id)
+	const RoleIconComponent = avatarInfo.icon
+
 	return (
 		<div
-			className="relative flex h-full min-h-0 w-full flex-col bg-[#0b1021] text-sm text-slate-100"
+			className="relative flex h-full min-h-0 w-full flex-col bg-(--vscode-editor-background) text-sm text-(--vscode-foreground)"
 			data-testid="agent-editor-panel">
-			<div className="flex shrink-0 items-center justify-between border-b border-border-panel px-4 py-2.5">
-				<div className="flex items-center gap-2">
-					<span className="font-semibold text-base">
+			{/* Top Header Bar */}
+			<div className="flex shrink-0 items-center justify-between border-b border-border-panel px-4 py-2 bg-(--vscode-sideBar-background)/50">
+				<div className="flex items-center gap-2 truncate pr-2">
+					<span className="font-semibold text-sm truncate text-(--vscode-foreground)">
 						{isNew ? "Thêm agent mới" : `Sửa agent: ${displayName || id}`}
 					</span>
-					{isCoordinator && (
-						<span className="rounded bg-(--vscode-badge-background) px-1.5 py-0.5 text-[10px] font-semibold uppercase text-(--vscode-badge-foreground)">
-							Lead
+					{isCoordinator ? (
+						<span className="rounded bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-300 flex items-center gap-1 shrink-0">
+							<IconShieldLock size={11} stroke={1.5} />
+							<span>Lead</span>
+						</span>
+					) : (
+						<span className="rounded bg-(--vscode-badge-background) px-1.5 py-0.5 text-[10px] font-medium text-(--vscode-badge-foreground) shrink-0">
+							@{id || "draft"}
 						</span>
 					)}
 				</div>
-				<div className="flex items-center gap-2">
+
+				<div className="flex items-center gap-2.5 shrink-0">
+					{/* Status Indicator */}
+					<div className="hidden sm:flex items-center mr-1">
+						{isDirty ? (
+							<span
+								className="flex items-center gap-1.5 text-xs text-amber-400 font-medium"
+								data-testid="dirty-indicator">
+								<span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+								<span>Chưa lưu</span>
+							</span>
+						) : (
+							<span className="flex items-center gap-1 text-xs text-(--vscode-descriptionForeground) opacity-80">
+								<IconCheck className="text-emerald-400 shrink-0" size={12} stroke={1.5} />
+								<span>Đã đồng bộ</span>
+							</span>
+						)}
+					</div>
+
 					{!isNew && !isCoordinator && onDelete && (
 						<button
-							className="rounded px-2.5 py-1 text-xs text-error hover:bg-error/10"
+							className="flex items-center gap-1 rounded border border-transparent px-2.5 py-1 text-xs text-error hover:bg-error/10 hover:border-error/30 cursor-pointer transition-colors"
 							disabled={saving}
 							onClick={() => setShowDeleteConfirm(true)}
 							type="button">
-							Xóa
+							<IconTrash size={13} stroke={1.5} />
+							<span>Xóa</span>
 						</button>
 					)}
+
 					<button
-						className="rounded border border-border-panel px-3 py-1 text-xs hover:bg-white/5"
-						disabled={saving}
-						onClick={handleCloseRequest}
-						type="button">
-						Đóng
-					</button>
-					<button
-						className="flex items-center gap-1.5 rounded bg-(--vscode-button-background) px-3 py-1 text-xs text-(--vscode-button-foreground) hover:bg-(--vscode-button-hoverBackground) disabled:opacity-50"
-						data-testid="save-agent-button"
-						disabled={saving}
+						className="flex items-center gap-1.5 rounded bg-(--vscode-button-background) px-3.5 py-1 text-xs font-semibold text-(--vscode-button-foreground) hover:bg-(--vscode-button-hoverBackground) disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors shadow-xs"
+						data-testid="editor-save-button"
+						disabled={saving || (!isDirty && !isNew)}
 						onClick={handleSave}
 						type="button">
-						{saving && (
+						{saving ? (
 							<span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+						) : (
+							<IconDeviceFloppy size={13} stroke={1.5} />
 						)}
 						<span>{saving ? "Đang lưu…" : "Lưu"}</span>
+					</button>
+
+					<button
+						aria-label="Đóng"
+						className="flex items-center gap-1 rounded border border-border-panel px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-white/5 cursor-pointer transition-colors"
+						onClick={handleCloseRequest}
+						type="button">
+						<IconX size={13} stroke={1.5} />
+						<span>Đóng</span>
 					</button>
 				</div>
 			</div>
 
 			{/* Sub-tabs bar */}
-			<div className="flex items-center gap-1 border-b border-border-panel bg-[#10162a]/90 px-4 py-2 shrink-0 scroller-x">
+			<div className="flex items-center gap-1 border-b border-border-panel bg-(--vscode-sideBar-background)/30 px-4 py-1.5 shrink-0 scroller-x">
 				{EDITOR_TABS.map((tab) => {
 					const isActive = activeTab === tab.id
 					const TabIcon = tab.icon
 					return (
 						<button
-							className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer select-none ${
+							className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer select-none ${
 								isActive
-									? "bg-indigo-600 text-white shadow-xs scale-100"
-									: "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+									? "bg-(--vscode-button-background) text-(--vscode-button-foreground) shadow-xs"
+									: "text-(--vscode-descriptionForeground) hover:text-(--vscode-foreground) hover:bg-white/5"
 							}`}
 							data-testid={`editor-tab-${tab.id}`}
 							key={tab.id}
@@ -351,7 +431,21 @@ export const AgentEditor = ({
 			</div>
 
 			<div className="flex min-h-0 flex-1 flex-col gap-4 scroller-y p-4">
-				{error && <div className="rounded border border-error/50 bg-error/10 p-2.5 text-xs text-error">{error}</div>}
+				{error && (
+					<div
+						className="flex shrink-0 items-center gap-2 rounded border border-error/50 bg-error/10 p-2.5 text-xs text-error"
+						data-testid="agent-editor-error">
+						<IconAlertCircle className="shrink-0" size={14} stroke={1.5} />
+						<span className="flex-1">{error}</span>
+						<button
+							className="hover:underline text-xs cursor-pointer opacity-70 hover:opacity-100"
+							onClick={() => setError(undefined)}
+							type="button">
+							Bỏ qua
+						</button>
+					</div>
+				)}
+
 				{saveSuccess && (
 					<div
 						className="rounded border border-emerald-500/50 bg-emerald-950/30 p-2.5 text-xs text-emerald-300 flex items-center gap-2"
@@ -364,22 +458,86 @@ export const AgentEditor = ({
 				{/* Tab 1: Profile */}
 				{activeTab === "profile" && (
 					<div className="flex flex-col gap-4" data-testid="tab-panel-profile">
-						<div className="grid grid-cols-2 gap-3">
-							<label className="flex flex-col gap-1">
-								<span className="text-xs font-bold uppercase tracking-wide opacity-70">Id</span>
+						{/* Overview Card with Avatar and Chat Action */}
+						<div className="flex items-center justify-between rounded-lg border border-border-panel bg-(--vscode-sideBar-background)/40 p-3.5">
+							<div className="flex items-center gap-3 min-w-0">
+								<div
+									className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${avatarInfo.bg}`}>
+									<RoleIconComponent className={avatarInfo.color} size={22} stroke={1.5} />
+								</div>
+								<div className="flex flex-col min-w-0">
+									<div className="flex items-center gap-2">
+										<span className="font-semibold text-sm text-(--vscode-foreground) truncate">
+											{displayName || id || "Chưa đặt tên"}
+										</span>
+										{isCoordinator ? (
+											<span className="rounded bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.2 text-[10px] font-semibold text-amber-300">
+												Root Lead
+											</span>
+										) : (
+											<span className="rounded bg-(--vscode-badge-background) px-1.5 py-0.2 text-[10px] font-medium text-(--vscode-badge-foreground)">
+												{role === "lead" ? "Lead" : "Teammate"}
+											</span>
+										)}
+									</div>
+									<span className="font-mono text-xs text-(--vscode-descriptionForeground) opacity-80 truncate">
+										@{id || "id"} {reportsTo ? `• Báo cáo cho: @${reportsTo}` : ""}
+									</span>
+								</div>
+							</div>
+
+							<div className="flex flex-wrap items-center gap-2 shrink-0">
+								<button
+									className="flex items-center gap-1.5 rounded bg-(--vscode-button-background) hover:bg-(--vscode-button-hoverBackground) px-3 py-1.5 text-xs font-medium text-(--vscode-button-foreground) transition-colors cursor-pointer shadow-xs"
+									data-testid="quick-chat-button"
+									onClick={handleQuickChat}
+									type="button">
+									<IconMessage size={14} stroke={1.5} />
+									<span>Chat</span>
+								</button>
+								{onOpenWarRoom && (
+									<button
+										className="flex items-center gap-1.5 rounded border border-border-panel bg-input-background hover:bg-white/5 px-3 py-1.5 text-xs font-medium text-(--vscode-foreground) transition-colors cursor-pointer"
+										data-testid="quick-war-room-button"
+										onClick={onOpenWarRoom}
+										type="button">
+										<IconBroadcast size={14} stroke={1.5} />
+										<span>War room</span>
+									</button>
+								)}
+								{!isNew && !isCoordinator && onDelete && (
+									<button
+										className="flex items-center gap-1.5 rounded border border-transparent px-3 py-1.5 text-xs text-error hover:bg-error/10 hover:border-error/30 cursor-pointer transition-colors"
+										data-testid="quick-fire-button"
+										onClick={() => setShowDeleteConfirm(true)}
+										type="button">
+										<IconTrash size={14} stroke={1.5} />
+										<span>Sa thải agent</span>
+									</button>
+								)}
+							</div>
+						</div>
+
+						{/* Form inputs */}
+						<div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+							<label className="flex flex-col gap-1.5">
+								<span className="text-xs font-medium text-(--vscode-foreground)">Mã định danh (ID)</span>
 								<input
-									className="rounded border border-border-panel bg-input-background px-2.5 py-1 font-mono text-xs disabled:opacity-50"
+									className="rounded border border-border-panel bg-input-background px-2.5 py-1.5 font-mono text-xs text-(--vscode-foreground) disabled:opacity-50"
 									disabled={!isNew || isCoordinator}
+									maxLength={32}
 									onChange={(e) => setId(e.target.value.toLowerCase())}
 									placeholder="ví dụ: reviewer"
 									value={id}
 								/>
 							</label>
 
-							<label className="flex flex-col gap-1">
-								<span className="text-xs font-bold uppercase tracking-wide opacity-70">Tên hiển thị</span>
+							<label className="flex flex-col gap-1.5">
+								<span className="text-xs font-medium text-(--vscode-foreground)">
+									Tên hiển thị (Display Name)
+								</span>
 								<input
-									className="rounded border border-border-panel bg-input-background px-2.5 py-1 text-xs"
+									className="rounded border border-border-panel bg-input-background px-2.5 py-1.5 text-xs text-(--vscode-foreground)"
 									maxLength={48}
 									onChange={(e) => setDisplayName(e.target.value)}
 									placeholder="Tên agent"
@@ -388,11 +546,11 @@ export const AgentEditor = ({
 							</label>
 						</div>
 
-						<div className="grid grid-cols-2 gap-3">
-							<label className="flex flex-col gap-1">
-								<span className="text-xs font-bold uppercase tracking-wide opacity-70">Vai trò (Role)</span>
+						<div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+							<label className="flex flex-col gap-1.5">
+								<span className="text-xs font-medium text-(--vscode-foreground)">Vai trò (Role)</span>
 								<select
-									className="rounded border border-border-panel bg-input-background px-2.5 py-1 text-xs disabled:opacity-50"
+									className="rounded border border-border-panel bg-input-background px-2.5 py-1.5 text-xs text-(--vscode-foreground) disabled:opacity-50"
 									data-testid="agent-role-select"
 									disabled={isCoordinator}
 									onChange={(e) => setRole(e.target.value)}
@@ -402,19 +560,17 @@ export const AgentEditor = ({
 								</select>
 							</label>
 
-							<label className="flex flex-col gap-1">
-								<span className="text-xs font-bold uppercase tracking-wide opacity-70">
-									Quản lý bởi (reportsTo)
-								</span>
+							<label className="flex flex-col gap-1.5">
+								<span className="text-xs font-medium text-(--vscode-foreground)">Quản lý bởi (Reports To)</span>
 								{isCoordinator ? (
 									<input
-										className="rounded border border-border-panel bg-input-background px-2.5 py-1 text-xs opacity-60"
+										className="rounded border border-border-panel bg-input-background px-2.5 py-1.5 text-xs opacity-60 text-(--vscode-foreground)"
 										disabled
 										value="Không (Root Coordinator)"
 									/>
 								) : (
 									<select
-										className="rounded border border-border-panel bg-input-background px-2.5 py-1 text-xs"
+										className="rounded border border-border-panel bg-input-background px-2.5 py-1.5 text-xs text-(--vscode-foreground)"
 										data-testid="agent-reports-to-select"
 										onChange={(e) => setReportsTo(e.target.value || null)}
 										value={reportsTo ?? ""}>
@@ -429,52 +585,46 @@ export const AgentEditor = ({
 							</label>
 						</div>
 
-						<label className="flex flex-col gap-1">
-							<span className="text-xs font-bold uppercase tracking-wide opacity-70">Mô tả</span>
-							<input
-								className="rounded border border-border-panel bg-input-background px-2.5 py-1 text-xs"
+						{/* Multiline Description with scroll */}
+						<label className="flex flex-col gap-1.5">
+							<div className="flex items-center justify-between">
+								<span className="text-xs font-medium text-(--vscode-foreground)">
+									Mô tả chức năng & Trách nhiệm
+								</span>
+								<span className="text-[11px] text-(--vscode-descriptionForeground) opacity-80">
+									{description.length}/200 ký tự
+								</span>
+							</div>
+							<textarea
+								className="min-h-[76px] max-h-36 resize-y scroller-y rounded border border-border-panel bg-input-background p-2.5 text-xs leading-relaxed text-(--vscode-foreground) focus:outline-hidden focus:border-(--vscode-focusBorder)"
 								maxLength={200}
 								onChange={(e) => setDescription(e.target.value)}
-								placeholder="Nhiệm vụ chính của agent..."
+								placeholder="Nhiệm vụ chính, trách nhiệm cụ thể và phạm vi làm việc của agent trong tổ chức..."
+								rows={3}
 								value={description}
 							/>
 						</label>
 
-						{/* Quick action row */}
-						<div className="flex items-center justify-between pt-3 border-t border-border-panel">
-							<span className="text-xs font-bold uppercase tracking-wide opacity-70">Hành động nhanh</span>
-							<div className="flex items-center gap-2">
+						{/* Danger Zone: Delete Agent */}
+						{!isNew && !isCoordinator && onDelete && (
+							<div className="flex items-center justify-between pt-3 border-t border-border-panel">
+								<div className="flex flex-col">
+									<span className="text-xs font-medium text-error">Xóa bỏ agent</span>
+									<span className="text-[11px] text-(--vscode-descriptionForeground)">
+										Xóa toàn bộ cấu hình profile và thư mục của agent này
+									</span>
+								</div>
 								<button
-									className="flex items-center gap-1.5 rounded bg-slate-800 hover:bg-slate-700 px-2.5 py-1 text-xs text-white transition-colors"
-									data-testid="quick-chat-button"
-									onClick={handleQuickChat}
+									className="flex items-center gap-1.5 rounded border border-error/40 bg-error/10 hover:bg-error/20 px-3 py-1 text-xs text-error transition-colors cursor-pointer"
+									data-testid="quick-fire-button"
+									disabled={saving}
+									onClick={() => setShowDeleteConfirm(true)}
 									type="button">
-									<span>💬</span>
-									<span>Chat</span>
+									<IconTrash size={13} stroke={1.5} />
+									<span>Sa thải agent</span>
 								</button>
-
-								<button
-									className="flex items-center gap-1.5 rounded bg-slate-800 hover:bg-slate-700 px-2.5 py-1 text-xs text-white transition-colors"
-									data-testid="quick-war-room-button"
-									onClick={handleQuickWarRoom}
-									type="button">
-									<span>⚔️</span>
-									<span>War room</span>
-								</button>
-
-								{!isNew && !isCoordinator && onDelete && (
-									<button
-										className="flex items-center gap-1.5 rounded bg-red-950/40 border border-red-800/50 hover:bg-red-900/50 px-2.5 py-1 text-xs text-red-300 transition-colors"
-										data-testid="quick-fire-button"
-										disabled={saving}
-										onClick={() => setShowDeleteConfirm(true)}
-										type="button">
-										<span>🗑️</span>
-										<span>Sa thải agent</span>
-									</button>
-								)}
 							</div>
-						</div>
+						)}
 					</div>
 				)}
 
@@ -530,64 +680,28 @@ export const AgentEditor = ({
 				)}
 			</div>
 
-			{/* Action Footer */}
-			<div className="flex shrink-0 items-center justify-between border-t border-border-panel bg-[#10162a]/95 px-4 py-2.5">
-				<div className="flex items-center gap-2">
-					{isDirty ? (
-						<span
-							className="flex items-center gap-1.5 text-xs text-amber-400 font-medium"
-							data-testid="dirty-indicator">
-							<span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-							<span>Có thay đổi chưa lưu</span>
-						</span>
-					) : (
-						<span className="text-xs text-slate-400">Đã đồng bộ</span>
-					)}
-				</div>
-				<div className="flex items-center gap-2">
-					<button
-						className="rounded border border-border-panel px-3 py-1 text-xs hover:bg-white/5"
-						disabled={saving}
-						onClick={handleCloseRequest}
-						type="button">
-						Đóng / Hủy
-					</button>
-					<button
-						className="flex items-center gap-1.5 rounded bg-indigo-600 px-3.5 py-1 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors shadow-sm"
-						data-testid="editor-save-button"
-						disabled={saving}
-						onClick={handleSave}
-						type="button">
-						{saving && (
-							<span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
-						)}
-						<span>{saving ? "Đang lưu…" : "Lưu thay đổi"}</span>
-					</button>
-				</div>
-			</div>
-
 			{/* Confirm Discard Modal */}
 			{showDiscardConfirm && (
 				<div
-					className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+					className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
 					data-testid="discard-confirm-modal">
-					<div className="flex flex-col gap-3 rounded-lg border border-border-panel bg-[#12182b] p-4 shadow-2xl max-w-sm w-full">
+					<div className="flex flex-col gap-3 rounded-lg border border-border-panel bg-(--vscode-sideBar-background) p-4 shadow-2xl max-w-sm w-full">
 						<div className="flex items-center gap-2">
-							<span className="text-lg">⚠️</span>
-							<h3 className="font-semibold text-sm text-slate-100">Thay đổi chưa được lưu</h3>
+							<IconAlertTriangle className="text-amber-400 shrink-0" size={18} stroke={1.5} />
+							<h3 className="font-semibold text-sm text-(--vscode-foreground)">Thay đổi chưa được lưu</h3>
 						</div>
-						<p className="text-xs text-slate-300">
+						<p className="text-xs text-(--vscode-descriptionForeground)">
 							Bạn có thay đổi chưa lưu trên Agent này. Bạn có muốn bỏ thay đổi không?
 						</p>
 						<div className="flex justify-end gap-2 pt-2">
 							<button
-								className="rounded border border-border-panel px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5"
+								className="rounded border border-border-panel px-3 py-1.5 text-xs text-(--vscode-foreground) hover:bg-white/5 cursor-pointer transition-colors"
 								onClick={() => setShowDiscardConfirm(false)}
 								type="button">
 								Tiếp tục chỉnh sửa
 							</button>
 							<button
-								className="rounded bg-error px-3 py-1.5 text-xs font-semibold text-white hover:bg-error/80"
+								className="rounded bg-error px-3 py-1.5 text-xs font-semibold text-white hover:bg-error/80 cursor-pointer transition-colors"
 								data-testid="discard-confirm-button"
 								onClick={() => {
 									setShowDiscardConfirm(false)
@@ -603,22 +717,25 @@ export const AgentEditor = ({
 
 			{/* Confirm Delete Modal */}
 			{showDeleteConfirm && (
-				<div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
-					<div className="flex flex-col gap-3 rounded border border-border-panel bg-(--vscode-editor-background) p-4 shadow-xl max-w-sm w-full">
-						<h3 className="font-semibold text-sm text-error">Xóa agent?</h3>
-						<p className="text-xs opacity-80">
+				<div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+					<div className="flex flex-col gap-3 rounded-lg border border-border-panel bg-(--vscode-sideBar-background) p-4 shadow-xl max-w-sm w-full">
+						<div className="flex items-center gap-2">
+							<IconTrash className="text-rose-400 shrink-0" size={18} stroke={1.5} />
+							<h3 className="font-semibold text-sm text-error">Xóa agent?</h3>
+						</div>
+						<p className="text-xs text-(--vscode-descriptionForeground)">
 							Bạn có chắc chắn muốn xóa agent <strong>{displayName || id}</strong>? File profile và thư mục của
 							agent sẽ bị xóa.
 						</p>
 						<div className="flex justify-end gap-2 pt-1">
 							<button
-								className="rounded border border-border-panel px-3 py-1 text-xs hover:bg-white/5"
+								className="rounded border border-border-panel px-3 py-1 text-xs hover:bg-white/5 cursor-pointer transition-colors"
 								onClick={() => setShowDeleteConfirm(false)}
 								type="button">
 								Hủy
 							</button>
 							<button
-								className="rounded bg-error px-3 py-1 text-xs text-white hover:bg-error/80"
+								className="rounded bg-error px-3 py-1 text-xs font-semibold text-white hover:bg-error/80 cursor-pointer transition-colors"
 								data-testid="confirm-delete-button"
 								onClick={handleDelete}
 								type="button">

@@ -6,7 +6,7 @@ Orvanta là lớp **công ty AI theo từng repository**, xây dựng trên nề
 
 ## Cấu trúc Phiên bản Tài liệu
 
-Tài liệu thiết kế và đặc tả kỹ thuật được phân chia theo 4 phiên bản:
+Tài liệu thiết kế và đặc tả kỹ thuật được phân chia theo các phiên bản phát triển:
 
 ### 📁 [v0.0.1 (Tài liệu Nền tảng Ban đầu)](./v0.0.1/README.md)
 Chứa toàn bộ tài liệu kiến trúc ban đầu từ Phase P1 đến Phase P9, bộ 4 bề mặt chính (A–D):
@@ -47,6 +47,16 @@ Phiên bản nâng cấp trải nghiệm tương tác & điều hành tập trun
 2. **Mô hình Kênh (Channels Architecture)**: Kênh chung `#team-feed` (War Room Grid + Global Activity Timeline) và các kênh riêng chuyên biệt cho từng Agent (`@coordinator`, `@implementer`, `@reviewer`...).
 3. **Định danh Tác nhân (Agent Attribution Engine)**: Xóa bỏ hoàn toàn "Cline edit file", mọi tin nhắn, lệnh terminal và khối diff file đều mang Avatar, Tên và Màu sắc nhận diện rõ ràng của Agent thực thi.
 4. **Thanh Điều Hướng Thu Gọn (Collapsible Sidebar)**: Chuyển đổi linh hoạt giữa Expanded mode (160-280px) và Collapsed Mini mode (48px) kèm đèn trạng thái nhấp nháy, tối ưu diện tích hiển thị trên VS Code.
+
+---
+
+### 🎨 [v0.0.5 (Tái Cấu Trúc Giao Diện & Chuẩn Hóa Design System)](./v0.0.5/README.md)
+Phiên bản chuẩn hóa toàn diện giao diện người dùng theo Design System chuyển hóa từ `specs/web` cho VS Code extension:
+1. **Giao diện tinh gọn & tối giản**: Bố cục chuyên nghiệp, mật độ thông tin cao, màu sắc trung tính VS Code-native.
+2. **Quy chuẩn 4 trang chủ lực**: Bộ 4 đặc tả chi tiết cho `Home`, `Agents`, `Inbox`, `Console` kèm checklist nghiệm thu chuẩn.
+3. **Chuẩn hóa 100% Tabler Icons**: Loại bỏ toàn bộ emoji trang trí và unicode decorative, dùng `@tabler/icons-react` stroke 1.5px.
+4. **Bố cục 100dvh & Cuộn độc lập**: Khóa chặt viewport, ngăn chặn hoàn toàn cuộn toàn trang, thanh cuộn mảnh `.scroller` 6px.
+5. **Thành phần & Tokens dùng chung**: Tái sử dụng `button`, `badge`, `icon` (`AppIcon`), `tooltip` đồng bộ với `theme.css`.
 
 ---
 

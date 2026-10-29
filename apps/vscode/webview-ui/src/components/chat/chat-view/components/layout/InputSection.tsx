@@ -103,7 +103,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
 	}
 
 	return (
-		<>
+		<div className="flex flex-col w-full shrink-0">
 			{cloudFilesUnsupported && (
 				<p className="mx-[15px] mt-[10px] mb-0 text-[11px] leading-snug text-description" role="status">
 					Attached files can't be sent to a cloud sandbox. Remove them, or mention them in the prompt and let the agent
@@ -209,6 +209,6 @@ export const InputSection: React.FC<InputSectionProps> = ({
 				setSelectedImages={setSelectedImages}
 				shouldDisableFilesAndImages={shouldDisableFilesAndImages}
 			/>
-		</>
+		</div>
 	)
 }

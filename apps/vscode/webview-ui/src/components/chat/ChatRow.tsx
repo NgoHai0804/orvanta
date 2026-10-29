@@ -11,6 +11,7 @@ import {
 } from "@shared/ExtensionMessage"
 import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
+import { IconClipboardList, IconMessage, IconPackage, IconSend } from "@tabler/icons-react"
 import deepEqual from "fast-deep-equal"
 import {
 	BellIcon,
@@ -150,6 +151,9 @@ interface TeamRunTaskPayload {
 	description?: string
 	prompt?: string
 	task?: string
+	taskId?: string
+	deliverableArtifactPath?: string
+	context?: unknown
 	summary?: string
 	body?: string
 	title?: string
@@ -188,13 +192,13 @@ const TeamRunTaskCard = memo(({ tool, message, type = "assign" }: TeamRunTaskCar
 		parsed.title || parsed.taskTitle || parsed.subject || firstLine || (rawInstruction ? rawInstruction.slice(0, 140) : "")
 
 	// Title header: Ai giao cho ai / Ai báo cáo cho ai
-	let headerIcon = "📋"
+	let headerIcon = <IconClipboardList className="text-indigo-400 shrink-0" size={14} stroke={1.5} />
 	let headerTitle = `${senderName} giao việc cho @${recipientId}`
 	if (type === "handoff") {
-		headerIcon = "📤"
+		headerIcon = <IconSend className="text-emerald-400 shrink-0" size={14} stroke={1.5} />
 		headerTitle = `@${senderId} báo cáo kết quả cho ${recipientName}`
 	} else if (type === "message") {
-		headerIcon = "💬"
+		headerIcon = <IconMessage className="text-blue-400 shrink-0" size={14} stroke={1.5} />
 		headerTitle = `${senderName} gửi tin nhắn cho @${recipientId}`
 	}
 
@@ -259,7 +263,8 @@ const TeamRunTaskCard = memo(({ tool, message, type = "assign" }: TeamRunTaskCar
 					)}
 					{parsed.deliverableArtifactPath && (
 						<div className="flex items-center gap-1.5 font-mono text-[11px] text-indigo-300">
-							<span>📦 Sản phẩm bàn giao:</span>
+							<IconPackage className="shrink-0" size={13} stroke={1.5} />
+							<span>Sản phẩm bàn giao:</span>
 							<span className="font-semibold underline select-all">{parsed.deliverableArtifactPath}</span>
 						</div>
 					)}
@@ -274,7 +279,7 @@ const TeamRunTaskCard = memo(({ tool, message, type = "assign" }: TeamRunTaskCar
 							</div>
 						</div>
 					)}
-					{parsed.context && (
+					{parsed.context != null && (
 						<div className="flex flex-col gap-1">
 							<span className="font-semibold text-foreground">Ngữ cảnh bổ sung:</span>
 							<div className="bg-surface-secondary/30 rounded p-2 text-foreground/80 font-mono text-[10.5px] select-text">

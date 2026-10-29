@@ -1,3 +1,4 @@
+import { IconChevronDown, IconChevronUp, IconEye, IconPencil, IconPlus, IconSearch } from "@tabler/icons-react"
 import { useMemo, useState } from "react"
 import ReactMarkdown from "react-markdown"
 
@@ -63,6 +64,7 @@ export const InstructionsRulesTab = ({
 	availableRules,
 }: InstructionsRulesTabProps) => {
 	const [mode, setMode] = useState<"edit" | "preview">("edit")
+	const [isExpanded, setIsExpanded] = useState(true)
 	const [ruleSearch, setRuleSearch] = useState("")
 	const [newCustomRule, setNewCustomRule] = useState("")
 
@@ -125,122 +127,152 @@ export const InstructionsRulesTab = ({
 	}, [instructions])
 
 	return (
-		<div className="flex flex-col gap-5" data-testid="tab-panel-rules">
-			{/* Section 1: Instructions Markdown with Preview */}
-			<div className="flex flex-col gap-2 rounded-lg border border-border-panel bg-[#10162a]/60 p-3">
+		<div className="flex flex-col gap-4 text-(--vscode-foreground)" data-testid="tab-panel-rules">
+			{/* Section 1: Instructions Markdown with Collapsible Header */}
+			<div className="rounded-lg border border-border-panel bg-(--vscode-sideBar-background)/40 p-3.5 flex flex-col gap-2.5">
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-2">
-						<span className="text-xs font-bold uppercase tracking-wide opacity-70">Instructions (System Prompt)</span>
-						<span className="text-[10px] text-indigo-400 bg-indigo-950/60 border border-indigo-800 px-1.5 py-0.5 rounded">
-							Markdown
+						<button
+							className="flex items-center gap-1.5 font-semibold text-xs text-(--vscode-foreground) hover:opacity-80 cursor-pointer"
+							data-testid="toggle-instructions-collapse"
+							onClick={() => setIsExpanded(!isExpanded)}
+							type="button">
+							{isExpanded ? (
+								<IconChevronUp className="text-(--vscode-descriptionForeground)" size={14} stroke={1.5} />
+							) : (
+								<IconChevronDown className="text-(--vscode-descriptionForeground)" size={14} stroke={1.5} />
+							)}
+							<span>Instructions (System Prompt)</span>
+						</button>
+						<span className="font-mono text-[10px] text-(--vscode-descriptionForeground) opacity-80">
+							{wordCount} từ • {instructions.length} ký tự
 						</span>
 					</div>
 
-					{/* Edit vs Preview Mode Switch */}
-					<div className="flex items-center gap-1 bg-slate-900 p-0.5 rounded border border-slate-800">
-						<button
-							className={`px-2.5 py-1 text-xs rounded transition-colors ${
-								mode === "edit" ? "bg-indigo-600 text-white font-medium" : "text-slate-400 hover:text-slate-200"
-							}`}
-							data-testid="instructions-mode-edit"
-							onClick={() => setMode("edit")}
-							type="button">
-							✏️ Soạn thảo
-						</button>
-						<button
-							className={`px-2.5 py-1 text-xs rounded transition-colors ${
-								mode === "preview"
-									? "bg-indigo-600 text-white font-medium"
-									: "text-slate-400 hover:text-slate-200"
-							}`}
-							data-testid="instructions-mode-preview"
-							onClick={() => setMode("preview")}
-							type="button">
-							👁️ Xem trước
-						</button>
-					</div>
+					{isExpanded && (
+						<div className="flex items-center gap-1 bg-(--vscode-editor-background)/80 p-0.5 rounded border border-border-panel">
+							<button
+								className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded transition-colors cursor-pointer ${
+									mode === "edit"
+										? "bg-(--vscode-button-background) text-(--vscode-button-foreground) font-medium"
+										: "text-(--vscode-descriptionForeground) hover:text-(--vscode-foreground)"
+								}`}
+								data-testid="instructions-mode-edit"
+								onClick={() => setMode("edit")}
+								type="button">
+								<IconPencil size={12} stroke={1.5} />
+								<span>Soạn thảo</span>
+							</button>
+							<button
+								className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded transition-colors cursor-pointer ${
+									mode === "preview"
+										? "bg-(--vscode-button-background) text-(--vscode-button-foreground) font-medium"
+										: "text-(--vscode-descriptionForeground) hover:text-(--vscode-foreground)"
+								}`}
+								data-testid="instructions-mode-preview"
+								onClick={() => setMode("preview")}
+								type="button">
+								<IconEye size={12} stroke={1.5} />
+								<span>Xem trước</span>
+							</button>
+						</div>
+					)}
 				</div>
 
-				{mode === "edit" ? (
-					<div className="flex flex-col gap-1.5">
-						<div className="flex items-center gap-1.5 pb-0.5">
-							<button
-								className="px-2 py-0.5 rounded text-[11px] border border-slate-700 bg-slate-800 text-slate-300 hover:text-white transition-colors"
-								data-testid="btn-format-h2"
-								onClick={() => setInstructions(`${instructions}\n\n## Tiêu đề\n`)}
-								type="button">
-								H2
-							</button>
-							<button
-								className="px-2 py-0.5 rounded text-[11px] border border-slate-700 bg-slate-800 text-slate-300 hover:text-white transition-colors"
-								data-testid="btn-format-bullet"
-								onClick={() => setInstructions(`${instructions}\n- Mục 1\n- Mục 2\n`)}
-								type="button">
-								List
-							</button>
-							<button
-								className="px-2 py-0.5 rounded text-[11px] border border-slate-700 bg-slate-800 text-slate-300 hover:text-white transition-colors"
-								data-testid="btn-format-code"
-								onClick={() => setInstructions(`${instructions}\n\`\`\`ts\n// code\n\`\`\`\n`)}
-								type="button">
-								Code
-							</button>
-						</div>
-						<textarea
-							className="min-h-56 w-full resize-y rounded border border-border-panel bg-input-background p-3 font-mono text-xs leading-relaxed focus:outline-hidden focus:border-indigo-500"
-							data-testid="instructions-textarea"
-							onChange={(e) => setInstructions(e.target.value)}
-							placeholder="Hướng dẫn chi tiết vai trò, mục tiêu và nguyên tắc hành xử của agent..."
-							required
-							value={instructions}
-						/>
-						<div className="flex items-center justify-between text-[11px] text-slate-400 px-0.5">
-							<span>Hỗ trợ định dạng Markdown đầy đủ (# tiêu đề, - danh sách, ```code)</span>
-							<span data-testid="instructions-stats">
-								{wordCount} từ • {instructions.length} ký tự
+				{isExpanded ? (
+					mode === "edit" ? (
+						<div className="flex flex-col gap-1.5">
+							<div className="flex items-center gap-1.5 pb-1">
+								<button
+									className="px-2 py-0.5 text-[11px] rounded border border-border-panel hover:bg-white/5 text-(--vscode-descriptionForeground) hover:text-(--vscode-foreground) font-mono transition-colors cursor-pointer"
+									data-testid="btn-format-h2"
+									onClick={() =>
+										setInstructions(instructions ? `${instructions}\n\n## Tiêu đề\n` : "## Tiêu đề\n")
+									}
+									type="button">
+									H2
+								</button>
+								<button
+									className="px-2 py-0.5 text-[11px] rounded border border-border-panel hover:bg-white/5 text-(--vscode-descriptionForeground) hover:text-(--vscode-foreground) font-bold transition-colors cursor-pointer"
+									data-testid="btn-format-bold"
+									onClick={() => setInstructions(instructions ? `${instructions} **đậm**` : "**đậm**")}
+									type="button">
+									B
+								</button>
+								<button
+									className="px-2 py-0.5 text-[11px] rounded border border-border-panel hover:bg-white/5 text-(--vscode-descriptionForeground) hover:text-(--vscode-foreground) font-mono transition-colors cursor-pointer"
+									data-testid="btn-format-code"
+									onClick={() =>
+										setInstructions(
+											instructions ? `${instructions}\n\`\`\`\ncode\n\`\`\`\n` : "```\ncode\n```\n",
+										)
+									}
+									type="button">
+									Code
+								</button>
+							</div>
+							<textarea
+								className="min-h-36 max-h-72 w-full resize-y rounded border border-border-panel bg-input-background p-3 font-mono text-xs leading-relaxed text-(--vscode-foreground) focus:outline-hidden focus:border-(--vscode-focusBorder) scroller-y"
+								data-testid="instructions-textarea"
+								onChange={(e) => setInstructions(e.target.value)}
+								placeholder="Hướng dẫn chi tiết vai trò, mục tiêu và nguyên tắc hành xử của agent..."
+								required
+								rows={7}
+								value={instructions}
+							/>
+							<span className="text-[11px] text-(--vscode-descriptionForeground) opacity-80">
+								Định dạng Markdown (# tiêu đề, - danh sách, ```code)
 							</span>
 						</div>
-					</div>
+					) : (
+						<div
+							className="min-h-36 max-h-72 w-full rounded border border-border-panel bg-input-background/50 p-3.5 text-xs leading-relaxed overflow-y-auto scroller-y"
+							data-testid="instructions-preview-content">
+							{instructions.trim() ? (
+								<div className="prose prose-invert max-w-none text-xs text-(--vscode-foreground)">
+									<ReactMarkdown>{instructions}</ReactMarkdown>
+								</div>
+							) : (
+								<div className="text-(--vscode-descriptionForeground) italic text-center py-8">
+									Chưa có nội dung instructions để xem trước.
+								</div>
+							)}
+						</div>
+					)
 				) : (
 					<div
-						className="min-h-56 w-full rounded border border-border-panel bg-slate-900/60 p-4 text-xs leading-relaxed overflow-y-auto max-h-96"
-						data-testid="instructions-preview-content">
-						{instructions.trim() ? (
-							<div className="prose prose-invert max-w-none text-xs">
-								<ReactMarkdown>{instructions}</ReactMarkdown>
-							</div>
-						) : (
-							<div className="text-slate-500 italic text-center py-10">
-								Chưa có nội dung instructions để xem trước.
-							</div>
-						)}
+						className="text-xs text-(--vscode-descriptionForeground) truncate cursor-pointer hover:text-(--vscode-foreground) py-0.5 opacity-80"
+						onClick={() => setIsExpanded(true)}>
+						{instructions.trim()
+							? instructions.slice(0, 100) + (instructions.length > 100 ? "…" : "")
+							: "(Trống - bấm để mở rộng soạn thảo)"}
 					</div>
 				)}
 			</div>
 
-			{/* Section 2: Checklist Rules */}
-			<div className="flex flex-col gap-3 rounded-lg border border-border-panel bg-[#10162a]/60 p-3">
+			{/* Section 2: Checklist Rules with Switch Toggles & Scroll */}
+			<div className="rounded-lg border border-border-panel bg-(--vscode-sideBar-background)/40 p-3.5 flex flex-col gap-3">
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-2">
-						<span className="text-xs font-bold uppercase tracking-wide opacity-70">Rules Hệ Thống & Workspace</span>
+						<span className="text-xs font-semibold text-(--vscode-foreground)">Rules Hệ Thống & Workspace</span>
 						<span
-							className="text-[10px] text-indigo-300 bg-indigo-950/80 border border-indigo-700 px-2 py-0.5 rounded-full font-semibold"
+							className="text-[10px] text-(--vscode-badge-foreground) bg-(--vscode-badge-background) px-1.5 py-0.5 rounded-full font-medium"
 							data-testid="rules-count-badge">
-							{selectedRules.length} rules được gán
+							{selectedRules.length} gán
 						</span>
 					</div>
 
 					<div className="flex items-center gap-2 text-xs">
 						<button
-							className="text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors"
+							className="text-[11px] text-(--vscode-textLink-foreground) hover:underline cursor-pointer"
 							data-testid="btn-select-all-rules"
 							onClick={handleSelectAllRules}
 							type="button">
 							Chọn tất cả
 						</button>
-						<span className="text-slate-600">•</span>
+						<span className="opacity-40">•</span>
 						<button
-							className="text-[11px] text-slate-400 hover:text-slate-200 transition-colors"
+							className="text-[11px] text-(--vscode-descriptionForeground) hover:text-(--vscode-foreground) cursor-pointer"
 							data-testid="btn-deselect-all-rules"
 							onClick={handleDeselectAllRules}
 							type="button">
@@ -249,9 +281,14 @@ export const InstructionsRulesTab = ({
 					</div>
 				</div>
 
-				<div className="flex items-center gap-2">
+				<div className="relative">
+					<IconSearch
+						className="absolute left-2.5 top-1/2 -translate-y-1/2 text-(--vscode-descriptionForeground)"
+						size={13}
+						stroke={1.5}
+					/>
 					<input
-						className="flex-1 rounded border border-border-panel bg-input-background px-2.5 py-1 text-xs"
+						className="w-full rounded border border-border-panel bg-input-background pl-8 pr-2.5 py-1.5 text-xs text-(--vscode-foreground) focus:outline-hidden focus:border-(--vscode-focusBorder)"
 						data-testid="rules-search-input"
 						onChange={(e) => setRuleSearch(e.target.value)}
 						placeholder="Tìm kiếm rule..."
@@ -260,52 +297,65 @@ export const InstructionsRulesTab = ({
 					/>
 				</div>
 
-				{/* Rules List */}
-				<div className="flex flex-col gap-1.5 max-h-60 overflow-y-auto pr-1" data-testid="rules-checklist">
+				{/* Rules List with Switch Toggles and Scroll */}
+				<div
+					className="flex flex-col gap-1.5 max-h-56 min-h-0 overflow-y-auto scroller-y pr-1"
+					data-testid="rules-checklist">
 					{filteredRules.map((rule) => {
 						const isChecked = selectedRules.includes(rule.id)
 						return (
-							<label
-								className={`flex items-start gap-2.5 p-2 rounded-md border cursor-pointer transition-colors ${
+							<div
+								className={`flex items-center justify-between gap-3 p-2 rounded-md border transition-colors ${
 									isChecked
-										? "bg-indigo-950/30 border-indigo-600/60 text-slate-100"
-										: "bg-slate-900/40 border-slate-800 text-slate-300 hover:bg-slate-800/40"
+										? "bg-(--vscode-button-background)/10 border-(--vscode-button-background)/40"
+										: "bg-input-background/40 border-border-panel/70 hover:bg-input-background/70"
 								}`}
 								data-testid={`rule-item-${rule.id}`}
 								key={rule.id}>
-								<input
-									checked={isChecked}
-									className="mt-0.5 rounded border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-									data-testid={`rule-checkbox-${rule.id}`}
-									onChange={() => handleToggleRule(rule.id)}
-									type="checkbox"
-								/>
-								<div className="flex flex-col flex-1">
-									<div className="flex items-center justify-between">
-										<span className="font-semibold text-xs text-slate-200">{rule.name}</span>
+								<div className="flex flex-col min-w-0 flex-1">
+									<div className="flex items-center gap-2">
+										<span className="font-medium text-xs text-(--vscode-foreground) truncate">
+											{rule.name}
+										</span>
 										{rule.source && (
-											<span className="font-mono text-[10px] text-slate-400 bg-slate-800 border border-slate-700 px-1.5 py-0.5 rounded">
+											<span className="font-mono text-[10px] text-(--vscode-descriptionForeground) bg-(--vscode-editor-background) border border-border-panel px-1 py-0.2 rounded shrink-0">
 												{rule.source}
 											</span>
 										)}
 									</div>
 									{rule.description && (
-										<span className="text-[11px] text-slate-400 mt-0.5">{rule.description}</span>
+										<span className="text-[11px] text-(--vscode-descriptionForeground) mt-0.5 truncate">
+											{rule.description}
+										</span>
 									)}
 								</div>
-							</label>
+
+								{/* Switch Toggle */}
+								<label className="relative inline-flex items-center cursor-pointer shrink-0">
+									<input
+										checked={isChecked}
+										className="sr-only peer"
+										data-testid={`rule-checkbox-${rule.id}`}
+										onChange={() => handleToggleRule(rule.id)}
+										type="checkbox"
+									/>
+									<div className="w-8 h-4.5 bg-slate-700 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-3.5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-(--vscode-button-background)" />
+								</label>
+							</div>
 						)
 					})}
 
 					{filteredRules.length === 0 && (
-						<div className="text-center text-slate-500 text-xs py-4">Không tìm thấy rule nào khớp với từ khóa.</div>
+						<div className="text-center text-(--vscode-descriptionForeground) text-xs py-4">
+							Không tìm thấy rule nào khớp với từ khóa.
+						</div>
 					)}
 				</div>
 
 				{/* Custom Rule Add */}
-				<div className="flex gap-1.5 pt-1 border-t border-slate-800/80">
+				<div className="flex gap-2 pt-2 border-t border-border-panel">
 					<input
-						className="flex-1 rounded border border-border-panel bg-input-background px-2.5 py-1 font-mono text-xs"
+						className="flex-1 rounded border border-border-panel bg-input-background px-2.5 py-1 font-mono text-xs text-(--vscode-foreground)"
 						data-testid="input-custom-rule"
 						onChange={(e) => setNewCustomRule(e.target.value)}
 						onKeyDown={(e) => {
@@ -314,16 +364,17 @@ export const InstructionsRulesTab = ({
 								handleAddCustomRule()
 							}
 						}}
-						placeholder="Thêm đường dẫn rule custom (ví dụ: .cline/rules/my-rule.md)..."
+						placeholder="Thêm đường dẫn rule (ví dụ: .cline/rules/my-rule.md)..."
 						type="text"
 						value={newCustomRule}
 					/>
 					<button
-						className="rounded bg-slate-800 hover:bg-slate-700 px-2.5 py-1 text-xs text-slate-200 transition-colors"
+						className="flex items-center gap-1 rounded bg-(--vscode-button-background) hover:bg-(--vscode-button-hoverBackground) px-3 py-1 text-xs font-medium text-(--vscode-button-foreground) transition-colors cursor-pointer shrink-0"
 						data-testid="btn-add-custom-rule"
 						onClick={handleAddCustomRule}
 						type="button">
-						Thêm rule
+						<IconPlus size={13} stroke={1.5} />
+						<span>Thêm rule</span>
 					</button>
 				</div>
 			</div>

@@ -118,4 +118,73 @@ describe("ConsoleView", () => {
 		fireEvent.click(backBtn)
 		expect(onSelectAgent).toHaveBeenCalledWith("team-feed")
 	})
+	it("handles fallback gracefully when focusAgentId is not in agents roster", () => {
+		const onSelectAgent = vi.fn()
+		render(
+			<ConsoleView agents={mockAgents} companyName="Acme Corp" focusAgentId="unknown-agent" onSelectAgent={onSelectAgent}>
+				<div data-testid="mock-chat-view">Mock ChatView</div>
+			</ConsoleView>,
+		)
+
+		// When agent is not found, fallback to team feed or hide agent header
+		expect(screen.queryByTestId("agent-channel-header")).not.toBeInTheDocument()
+	})
+
+	it("verifies zero decorative emojis exist in rendered ConsoleView", () => {
+		const { container } = render(
+			<ConsoleView agents={mockAgents} companyName="Acme Corp" focusAgentId="team-feed" onSelectAgent={vi.fn()}>
+				<div data-testid="mock-chat-view">Mock ChatView</div>
+			</ConsoleView>,
+		)
+
+		const content = container.textContent || ""
+		expect(content).not.toContain("★")
+		expect(content).not.toContain("«")
+		expect(content).not.toContain("»")
+		expect(content).not.toContain("▲")
+		expect(content).not.toContain("▼")
+		expect(content).not.toContain("📢")
+		expect(content).not.toContain("🎉")
+		expect(content).not.toContain("⭐")
+		expect(content).not.toContain("💻")
+	})
+
+	it("supports keyboard shortcut Ctrl+B to toggle sidebar collapse", () => {
+		localStorage.clear()
+		render(
+			<ConsoleView agents={mockAgents} companyName="Acme Corp" focusAgentId="team-feed" onSelectAgent={vi.fn()}>
+				<div data-testid="mock-chat-view">Mock ChatView</div>
+			</ConsoleView>,
+		)
+
+		const sidebar = screen.getByTestId("orvanta-team-sidebar")
+		expect(sidebar).toHaveAttribute("data-collapsed", "false")
+
+		// Press Ctrl+B
+		fireEvent.keyDown(window, { key: "b", ctrlKey: true })
+		expect(sidebar).toHaveAttribute("data-collapsed", "true")
+
+		// Press Ctrl+B again
+		fireEvent.keyDown(window, { key: "b", ctrlKey: true })
+		expect(sidebar).toHaveAttribute("data-collapsed", "false")
+	})
+
+	it("triggers onHire when quick hire button is clicked in TeamSidebar", () => {
+		const onHire = vi.fn()
+		render(
+			<ConsoleView
+				agents={mockAgents}
+				companyName="Acme Corp"
+				focusAgentId="team-feed"
+				onHire={onHire}
+				onSelectAgent={vi.fn()}>
+				<div data-testid="mock-chat-view">Mock ChatView</div>
+			</ConsoleView>,
+		)
+
+		const hireBtn = screen.getByTestId("quick-hire-button")
+		expect(hireBtn).toBeInTheDocument()
+		fireEvent.click(hireBtn)
+		expect(onHire).toHaveBeenCalled()
+	})
 })

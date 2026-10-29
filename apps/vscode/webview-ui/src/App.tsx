@@ -249,7 +249,7 @@ const AppContent = () => {
 				</div>
 			)}
 			<div
-				className="flex min-h-0 flex-1 w-full overflow-hidden"
+				className="flex h-full min-h-0 flex-1 w-full overflow-hidden"
 				style={{ display: overlayOpen || orvantaTab !== "console" || showWelcome ? "none" : "flex" }}>
 				{hasCompany ? (
 					<ConsoleView

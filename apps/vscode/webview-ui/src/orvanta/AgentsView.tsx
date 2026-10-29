@@ -1,4 +1,5 @@
 import { OrvantaAgentProfile, type OrvantaCompanyResponse, type OrvantaRosterAgent } from "@shared/proto/cline/orvanta"
+import { IconUsers } from "@tabler/icons-react"
 import {
 	type KeyboardEvent,
 	type MouseEvent as ReactMouseEvent,
@@ -321,7 +322,7 @@ const AgentsView = ({
 
 	return (
 		<div
-			className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#0a0e1a] text-slate-200"
+			className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-(--vscode-editor-background) text-(--vscode-foreground)"
 			data-testid="agents-view"
 			ref={containerRef}>
 			<div
@@ -372,7 +373,8 @@ const AgentsView = ({
 						rosterAgents={rosterAgents}
 					/>
 				) : (
-					<div className="flex h-full items-center justify-center text-slate-400 text-xs">
+					<div className="flex h-full flex-col items-center justify-center text-slate-400 text-xs gap-2 p-6 text-center">
+						<IconUsers className="text-slate-500" size={24} stroke={1.5} />
 						<span>Chọn một agent trên sơ đồ cây để xem và chỉnh sửa chi tiết</span>
 					</div>
 				)}

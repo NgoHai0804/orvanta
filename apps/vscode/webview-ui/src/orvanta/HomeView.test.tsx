@@ -292,4 +292,68 @@ describe("HomeView", () => {
 			"high",
 		)
 	})
+	it("renders PURPOSE-LOCKED badge and tasks in Work now", () => {
+		const onRequestDecision = vi.fn().mockResolvedValue({})
+		const company: OrvantaCompanyResponse = {
+			status: "ready",
+			errors: [],
+			id: "orvanta-123",
+			name: "Acme Corp",
+			purpose: "Sứ mệnh cốt lõi của công ty chúng ta",
+			teamName: "acme-corp",
+			tasksJson: JSON.stringify({
+				tasks: [
+					{ id: "task-1", title: "Thiết kế UI", status: "in_progress", assignee: "dev-1" },
+					{ id: "task-2", title: "API Gateway", status: "blocked", assignee: "lead", reason: "Chờ spec" },
+					{ id: "task-3", title: "Viết test", status: "pending", assignee: "qa" },
+				],
+			}),
+			agents: [],
+		}
+		render(<HomeView {...defaultProps} company={company} onRequestDecision={onRequestDecision} />)
+
+		expect(screen.getByText("PURPOSE-LOCKED")).toBeInTheDocument()
+		expect(screen.getByText("Thiết kế UI")).toBeInTheDocument()
+		expect(screen.getByText("API Gateway")).toBeInTheDocument()
+		expect(screen.getByText("Viết test")).toBeInTheDocument()
+		expect(screen.getByText("@dev-1")).toBeInTheDocument()
+		expect(screen.getByText("Escalate")).toBeInTheDocument()
+
+		fireEvent.click(screen.getByText("Escalate"))
+		expect(onRequestDecision).toHaveBeenCalledWith(
+			"escalate_blocked",
+			"Task 'API Gateway' bị block",
+			"Chờ spec",
+			expect.objectContaining({ taskId: "task-2", reason: "Chờ spec" }),
+			"high",
+		)
+	})
+
+	it("opens options menu and allows opening company.json modal", () => {
+		const company: OrvantaCompanyResponse = {
+			status: "ready",
+			errors: [],
+			id: "orvanta-123",
+			name: "Acme Corp",
+			purpose: "Sứ mệnh",
+			teamName: "acme-corp",
+			agents: [],
+		}
+		render(<HomeView {...defaultProps} company={company} />)
+
+		const optionsBtn = screen.getByTitle("Tùy chọn công ty")
+		fireEvent.click(optionsBtn)
+
+		expect(screen.getByText("Mở thư mục .orvanta")).toBeInTheDocument()
+		expect(screen.getByText("Sao chép Purpose")).toBeInTheDocument()
+		expect(screen.getByText("Xem company.json")).toBeInTheDocument()
+		expect(screen.getByText("Lưu vào thư viện…")).toBeInTheDocument()
+		expect(screen.getByText("Tải từ thư viện…")).toBeInTheDocument()
+		expect(screen.getByText("Xóa công ty…")).toBeInTheDocument()
+
+		fireEvent.click(screen.getByText("Xem company.json"))
+		expect(screen.getByText("company.json")).toBeInTheDocument()
+		fireEvent.click(screen.getByText("Đóng"))
+		expect(screen.queryByText("company.json")).not.toBeInTheDocument()
+	})
 })

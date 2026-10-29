@@ -1,3 +1,4 @@
+import { IconInfoCircle, IconPlus, IconSearch } from "@tabler/icons-react"
 import { useMemo, useState } from "react"
 
 export interface WorkspaceSkillItem {
@@ -138,28 +139,41 @@ export const SkillsTab = ({ availableSkills, selectedSkills, setSelectedSkills }
 	}
 
 	return (
-		<div className="flex flex-col gap-4" data-testid="tab-panel-skills">
+		<div className="flex flex-col gap-4 text-(--vscode-foreground)" data-testid="tab-panel-skills">
 			{/* Top Header & Actions */}
-			<div className="flex flex-col gap-2">
+			<div className="rounded-lg border border-border-panel bg-(--vscode-sideBar-background)/40 p-3.5 flex flex-col gap-3">
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-2">
-						<span className="text-xs font-bold uppercase tracking-wide opacity-70">Kỹ Năng Chuyên Biệt (Skills)</span>
+						<span className="text-xs font-semibold text-(--vscode-foreground)">Kỹ Năng Chuyên Biệt (Skills)</span>
 						<span
-							className="rounded bg-indigo-950/60 border border-indigo-700/50 text-[10px] text-indigo-300 px-2 py-0.5 font-semibold"
+							className="rounded bg-(--vscode-badge-background) text-[10px] text-(--vscode-badge-foreground) px-1.5 py-0.5 font-medium"
 							data-testid="skills-count-badge">
-							{selectedSkills.length} / {skillList.length} đã bật
+							{selectedSkills.length} / {skillList.length} bật
 						</span>
+						{/* Info icon with hover tooltip */}
+						<div className="relative group inline-flex items-center">
+							<IconInfoCircle
+								className="text-(--vscode-descriptionForeground) hover:text-(--vscode-foreground) cursor-pointer"
+								size={14}
+								stroke={1.5}
+							/>
+							<div className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 hidden group-hover:block z-50 w-56 rounded bg-(--vscode-editor-background) p-2 text-[11px] leading-tight text-(--vscode-foreground) shadow-xl border border-border-panel">
+								Kích hoạt các skills từ <code className="text-indigo-400">.agents/skills/</code> hoặc{" "}
+								<code className="text-indigo-400">.cline/skills/</code> để trang bị chuyên môn sâu cho agent.
+							</div>
+						</div>
 					</div>
+
 					<div className="flex items-center gap-1.5">
 						<button
-							className="text-[11px] px-2 py-0.5 rounded border border-slate-700 hover:bg-white/5 text-slate-300 transition-colors"
+							className="text-[11px] px-2 py-0.5 rounded border border-border-panel hover:bg-white/5 text-(--vscode-descriptionForeground) hover:text-(--vscode-foreground) transition-colors cursor-pointer"
 							data-testid="enable-all-skills-btn"
 							onClick={handleEnableAll}
 							type="button">
 							Bật tất cả
 						</button>
 						<button
-							className="text-[11px] px-2 py-0.5 rounded border border-slate-700 hover:bg-white/5 text-slate-300 transition-colors"
+							className="text-[11px] px-2 py-0.5 rounded border border-border-panel hover:bg-white/5 text-(--vscode-descriptionForeground) hover:text-(--vscode-foreground) transition-colors cursor-pointer"
 							data-testid="disable-all-skills-btn"
 							onClick={handleDisableAll}
 							type="button">
@@ -167,93 +181,106 @@ export const SkillsTab = ({ availableSkills, selectedSkills, setSelectedSkills }
 						</button>
 					</div>
 				</div>
-				<p className="text-[11px] text-slate-400">
-					Kích hoạt các skills từ <code className="text-indigo-300">.agents/skills/</code> hoặc{" "}
-					<code className="text-indigo-300">.cline/skills/</code> để trang bị chuyên môn sâu cho agent.
-				</p>
-			</div>
 
-			{/* Search input */}
-			<input
-				className="rounded border border-border-panel bg-input-background px-2.5 py-1.5 text-xs text-slate-100 focus:outline-hidden focus:border-indigo-500"
-				data-testid="skill-search-input"
-				onChange={(e) => setSearch(e.target.value)}
-				placeholder="Tìm kiếm skill theo tên hoặc mô tả..."
-				type="text"
-				value={search}
-			/>
-
-			{/* Skill List with Switch Toggles */}
-			<div className="flex flex-col gap-2 max-h-[380px] overflow-y-auto pr-1">
-				{filteredSkills.map((skill) => {
-					const isEnabled = selectedSkills.includes(skill.id)
-					return (
-						<div
-							className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
-								isEnabled
-									? "border-indigo-500/50 bg-indigo-950/20"
-									: "border-border-panel bg-[#10162a]/40 hover:border-slate-700"
-							}`}
-							data-testid={`skill-card-${skill.id}`}
-							key={skill.id}>
-							<div className="flex flex-col gap-1 pr-3">
-								<div className="flex items-center gap-2">
-									<span className="text-xs font-semibold text-slate-100">{skill.name}</span>
-									{skill.source && (
-										<span className="font-mono text-[9px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 border border-slate-700">
-											{skill.source}
+				{/* Search input */}
+				<div className="relative">
+					<IconSearch
+						className="absolute left-2.5 top-1/2 -translate-y-1/2 text-(--vscode-descriptionForeground)"
+						size={13}
+						stroke={1.5}
+					/>
+					<input
+						className="w-full rounded border border-border-panel bg-input-background pl-8 pr-2.5 py-1.5 text-xs text-(--vscode-foreground) focus:outline-hidden focus:border-(--vscode-focusBorder)"
+						data-testid="skill-search-input"
+						onChange={(e) => setSearch(e.target.value)}
+						placeholder="Tìm kiếm skill theo tên hoặc mô tả..."
+						type="text"
+						value={search}
+					/>
+				</div>
+				{/* Skill List with Switch Toggles & Scroll */}
+				<div className="flex flex-col gap-1.5 max-h-60 min-h-0 overflow-y-auto scroller-y pr-1">
+					{filteredSkills.map((skill) => {
+						const isEnabled = selectedSkills.includes(skill.id)
+						return (
+							<div
+								className={`flex items-center justify-between p-2.5 rounded-md border transition-colors ${
+									isEnabled
+										? "bg-(--vscode-button-background)/10 border-(--vscode-button-background)/40"
+										: "bg-input-background/40 border-border-panel/70 hover:bg-input-background/70"
+								}`}
+								data-testid={`skill-card-${skill.id}`}
+								key={skill.id}>
+								<div className="flex flex-col gap-0.5 pr-2.5 min-w-0 flex-1">
+									<div className="flex items-center gap-2">
+										<span className="text-xs font-medium text-(--vscode-foreground) truncate">
+											{skill.name}
+										</span>
+										{skill.source && (
+											<span className="font-mono text-[9px] px-1 py-0.2 rounded bg-(--vscode-editor-background) text-(--vscode-descriptionForeground) border border-border-panel shrink-0">
+												{skill.source}
+											</span>
+										)}
+									</div>
+									{skill.description && (
+										<span className="text-[11px] text-(--vscode-descriptionForeground) leading-relaxed truncate">
+											{skill.description}
 										</span>
 									)}
 								</div>
-								{skill.description && (
-									<span className="text-[11px] text-slate-400 leading-relaxed">{skill.description}</span>
-								)}
-							</div>
 
-							{/* Switch Toggle */}
-							<button
-								aria-checked={isEnabled}
-								className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-									isEnabled ? "bg-indigo-600" : "bg-slate-700"
-								}`}
-								data-testid={`skill-toggle-${skill.id}`}
-								onClick={() => handleToggleSkill(skill.id)}
-								role="switch"
-								type="button">
-								<span
-									className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-										isEnabled ? "translate-x-4" : "translate-x-0"
+								{/* Switch Toggle */}
+								<button
+									aria-checked={isEnabled}
+									className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+										isEnabled ? "bg-(--vscode-button-background)" : "bg-slate-700"
 									}`}
-								/>
-							</button>
-						</div>
-					)
-				})}
-			</div>
+									data-testid={`skill-toggle-${skill.id}`}
+									onClick={() => handleToggleSkill(skill.id)}
+									role="switch"
+									type="button">
+									<span
+										className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+											isEnabled ? "translate-x-4" : "translate-x-0"
+										}`}
+									/>
+								</button>
+							</div>
+						)
+					})}
 
-			{/* Add Custom Skill input */}
-			<div className="flex gap-2 pt-2 border-t border-border-panel">
-				<input
-					className="flex-1 rounded border border-border-panel bg-input-background px-2.5 py-1 font-mono text-xs"
-					data-testid="new-custom-skill-input"
-					onChange={(e) => setNewSkillId(e.target.value)}
-					onKeyDown={(e) => {
-						if (e.key === "Enter") {
-							e.preventDefault()
-							handleAddCustomSkill()
-						}
-					}}
-					placeholder="Thêm skill custom (ví dụ: performance-tuning)..."
-					type="text"
-					value={newSkillId}
-				/>
-				<button
-					className="rounded bg-slate-800 hover:bg-slate-700 px-3 py-1 text-xs text-slate-200 border border-slate-700 transition-colors"
-					data-testid="add-custom-skill-btn"
-					onClick={handleAddCustomSkill}
-					type="button">
-					+ Thêm skill
-				</button>
+					{filteredSkills.length === 0 && (
+						<div className="text-center text-(--vscode-descriptionForeground) text-xs py-4">
+							Không tìm thấy skill nào khớp với từ khóa.
+						</div>
+					)}
+				</div>
+
+				{/* Add Custom Skill input */}
+				<div className="flex gap-2 pt-2 border-t border-border-panel">
+					<input
+						className="flex-1 rounded border border-border-panel bg-input-background px-2.5 py-1 font-mono text-xs text-(--vscode-foreground)"
+						data-testid="new-custom-skill-input"
+						onChange={(e) => setNewSkillId(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key === "Enter") {
+								e.preventDefault()
+								handleAddCustomSkill()
+							}
+						}}
+						placeholder="Thêm skill custom (ví dụ: performance-tuning)..."
+						type="text"
+						value={newSkillId}
+					/>
+					<button
+						className="flex items-center gap-1 rounded bg-(--vscode-button-background) hover:bg-(--vscode-button-hoverBackground) px-3 py-1 text-xs font-medium text-(--vscode-button-foreground) transition-colors cursor-pointer shrink-0"
+						data-testid="add-custom-skill-btn"
+						onClick={handleAddCustomSkill}
+						type="button">
+						<IconPlus size={13} stroke={1.5} />
+						<span>Thêm skill</span>
+					</button>
+				</div>
 			</div>
 		</div>
 	)

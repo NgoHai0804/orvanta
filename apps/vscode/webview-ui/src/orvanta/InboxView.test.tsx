@@ -231,4 +231,94 @@ describe("InboxView", () => {
 		fireEvent.change(noteInput, { target: { value: "Thiếu unit test cho auth module" } })
 		expect(confirmRejectBtn).not.toBeDisabled()
 	})
+
+	it("filters items by urgency including critical", () => {
+		const criticalPending: OrvantaDecisionItem[] = [
+			{
+				id: "dec-crit",
+				type: "over_budget",
+				status: "pending",
+				createdAt: "2026-10-28T04:00:00.000Z",
+				createdBy: "coordinator",
+				title: "Vượt ngân sách khẩn cấp",
+				summary: "Chi phí vượt $500",
+				payloadJson: JSON.stringify({ estimatedCostUsd: 550, budgetLimitUsd: 500 }),
+				urgency: "critical",
+			},
+			{
+				id: "dec-normal",
+				type: "hire_agent",
+				status: "pending",
+				createdAt: "2026-10-28T04:30:00.000Z",
+				createdBy: "coordinator",
+				title: "Tuyển tester bình thường",
+				summary: "Tuyển tester",
+				payloadJson: JSON.stringify({ agentId: "tester" }),
+				urgency: "normal",
+			},
+		]
+
+		render(<InboxView deferred={[]} history={[]} onRefresh={vi.fn()} onResolve={vi.fn()} pending={criticalPending} />)
+
+		const urgencySelect = screen.getByLabelText("Lọc theo mức độ khẩn cấp")
+		fireEvent.change(urgencySelect, { target: { value: "critical" } })
+
+		expect(screen.getAllByText("Vượt ngân sách khẩn cấp").length).toBeGreaterThanOrEqual(1)
+		expect(screen.queryByText("Tuyển tester bình thường")).not.toBeInTheDocument()
+	})
+
+	it("renders Maker-Checker audit and Impact Analysis sections", () => {
+		const auditPending: OrvantaDecisionItem[] = [
+			{
+				id: "dec-audit",
+				type: "hire_agent",
+				status: "pending",
+				createdAt: "2026-10-28T05:00:00.000Z",
+				createdBy: "coordinator",
+				title: "Tuyển Security Auditor",
+				summary: "Cần bảo mật hệ thống",
+				payloadJson: JSON.stringify({
+					agentId: "sec-auditor",
+					displayName: "Sec Pro",
+					reviewer: "skeptic",
+					tokensEstimate: "~2.5k tokens",
+				}),
+				urgency: "high",
+			},
+		]
+
+		render(<InboxView deferred={[]} history={[]} onRefresh={vi.fn()} onResolve={vi.fn()} pending={auditPending} />)
+
+		// Maker-Checker Audit
+		expect(screen.getByText(/Biên bản thẩm định độc lập/)).toBeInTheDocument()
+		expect(screen.getByText("DoD Verified")).toBeInTheDocument()
+		expect(screen.getByText("@skeptic")).toBeInTheDocument()
+		expect(screen.getByText(/Phân tách thẩm quyền Maker-Checker/)).toBeInTheDocument()
+
+		// Impact Analysis
+		expect(screen.getByText(/Đánh giá tác động & Rủi ro/)).toBeInTheDocument()
+		expect(screen.getByText("~2.5k tokens")).toBeInTheDocument()
+
+		// Sticky Action Footer
+		expect(screen.getByText("Hành động phê duyệt sẽ được ghi vào audit log")).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Để sau" })).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Từ chối" })).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Phê duyệt" })).toBeInTheDocument()
+	})
+
+	it("renders clean empty state with IconCheck and zero decorative emojis", () => {
+		const { container } = render(
+			<InboxView deferred={[]} history={[]} onRefresh={vi.fn()} onResolve={vi.fn()} pending={[]} />,
+		)
+
+		expect(screen.getByText("Hộp thư sạch sẽ!")).toBeInTheDocument()
+		expect(screen.getByText("Toàn bộ công việc đang diễn ra tự động và trơn tru.")).toBeInTheDocument()
+
+		// Verify zero decorative emojis like 🎉, ✓, ✗, ★
+		const text = container.textContent || ""
+		expect(text).not.toContain("🎉")
+		expect(text).not.toContain("✓")
+		expect(text).not.toContain("✗")
+		expect(text).not.toContain("★")
+	})
 })

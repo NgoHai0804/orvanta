@@ -235,7 +235,7 @@ describe("AgentsView", () => {
 		fireEvent.click(screen.getByTestId("agent-node-developer-1"))
 
 		// Click fire button
-		const fireBtn = screen.getByTestId("quick-fire-button")
+		const fireBtn = screen.getAllByTestId("quick-fire-button")[0]
 		fireEvent.click(fireBtn)
 
 		// Confirm in modal

@@ -294,7 +294,7 @@ describe("AgentEditor", () => {
 		fireEvent.click(warRoomBtn)
 		expect(onOpenWarRoom).toHaveBeenCalled()
 
-		const fireBtn = screen.getByTestId("quick-fire-button")
+		const fireBtn = screen.getAllByTestId("quick-fire-button")[0]
 		fireEvent.click(fireBtn)
 		expect(screen.getByText("Xóa agent?")).toBeInTheDocument()
 	})
@@ -635,7 +635,10 @@ describe("AgentEditor", () => {
 			/>,
 		)
 
-		const saveBtn = screen.getByTestId("save-agent-button")
+		const nameInput = screen.getByLabelText(/Tên hiển thị/)
+		fireEvent.change(nameInput, { target: { value: "Updated Name" } })
+
+		const saveBtn = screen.getByTestId("editor-save-button")
 		expect(saveBtn).toHaveTextContent("Lưu")
 
 		await act(async () => {
@@ -674,7 +677,7 @@ describe("AgentEditor", () => {
 		// Now dirty
 		expect(onDirtyChange).toHaveBeenLastCalledWith(true)
 		expect(screen.getByTestId("dirty-indicator")).toBeInTheDocument()
-		expect(screen.getByTestId("dirty-indicator")).toHaveTextContent("Có thay đổi chưa lưu")
+		expect(screen.getByTestId("dirty-indicator")).toHaveTextContent("Chưa lưu")
 
 		// Footer save button is also present
 		expect(screen.getByTestId("editor-save-button")).toBeInTheDocument()

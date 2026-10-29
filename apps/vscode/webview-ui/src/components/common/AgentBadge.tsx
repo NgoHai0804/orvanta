@@ -1,4 +1,17 @@
-import React from "react"
+import {
+	IconBolt,
+	IconCode,
+	IconCompass,
+	IconPencil,
+	type IconProps,
+	IconRobot,
+	IconRuler,
+	IconSearch,
+	IconShieldExclamation as IconShieldAlert,
+	IconStar,
+	IconTarget,
+} from "@tabler/icons-react"
+import React, { type ComponentType } from "react"
 import { cn } from "@/lib/utils"
 
 export interface AgentBadgeProps {
@@ -11,7 +24,7 @@ export interface AgentBadgeProps {
 }
 
 export interface AgentBadgeMeta {
-	icon: string
+	icon: ComponentType<IconProps>
 	label: string
 	colorClass: string
 	ringClass: string
@@ -23,7 +36,7 @@ export function getAgentBadgeMeta(role?: string, id?: string): AgentBadgeMeta {
 
 	if (r === "lead" || i === "coordinator") {
 		return {
-			icon: "⭐",
+			icon: IconStar,
 			label: "Lead",
 			colorClass: "text-amber-400 bg-amber-500/10 border-amber-500/30",
 			ringClass: "ring-amber-500/50",
@@ -31,26 +44,42 @@ export function getAgentBadgeMeta(role?: string, id?: string): AgentBadgeMeta {
 	}
 	if (r === "architect" || i.includes("architect")) {
 		return {
-			icon: "📐",
+			icon: IconRuler,
 			label: "Architect",
-			colorClass: "text-indigo-400 bg-indigo-500/10 border-indigo-500/30",
-			ringClass: "ring-indigo-500/50",
+			colorClass: "text-sky-400 bg-sky-500/10 border-sky-500/30",
+			ringClass: "ring-sky-500/50",
 		}
 	}
 	if (r === "implementer" || r === "coder" || i.includes("implementer") || i.includes("coder")) {
 		return {
-			icon: "💻",
+			icon: IconCode,
 			label: "Implementer",
-			colorClass: "text-cyan-400 bg-cyan-500/10 border-cyan-500/30",
-			ringClass: "ring-cyan-500/50",
+			colorClass: "text-violet-400 bg-violet-500/10 border-violet-500/30",
+			ringClass: "ring-violet-500/50",
 		}
 	}
 	if (r === "reviewer" || r === "auditor" || i.includes("reviewer") || i.includes("auditor")) {
 		return {
-			icon: "🔍",
+			icon: IconSearch,
 			label: "Reviewer",
-			colorClass: "text-amber-500 bg-amber-500/10 border-amber-500/30",
-			ringClass: "ring-amber-500/50",
+			colorClass: "text-indigo-400 bg-indigo-500/10 border-indigo-500/30",
+			ringClass: "ring-indigo-500/50",
+		}
+	}
+	if (r === "researcher" || i.includes("research")) {
+		return {
+			icon: IconCompass,
+			label: "Researcher",
+			colorClass: "text-teal-400 bg-teal-500/10 border-teal-500/30",
+			ringClass: "ring-teal-500/50",
+		}
+	}
+	if (r === "skeptic" || r === "guard" || r === "critic" || i.includes("skeptic")) {
+		return {
+			icon: IconShieldAlert,
+			label: "Skeptic",
+			colorClass: "text-rose-400 bg-rose-500/10 border-rose-500/30",
+			ringClass: "ring-rose-500/50",
 		}
 	}
 	if (
@@ -58,11 +87,12 @@ export function getAgentBadgeMeta(role?: string, id?: string): AgentBadgeMeta {
 		r === "content" ||
 		r === "marketer" ||
 		r === "marketing" ||
+		r === "writer" ||
 		i.includes("writer") ||
 		i.includes("marketer")
 	) {
 		return {
-			icon: "📝",
+			icon: IconPencil,
 			label: "Content",
 			colorClass: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30",
 			ringClass: "ring-emerald-500/50",
@@ -70,22 +100,22 @@ export function getAgentBadgeMeta(role?: string, id?: string): AgentBadgeMeta {
 	}
 	if (r === "sales" || r === "outreach" || i.includes("sales")) {
 		return {
-			icon: "🎯",
+			icon: IconTarget,
 			label: "Sales",
-			colorClass: "text-rose-400 bg-rose-500/10 border-rose-500/30",
-			ringClass: "ring-rose-500/50",
+			colorClass: "text-orange-400 bg-orange-500/10 border-orange-500/30",
+			ringClass: "ring-orange-500/50",
 		}
 	}
 	if (r === "ephemeral" || r === "guest" || i.startsWith("guest-") || i.startsWith("ephemeral-")) {
 		return {
-			icon: "⚡",
+			icon: IconBolt,
 			label: "Guest",
 			colorClass: "text-zinc-400 bg-zinc-500/10 border-zinc-500/30 border-dashed",
 			ringClass: "ring-zinc-500/50",
 		}
 	}
 	return {
-		icon: "🤖",
+		icon: IconRobot,
 		label: role ? role.charAt(0).toUpperCase() + role.slice(1) : "Teammate",
 		colorClass: "text-violet-400 bg-violet-500/10 border-violet-500/30",
 		ringClass: "ring-violet-500/50",
@@ -102,6 +132,7 @@ export const AgentBadge: React.FC<AgentBadgeProps> = ({
 }) => {
 	const meta = getAgentBadgeMeta(role, agentId)
 	const name = displayName || (agentId ? `@${agentId}` : "Agent")
+	const Icon = meta.icon
 
 	return (
 		<span
@@ -115,7 +146,7 @@ export const AgentBadge: React.FC<AgentBadgeProps> = ({
 			data-agent-id={agentId}
 			data-role={role}
 			data-testid="agent-badge">
-			<span className="leading-none text-xs select-none">{meta.icon}</span>
+			<Icon className="shrink-0" data-testid="agent-badge-icon" size={size === "sm" ? 12 : 14} stroke={1.5} />
 			{showRole && <span className="font-semibold opacity-90">{meta.label}</span>}
 			{showRole && <span className="opacity-40">·</span>}
 			<span className="truncate max-w-28 font-mono">{name}</span>

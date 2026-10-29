@@ -447,7 +447,8 @@ const ChatView = ({
 
 	return (
 		<ChatLayout isHidden={isHidden}>
-			<div className="flex flex-col flex-1 overflow-hidden">
+			{/* Chat Body: scrolls independently */}
+			<div className="flex-1 min-h-0 w-full overflow-hidden flex flex-col relative">
 				{showNavbar && <Navbar startNewTask={messageHandlers.startNewTask} />}
 				{task ? (
 					<TaskSection
@@ -500,7 +501,9 @@ const ChatView = ({
 					</div>
 				)}
 			</div>
-			<footer className="bg-(--vscode-sidebar-background) flex flex-col" style={{ gridRow: "2" }}>
+
+			{/* Chat Footer: Sát hoàn toàn với phần bên dưới */}
+			<footer className="shrink-0 w-full bg-(--vscode-sideBar-background) border-t border-border-panel/40 flex flex-col z-10">
 				{!hideAutoApprove && <AutoApproveBar />}
 				<ActionButtons
 					chatState={chatState}

@@ -5,13 +5,16 @@ import {
 	IconChevronDown,
 	IconChevronUp,
 	IconCode,
+	IconCompass,
 	IconHash,
 	IconLayoutSidebarLeftCollapse,
 	IconLayoutSidebarLeftExpand,
 	IconPencil,
+	IconPlus,
 	IconRobot,
 	IconRuler,
 	IconSearch,
+	IconShieldExclamation as IconShieldAlert,
 	IconSpeakerphone,
 	IconStar,
 	IconTarget,
@@ -19,7 +22,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
-const MIN_SIDEBAR_WIDTH = 140
+const MIN_SIDEBAR_WIDTH = 160
 const MAX_SIDEBAR_WIDTH = 280
 const DEFAULT_SIDEBAR_WIDTH = 190
 const COLLAPSED_SIDEBAR_WIDTH = 48
@@ -73,6 +76,8 @@ const AGENT_ROLE_ICON_RULES: Array<{ match: (r: string, i: string) => boolean; i
 		match: (r, i) => r === "reviewer" || r === "auditor" || i.includes("reviewer") || i.includes("auditor"),
 		icon: IconSearch,
 	},
+	{ match: (r, i) => r === "researcher" || i.includes("research"), icon: IconCompass },
+	{ match: (r, i) => r === "skeptic" || r === "critic" || i.includes("skeptic"), icon: IconShieldAlert },
 	{ match: (r, i) => r === "copywriter" || r === "content" || i.includes("writer"), icon: IconPencil },
 	{ match: (r, _i) => r === "sales" || r === "outreach", icon: IconTarget },
 	{
@@ -100,7 +105,7 @@ export const TeamSidebar: React.FC<TeamSidebarProps> = ({
 	agents,
 	focusAgentId,
 	onSelectAgent,
-	onHire: _onHire,
+	onHire,
 	onOpenWarRoom: _onOpenWarRoom,
 	lockDeniedAgentIds = [],
 	width: controlledWidth,
@@ -513,6 +518,42 @@ export const TeamSidebar: React.FC<TeamSidebarProps> = ({
 					</div>
 				)}
 			</nav>
+
+			{/* Quick Hire Agent Button */}
+			{onHire && (
+				<div className={`shrink-0 p-2 border-t border-border-panel/40 ${isCollapsed ? "flex justify-center" : ""}`}>
+					{isCollapsed ? (
+						<Tooltip delayDuration={100}>
+							<TooltipTrigger asChild>
+								<button
+									aria-label="Tuyển nhân sự mới…"
+									className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-border-panel hover:border-indigo-500/50 hover:bg-(--vscode-list-hoverBackground) text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+									data-testid="quick-hire-button"
+									onClick={onHire}
+									type="button">
+									<IconPlus size={14} stroke={1.5} />
+								</button>
+							</TooltipTrigger>
+							<TooltipContent
+								align="center"
+								className="bg-(--vscode-editor-background) text-(--vscode-editor-foreground) border border-border-panel p-2 shadow-xl text-xs z-50"
+								side="right">
+								Tuyển nhân sự mới…
+							</TooltipContent>
+						</Tooltip>
+					) : (
+						<button
+							className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded border border-dashed border-border-panel hover:border-indigo-500/50 hover:bg-(--vscode-list-hoverBackground) text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+							data-testid="quick-hire-button"
+							onClick={onHire}
+							title="Tuyển nhân sự mới..."
+							type="button">
+							<IconPlus size={13} stroke={1.5} />
+							<span>Tuyển nhân sự mới…</span>
+						</button>
+					)}
+				</div>
+			)}
 
 			{/* Resizer Handle */}
 			{!isCollapsed && (

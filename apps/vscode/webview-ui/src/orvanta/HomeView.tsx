@@ -2,17 +2,32 @@ import { PURPOSE_TEMPLATE } from "@cline/shared/orvanta"
 import { StringRequest } from "@shared/proto/cline/common"
 import type { OrvantaAgentProfile, OrvantaCompanyResponse, OrvantaDecisionItem } from "@shared/proto/cline/orvanta"
 import {
+	IconAlertCircle,
+	IconAlertOctagon,
 	IconAlertTriangle,
 	IconArrowRight,
+	IconBook,
+	IconChevronDown,
+	IconChevronUp,
+	IconClock,
 	IconCopy,
 	IconDots,
 	IconDownload,
 	IconFileCode,
+	IconFlame,
 	IconFolder,
+	IconFolderOff,
+	IconInbox,
 	IconLoader2,
+	IconPencil,
+	IconPlayerPlay,
+	IconPlus,
 	IconRefresh,
+	IconShieldLock,
+	IconSparkles,
 	IconTrash,
 	IconUpload,
+	IconUsers,
 	IconX,
 } from "@tabler/icons-react"
 import { useMemo, useState } from "react"
@@ -171,9 +186,10 @@ const HomeView = ({
 	const noFolder = errors.includes("no_folder")
 	if (company.status === "missing" && noFolder) {
 		return (
-			<div className="flex flex-col gap-2 p-3 text-sm">
+			<div className="flex flex-col items-center justify-center gap-2 p-6 text-sm text-center">
+				<IconFolderOff className="text-muted-foreground mb-1" size={28} stroke={1.5} />
 				<h2 className="text-base font-semibold">Orvanta</h2>
-				<p className="opacity-80">Mở một folder workspace để lập công ty.</p>
+				<p className="text-xs opacity-80 max-w-xs">Mở một folder workspace để lập công ty.</p>
 			</div>
 		)
 	}
@@ -181,8 +197,11 @@ const HomeView = ({
 	if (company.status === "broken") {
 		return (
 			<div className="flex flex-col gap-2 p-3 text-sm">
-				<h2 className="text-base font-semibold text-error">Công ty bị lỗi</h2>
-				<ul className="list-disc pl-4 text-error text-xs space-y-1">
+				<div className="flex items-center gap-2">
+					<IconAlertOctagon className="text-error shrink-0" size={18} stroke={1.5} />
+					<h2 className="text-base font-semibold text-error">Công ty bị lỗi</h2>
+				</div>
+				<ul className="list-disc pl-5 text-error text-xs space-y-1">
 					{errors.length > 0 ? (
 						errors.map((error) => <li key={error}>{error}</li>)
 					) : (
@@ -204,11 +223,11 @@ const HomeView = ({
 		})()
 
 		return (
-			<div className="flex min-h-0 flex-1 flex-col gap-3 scroller-y p-3 text-sm">
+			<div className="flex h-full w-full min-h-0 flex-col gap-3 overflow-y-auto scroller-y p-3 pb-6 text-sm">
 				<header className="flex items-start justify-between">
 					<div>
 						<h2 className="text-base font-semibold">{company.name}</h2>
-						{purposeTagline && <p className="text-xs opacity-75">{purposeTagline}</p>}
+						{purposeTagline && <p className="text-xs opacity-75 line-clamp-1">{purposeTagline}</p>}
 					</div>
 					<div className="flex items-center gap-1.5">
 						<button
@@ -315,14 +334,18 @@ const HomeView = ({
 						<button
 							className="rounded bg-amber-600 px-2.5 py-1 text-xs text-white hover:bg-amber-500 font-medium inline-flex items-center gap-1 cursor-pointer"
 							onClick={() => {
-								window.postMessage(
-									{
-										type: "orvanta_switch_tab",
-										tab: "chat",
-										focusAgentId: coordinatorAgent?.id || "coordinator",
-									},
-									"*",
-								)
+								if (onTabChange) {
+									onTabChange("console")
+								} else {
+									window.postMessage(
+										{
+											type: "orvanta_switch_tab",
+											tab: "console",
+											focusAgentId: coordinatorAgent?.id || "coordinator",
+										},
+										"*",
+									)
+								}
 							}}
 							type="button">
 							<span>Tiếp tục</span>
@@ -335,6 +358,7 @@ const HomeView = ({
 					<section className="rounded border border-border-panel bg-surface-secondary/20 p-2.5">
 						<div className="flex items-center justify-between mb-1.5">
 							<div className="flex items-center gap-1.5 font-semibold text-xs">
+								<IconInbox className="text-purple-400 shrink-0" size={14} stroke={1.5} />
 								<span>Quyết định chờ</span>
 								<span className="rounded-full bg-(--vscode-badge-background) px-1.5 py-0.2 text-[10px] text-(--vscode-badge-foreground)">
 									{inboxPending.length}
@@ -355,7 +379,7 @@ const HomeView = ({
 							<div className="space-y-1">
 								{inboxPending.slice(0, 3).map((item) => (
 									<button
-										className="w-full text-left rounded p-1.5 text-xs hover:bg-surface-secondary flex items-center justify-between transition-colors"
+										className="w-full text-left rounded p-1.5 text-xs hover:bg-surface-secondary flex items-center justify-between transition-colors cursor-pointer"
 										key={item.id}
 										onClick={() => onOpenInbox(item.id)}
 										type="button">
@@ -373,13 +397,26 @@ const HomeView = ({
 
 				<section className="flex flex-col gap-2 rounded border border-border-panel p-2.5">
 					<div className="flex items-center justify-between">
-						<h3 className="text-xs font-bold uppercase tracking-wide opacity-70">Work now</h3>
+						<div className="flex items-center gap-1.5 font-semibold text-xs">
+							<IconFlame className="text-orange-400 shrink-0" size={14} stroke={1.5} />
+							<h3 className="text-xs font-bold uppercase tracking-wide opacity-70">Work now</h3>
+							{workTasks.length > 0 && (
+								<span className="text-[10px] text-muted-foreground font-normal">
+									({inProgressTasks.length} đang làm · {blockedTasks.length} nghẽn · {queueTasks.length} chờ)
+								</span>
+							)}
+						</div>
 						{workTasks.length > 5 && (
 							<button
-								className="text-xs text-(--vscode-textLink-foreground) hover:underline"
+								className="text-xs text-(--vscode-textLink-foreground) hover:underline cursor-pointer inline-flex items-center gap-1"
 								onClick={() => setShowAllTasks((prev) => !prev)}
 								type="button">
-								{showAllTasks ? "Thu gọn" : "Xem tất cả"}
+								<span>{showAllTasks ? "Thu gọn" : "Xem tất cả"}</span>
+								{showAllTasks ? (
+									<IconChevronUp size={12} stroke={1.5} />
+								) : (
+									<IconChevronDown size={12} stroke={1.5} />
+								)}
 							</button>
 						)}
 					</div>
@@ -419,23 +456,35 @@ const HomeView = ({
 					)}
 				</section>
 
-				<section className="flex flex-col gap-1">
+				<section className="flex flex-col gap-1.5 rounded border border-border-panel bg-surface-secondary/20 p-2.5">
 					<div className="flex items-center justify-between">
-						<h3 className="text-xs font-bold uppercase tracking-wide opacity-70">Purpose</h3>
+						<div className="flex items-center gap-1.5 font-semibold text-xs">
+							<IconShieldLock className="text-indigo-400 shrink-0" size={14} stroke={1.5} />
+							<h3 className="text-xs font-bold uppercase tracking-wide opacity-70">Purpose</h3>
+							<span className="rounded-full bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.2 font-mono text-[9px] text-indigo-300">
+								PURPOSE-LOCKED
+							</span>
+						</div>
 						<div className="flex items-center gap-2">
 							{onRequestDecision && (
 								<button
-									className="text-xs text-(--vscode-textLink-foreground) hover:underline"
+									className="text-xs text-(--vscode-textLink-foreground) hover:underline inline-flex items-center gap-1 cursor-pointer"
 									onClick={() => setShowEditPurposeModal(true)}
 									type="button">
-									Sửa Purpose
+									<IconPencil size={12} stroke={1.5} />
+									<span>Sửa Purpose</span>
 								</button>
 							)}
 							<button
-								className="text-xs text-(--vscode-textLink-foreground) hover:underline"
+								className="text-xs text-(--vscode-textLink-foreground) hover:underline inline-flex items-center gap-1 cursor-pointer"
 								onClick={() => setExpandedPurpose((prev) => !prev)}
 								type="button">
-								{expandedPurpose ? "Thu gọn" : "Xem thêm"}
+								<span>{expandedPurpose ? "Thu gọn" : "Xem thêm"}</span>
+								{expandedPurpose ? (
+									<IconChevronUp size={12} stroke={1.5} />
+								) : (
+									<IconChevronDown size={12} stroke={1.5} />
+								)}
 							</button>
 						</div>
 					</div>
@@ -443,9 +492,11 @@ const HomeView = ({
 						<MarkdownBlock markdown={purpose} />
 					</div>
 				</section>
+
 				<section className="rounded border border-border-panel bg-surface-secondary/20 p-2.5">
 					<div className="flex items-center justify-between mb-2">
 						<div className="flex items-center gap-1.5 font-semibold text-xs">
+							<IconUsers className="text-emerald-400 shrink-0" size={14} stroke={1.5} />
 							<span>Đội ngũ Agents</span>
 							<span className="rounded-full bg-(--vscode-badge-background) px-1.5 py-0.2 text-[10px] text-(--vscode-badge-foreground)">
 								{agents.length}
@@ -468,17 +519,17 @@ const HomeView = ({
 					</div>
 					<div className="flex flex-wrap items-center gap-4 text-xs">
 						<div className="flex items-center gap-1.5">
-							<span className="h-2 w-2 rounded-full bg-slate-400" />
+							<span className="h-2 w-2 rounded-full bg-slate-400 shrink-0" />
 							<span className="opacity-75">Tổng:</span>
 							<span className="font-semibold">{agents.length} agents</span>
 						</div>
 						<div className="flex items-center gap-1.5">
-							<span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+							<span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
 							<span className="opacity-75">Đang chạy:</span>
 							<span className="font-semibold text-amber-300">{runningCount} running</span>
 						</div>
 						<div className="flex items-center gap-1.5">
-							<span className="h-2 w-2 rounded-full bg-emerald-400" />
+							<span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
 							<span className="opacity-75">Đang chờ:</span>
 							<span className="font-semibold text-emerald-300">{idleCount} idle</span>
 						</div>
@@ -672,12 +723,17 @@ const CreateCompanyForm = ({
 	const displayError = clientError || error
 
 	return (
-		<form className="flex min-h-0 flex-1 flex-col gap-3 scroller-y p-3 text-sm" onSubmit={handleSubmit}>
-			<h2 className="text-base font-semibold">Lập công ty cho folder này</h2>
+		<form
+			className="flex h-full w-full min-h-0 flex-col gap-3 overflow-y-auto scroller-y p-3 pb-6 text-sm"
+			onSubmit={handleSubmit}>
+			<div className="flex items-center gap-1.5">
+				<IconSparkles className="text-indigo-400 shrink-0" size={16} stroke={1.5} />
+				<h2 className="text-base font-semibold">Lập công ty cho folder này</h2>
+			</div>
 			<label className="flex flex-col gap-1">
 				<span className="text-xs font-bold uppercase tracking-wide opacity-70">Tên</span>
 				<input
-					className="rounded border border-border-panel bg-input-background px-2 py-1"
+					className="rounded border border-border-panel bg-input-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-(--vscode-focusBorder)"
 					maxLength={64}
 					onChange={(event) => {
 						setName(event.target.value)
@@ -688,10 +744,10 @@ const CreateCompanyForm = ({
 					value={name}
 				/>
 			</label>
-			<label className="flex min-h-40 flex-1 flex-col gap-1">
+			<label className="flex flex-col gap-1">
 				<span className="text-xs font-bold uppercase tracking-wide opacity-70">Purpose</span>
 				<textarea
-					className="min-h-32 flex-1 resize-y rounded border border-border-panel bg-input-background px-2 py-1 font-mono text-xs"
+					className="min-h-24 max-h-48 resize-y rounded border border-border-panel bg-input-background px-2.5 py-1.5 font-mono text-xs text-foreground focus:outline-none focus:border-(--vscode-focusBorder)"
 					onChange={(event) => {
 						setPurpose(event.target.value)
 						if (clientError) setClientError(undefined)
@@ -703,16 +759,27 @@ const CreateCompanyForm = ({
 			{displayError && <p className="text-xs text-error">{displayError}</p>}
 			<div className="flex items-center gap-2">
 				<button
-					className="flex-1 rounded bg-(--vscode-button-background) px-3 py-1.5 text-(--vscode-button-foreground) hover:bg-(--vscode-button-hoverBackground) disabled:opacity-50"
+					className="flex-1 rounded bg-(--vscode-button-background) px-3 py-1.5 text-xs font-medium text-(--vscode-button-foreground) hover:bg-(--vscode-button-hoverBackground) disabled:opacity-50 cursor-pointer inline-flex items-center justify-center gap-1.5 transition-colors"
 					disabled={creating}
 					type="submit">
-					{creating ? "Đang ghi .orvanta…" : "Lập công ty"}
+					{creating ? (
+						<>
+							<IconLoader2 className="animate-spin" size={14} stroke={1.5} />
+							<span>Đang ghi .orvanta…</span>
+						</>
+					) : (
+						<>
+							<IconPlus size={14} stroke={1.5} />
+							<span>Lập công ty</span>
+						</>
+					)}
 				</button>
 				<button
-					className="rounded border border-border-panel px-3 py-1.5 text-xs hover:bg-white/5"
+					className="rounded border border-border-panel px-3 py-1.5 text-xs hover:bg-(--vscode-list-hoverBackground) cursor-pointer inline-flex items-center gap-1.5 transition-colors"
 					onClick={onOpenLoadLibrary}
 					type="button">
-					Tải từ thư viện
+					<IconBook size={14} stroke={1.5} />
+					<span>Tải từ thư viện</span>
 				</button>
 			</div>
 		</form>
@@ -736,7 +803,8 @@ const TaskRow = ({
 		window.postMessage(
 			{
 				type: "orvanta_switch_tab",
-				tab: "chat",
+				tab: "console",
+				focusAgentId: task.assignee || "coordinator",
 				contextTask: { id: task.id, title: task.title },
 			},
 			"*",
@@ -744,7 +812,7 @@ const TaskRow = ({
 	}
 
 	const handleWarRoom = () => {
-		window.postMessage({ type: "orvanta_switch_tab", tab: "war-room" }, "*")
+		window.postMessage({ type: "orvanta_switch_tab", tab: "console", channel: "team-feed" }, "*")
 	}
 
 	const handleEscalate = async () => {
@@ -760,45 +828,46 @@ const TaskRow = ({
 	}
 
 	return (
-		<div className="flex items-center justify-between rounded border border-border-panel bg-(--vscode-editor-background) p-1.5 text-xs">
-			<div className="flex items-center gap-2 truncate">
-				<span
-					className={`h-2 w-2 rounded-full shrink-0 ${
-						task.status === "in_progress"
-							? "bg-green-500"
-							: task.status === "blocked"
-								? "bg-amber-500"
-								: "bg-blue-400"
-					}`}
-				/>
+		<div className="flex items-center justify-between rounded border border-border-panel bg-(--vscode-editor-background) p-1.5 text-xs transition-colors hover:border-(--vscode-focusBorder)">
+			<div className="flex items-center gap-2 truncate min-w-0">
+				{task.status === "in_progress" ? (
+					<IconPlayerPlay className="text-violet-400 animate-pulse shrink-0" size={13} stroke={1.5} />
+				) : task.status === "blocked" ? (
+					<IconAlertCircle className="text-rose-400 shrink-0" size={13} stroke={1.5} />
+				) : (
+					<IconClock className="text-muted-foreground shrink-0" size={13} stroke={1.5} />
+				)}
 				<span className="font-medium truncate">{task.title}</span>
-				<span className="text-[10px] opacity-60 shrink-0">{task.assignee ? `@${task.assignee}` : "unassigned"}</span>
+				<span className="text-[10px] font-mono opacity-60 shrink-0 bg-surface-secondary/40 px-1 py-0.5 rounded">
+					{task.assignee ? `@${task.assignee}` : "unassigned"}
+				</span>
 				{task.dependsOn && task.dependsOn.length > 0 && (
 					<span className="text-[10px] text-amber-300/80 shrink-0">chờ {task.dependsOn.length}</span>
 				)}
 			</div>
-			<div className="flex items-center gap-1.5 shrink-0 ml-2">
+			<div className="flex items-center gap-2 shrink-0 ml-2">
 				<button
-					className="text-[11px] text-(--vscode-textLink-foreground) hover:underline"
+					className="text-[11px] text-(--vscode-textLink-foreground) hover:underline cursor-pointer"
 					onClick={handleChatTask}
-					title="Chat về task này"
+					title="Trao đổi về task này"
 					type="button">
 					Chat
 				</button>
 				<button
-					className="text-[11px] opacity-70 hover:opacity-100"
+					className="text-[11px] opacity-70 hover:opacity-100 cursor-pointer"
 					onClick={handleWarRoom}
-					title="Mở War room"
+					title="Mở War room trên Console"
 					type="button">
 					War room
 				</button>
 				{task.status === "blocked" && onRequestDecision && (
 					<button
-						className="text-[11px] text-amber-400 hover:underline"
+						className="text-[11px] text-amber-400 hover:underline inline-flex items-center gap-0.5 cursor-pointer font-medium"
 						onClick={handleEscalate}
 						title="Escalate quyết định cho CEO"
 						type="button">
-						Escalate
+						<IconAlertTriangle size={11} stroke={1.5} />
+						<span>Escalate</span>
 					</button>
 				)}
 			</div>

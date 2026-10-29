@@ -1,17 +1,24 @@
 import {
 	type Icon,
+	IconBolt,
 	IconCheck,
 	IconCode,
-	IconCrown,
-	IconFile,
+	IconCompass,
+	IconMaximize,
+	IconPencil,
 	IconPlus,
 	IconRobot,
+	IconRuler,
 	IconSearch,
-	IconShield,
+	IconShieldExclamation as IconShieldAlert,
+	IconShieldLock,
 	IconSitemap,
 	IconSparkles,
-	IconWorld,
+	IconStar,
+	IconTarget,
 	IconX,
+	IconZoomIn,
+	IconZoomOut,
 } from "@tabler/icons-react"
 import { useMemo, useState } from "react"
 import type { AgentTreeNode } from "./tree-utils"
@@ -47,40 +54,52 @@ export const TEMPLATES: TemplateOption[] = [
 	{
 		id: "researcher",
 		label: "Researcher",
-		icon: IconWorld,
+		icon: IconCompass,
 		description: "Nghiên cứu tài liệu, kiến trúc, công nghệ và phân tích giải pháp.",
 	},
 	{
 		id: "skeptic",
 		label: "Skeptic",
-		icon: IconShield,
+		icon: IconShieldAlert,
 		description: "Chỉ trích phản biện, tìm điểm yếu, edge cases và rủi ro kiến trúc.",
 	},
 	{
 		id: "blank",
 		label: "Blank",
-		icon: IconFile,
+		icon: IconPlus,
 		description: "Tạo agent trống từ đầu, tự định nghĩa vai trò và hướng dẫn.",
 	},
 ]
 
-function getRoleMeta(role: string, id: string): { Icon: Icon; border: string; bg: string } {
+export function getRoleMeta(role: string, id: string): { Icon: Icon; border: string; bg: string } {
 	const lowerId = id.toLowerCase()
 	const lowerRole = role.toLowerCase()
 	if (lowerId === "coordinator" || lowerRole === "lead") {
-		return { Icon: IconCrown, border: "border-amber-500/50", bg: "bg-amber-950/40 text-amber-300" }
+		return { Icon: IconStar, border: "border-amber-500/50", bg: "bg-amber-950/40 text-amber-300" }
 	}
 	if (lowerId.includes("impl") || lowerId.includes("dev") || lowerId.includes("coder")) {
-		return { Icon: IconCode, border: "border-blue-500/50", bg: "bg-blue-950/40 text-blue-300" }
+		return { Icon: IconCode, border: "border-purple-500/50", bg: "bg-purple-950/40 text-purple-300" }
 	}
-	if (lowerId.includes("review")) {
-		return { Icon: IconSearch, border: "border-purple-500/50", bg: "bg-purple-950/40 text-purple-300" }
+	if (lowerId.includes("review") || lowerId.includes("audit")) {
+		return { Icon: IconSearch, border: "border-blue-500/50", bg: "bg-blue-950/40 text-blue-300" }
+	}
+	if (lowerId.includes("arch")) {
+		return { Icon: IconRuler, border: "border-sky-500/50", bg: "bg-sky-950/40 text-sky-300" }
 	}
 	if (lowerId.includes("research")) {
-		return { Icon: IconWorld, border: "border-cyan-500/50", bg: "bg-cyan-950/40 text-cyan-300" }
+		return { Icon: IconCompass, border: "border-teal-500/50", bg: "bg-teal-950/40 text-teal-300" }
 	}
-	if (lowerId.includes("skeptic") || lowerId.includes("guard")) {
-		return { Icon: IconShield, border: "border-amber-600/50", bg: "bg-amber-950/40 text-amber-300" }
+	if (lowerId.includes("skeptic") || lowerId.includes("guard") || lowerId.includes("critic")) {
+		return { Icon: IconShieldAlert, border: "border-rose-500/50", bg: "bg-rose-950/40 text-rose-300" }
+	}
+	if (lowerId.includes("writer") || lowerId.includes("doc")) {
+		return { Icon: IconPencil, border: "border-emerald-500/50", bg: "bg-emerald-950/40 text-emerald-300" }
+	}
+	if (lowerId.includes("sales") || lowerId.includes("outreach")) {
+		return { Icon: IconTarget, border: "border-orange-500/50", bg: "bg-orange-950/40 text-orange-300" }
+	}
+	if (lowerRole === "ephemeral" || lowerId.includes("temp")) {
+		return { Icon: IconBolt, border: "border-yellow-500/50", bg: "bg-yellow-950/40 text-yellow-300" }
 	}
 	return { Icon: IconRobot, border: "border-slate-700", bg: "bg-slate-800/60 text-slate-300" }
 }
@@ -127,7 +146,7 @@ const AgentCard = ({
 			onClick={onSelect}
 			role="button"
 			tabIndex={0}>
-			{/* Top Header: Avatar + Status + Role badge */}
+			{/* Top Header: Avatar + Status + Purpose Lock + Role badge */}
 			<div className="flex items-center justify-between gap-1.5">
 				<div className="flex items-center gap-1.5 min-w-0">
 					<div
@@ -150,14 +169,24 @@ const AgentCard = ({
 					</div>
 				</div>
 
-				<span
-					className={`text-[9px] font-bold px-1.5 py-0.5 rounded tracking-wider uppercase shrink-0 ${
-						isLead
-							? "bg-indigo-900/60 text-indigo-300 border border-indigo-700/50"
-							: "bg-slate-800/80 text-slate-400 border border-slate-700/50"
-					}`}>
-					{isLead ? "LEAD" : "TEAM"}
-				</span>
+				<div className="flex items-center gap-1 shrink-0">
+					{isLead && (
+						<IconShieldLock
+							className="text-indigo-400 shrink-0"
+							size={13}
+							stroke={1.5}
+							title="Purpose-Locked Coordinator"
+						/>
+					)}
+					<span
+						className={`text-[9px] font-bold px-1.5 py-0.5 rounded tracking-wider uppercase ${
+							isLead
+								? "bg-indigo-900/60 text-indigo-300 border border-indigo-700/50"
+								: "bg-slate-800/80 text-slate-400 border border-slate-700/50"
+						}`}>
+						{isLead ? "LEAD" : "TEAM"}
+					</span>
+				</div>
 			</div>
 
 			{/* Middle info */}
@@ -313,31 +342,32 @@ export const AgentTreeChart = ({ tree, selectedAgentId, onSelectAgent, onAddAgen
 
 	return (
 		<div
-			className={`relative flex flex-col h-full w-full bg-[#0a0e1a] overflow-hidden select-none ${className}`}
+			className={`relative flex flex-col h-full w-full bg-(--vscode-editor-background) overflow-hidden select-none ${className}`}
 			data-testid="agent-tree-chart">
 			{/* Top Chart Header / Toolbar */}
-			<div className="flex items-center justify-between px-3 py-2 border-b border-border-panel bg-[#10162a]/90 backdrop-blur-xs shrink-0 z-10">
+			<div className="flex items-center justify-between px-3 py-2 border-b border-border-panel bg-(--vscode-sideBar-background)/90 backdrop-blur-xs shrink-0 z-10">
 				<div className="flex items-center gap-2">
 					<IconSitemap className="text-indigo-400 shrink-0" size={16} stroke={1.5} />
-					<span className="font-semibold text-xs text-white">Sơ đồ tổ chức</span>
-					<span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">
+					<span className="font-semibold text-xs text-(--vscode-foreground)">Sơ đồ tổ chức</span>
+					<span className="text-[10px] px-1.5 py-0.5 rounded-full bg-(--vscode-badge-background) text-(--vscode-badge-foreground) font-mono">
 						{totalAgents} agents
 					</span>
 				</div>
 
 				<div className="flex items-center gap-2">
 					{/* Zoom controls */}
-					<div className="flex items-center gap-1 rounded bg-slate-900 border border-slate-800 px-1 py-0.5">
+					<div className="flex items-center gap-1 rounded bg-(--vscode-editor-background) border border-border-panel px-1 py-0.5">
 						<button
-							className="px-1.5 py-0.5 text-xs text-slate-300 hover:text-white hover:bg-white/10 rounded transition-colors"
+							className="flex items-center justify-center p-1 text-slate-300 hover:text-white hover:bg-white/10 rounded transition-colors"
 							data-testid="zoom-out-button"
 							onClick={handleZoomOut}
-							title="Thu nhỏ sơ đồ"
+							title="Thu nhỏ sơ đồ (−)"
 							type="button">
-							−
+							<IconZoomOut size={13} stroke={1.5} />
+							<span className="sr-only">−</span>
 						</button>
 						<button
-							className="px-1 text-[10px] font-mono text-slate-300 hover:text-white transition-colors"
+							className="px-1.5 py-0.5 text-[10px] font-mono text-slate-300 hover:text-white transition-colors"
 							data-testid="zoom-reset-button"
 							onClick={handleZoomReset}
 							title="Khôi phục tỉ lệ 100%"
@@ -345,43 +375,54 @@ export const AgentTreeChart = ({ tree, selectedAgentId, onSelectAgent, onAddAgen
 							{zoom}%
 						</button>
 						<button
-							className="px-1.5 py-0.5 text-xs text-slate-300 hover:text-white hover:bg-white/10 rounded transition-colors"
+							className="flex items-center justify-center p-1 text-slate-300 hover:text-white hover:bg-white/10 rounded transition-colors"
 							data-testid="zoom-in-button"
 							onClick={handleZoomIn}
-							title="Phóng to sơ đồ"
+							title="Phóng to sơ đồ (+)"
 							type="button">
-							+
+							<IconZoomIn size={13} stroke={1.5} />
+							<span className="sr-only">+</span>
+						</button>
+						<button
+							className="flex items-center justify-center p-1 text-slate-300 hover:text-white hover:bg-white/10 rounded transition-colors"
+							data-testid="zoom-fit-button"
+							onClick={() => setZoom(100)}
+							title="Căn vừa khung (Fit View)"
+							type="button">
+							<IconMaximize size={13} stroke={1.5} />
 						</button>
 					</div>
 
 					{/* + Thêm Agent button */}
 					<button
-						className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors shadow-xs cursor-pointer"
+						className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors shadow-xs cursor-pointer"
 						data-testid="add-agent-button"
 						onClick={() => setShowAddModal(true)}
 						type="button">
-						<IconPlus size={13} stroke={2} />
+						<IconPlus size={13} stroke={1.5} />
 						<span>Thêm Agent</span>
 					</button>
 				</div>
 			</div>
 
 			{/* Chart Viewport */}
-			<div className="flex min-h-0 flex-1 items-start justify-center scroller p-6">
+			<div className="flex-1 min-h-0 w-full overflow-auto scroller p-4">
 				{tree ? (
-					<div
-						style={{
-							transform: `scale(${zoom / 100})`,
-							transformOrigin: "top center",
-							transition: "transform 0.15s ease-out",
-						}}>
-						<TreeNodeItem
-							collapsedNodes={collapsedNodes}
-							node={tree}
-							onSelectAgent={onSelectAgent}
-							onToggleCollapse={handleToggleCollapse}
-							selectedAgentId={selectedAgentId}
-						/>
+					<div className="min-w-fit min-h-fit mx-auto flex items-start justify-center p-2">
+						<div
+							style={{
+								transform: `scale(${zoom / 100})`,
+								transformOrigin: "top center",
+								transition: "transform 0.15s ease-out",
+							}}>
+							<TreeNodeItem
+								collapsedNodes={collapsedNodes}
+								node={tree}
+								onSelectAgent={onSelectAgent}
+								onToggleCollapse={handleToggleCollapse}
+								selectedAgentId={selectedAgentId}
+							/>
+						</div>
 					</div>
 				) : (
 					<div className="flex flex-col items-center justify-center text-slate-500 text-xs py-12 gap-2">
@@ -395,11 +436,11 @@ export const AgentTreeChart = ({ tree, selectedAgentId, onSelectAgent, onAddAgen
 				<div
 					className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
 					data-testid="template-picker-modal">
-					<div className="w-full max-w-md rounded-lg border border-border-panel bg-[#141b34] p-4 shadow-xl flex flex-col gap-3">
-						<div className="flex items-center justify-between border-b border-white/10 pb-2">
+					<div className="w-full max-w-md max-h-[90%] overflow-y-auto scroller-y rounded-lg border border-border-panel bg-(--vscode-sideBar-background) p-4 shadow-xl flex flex-col gap-3">
+						<div className="flex items-center justify-between border-b border-border-panel pb-2">
 							<div className="flex items-center gap-2">
 								<IconSparkles className="text-indigo-400" size={16} stroke={1.5} />
-								<h3 className="font-semibold text-sm text-white">Thêm Agent mới</h3>
+								<h3 className="font-semibold text-sm text-(--vscode-foreground)">Thêm Agent mới</h3>
 							</div>
 							<button
 								className="text-xs text-slate-400 hover:text-white p-1 rounded cursor-pointer"
@@ -418,16 +459,16 @@ export const AgentTreeChart = ({ tree, selectedAgentId, onSelectAgent, onAddAgen
 								const TmplIcon = tmpl.icon
 								return (
 									<button
-										className="flex items-start gap-3 p-2.5 rounded-lg border border-slate-800 bg-[#0e1428] hover:border-indigo-500 hover:bg-[#161f3e] transition-all text-left group cursor-pointer"
+										className="flex items-start gap-3 p-2.5 rounded-lg border border-border-panel bg-(--vscode-editor-background) hover:border-indigo-500 hover:bg-indigo-950/20 transition-all text-left group cursor-pointer"
 										data-testid={`template-card-${tmpl.id}`}
 										key={tmpl.id}
 										onClick={() => handleSelectTemplate(tmpl.id)}
 										type="button">
-										<span className="p-1.5 rounded-md bg-white/5 border border-white/10 shrink-0 text-indigo-300">
+										<span className="p-1.5 rounded-md bg-(--vscode-sideBar-background) border border-border-panel shrink-0 text-indigo-300">
 											<TmplIcon size={18} stroke={1.5} />
 										</span>
 										<div className="min-w-0">
-											<div className="font-semibold text-xs text-white group-hover:text-indigo-300 transition-colors">
+											<div className="font-semibold text-xs text-(--vscode-foreground) group-hover:text-indigo-300 transition-colors">
 												{tmpl.label}
 											</div>
 											<div className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">
@@ -439,7 +480,7 @@ export const AgentTreeChart = ({ tree, selectedAgentId, onSelectAgent, onAddAgen
 							})}
 						</div>
 
-						<div className="flex justify-end pt-2 border-t border-white/10">
+						<div className="flex justify-end pt-2 border-t border-border-panel">
 							<button
 								className="px-3 py-1 text-xs rounded border border-border-panel text-slate-300 hover:bg-white/5 transition-colors cursor-pointer"
 								onClick={() => setShowAddModal(false)}

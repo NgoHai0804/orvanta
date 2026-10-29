@@ -1,4 +1,5 @@
 import { MANDATORY_DENY_WRITE_PATHS } from "@cline/shared/orvanta"
+import { IconBan, IconCheck, IconLock, IconShieldLock } from "@tabler/icons-react"
 import { useState } from "react"
 
 export interface ToolItem {
@@ -16,7 +17,7 @@ export interface ToolCategory {
 export const TOOL_CATEGORIES: ToolCategory[] = [
 	{
 		name: "Thao tác Tệp (Files)",
-		icon: "📁",
+		icon: "",
 		tools: [
 			{ id: "read_files", name: "read_files", description: "Đọc nội dung tệp" },
 			{ id: "write_to_file", name: "write_to_file", description: "Tạo / ghi đè tệp" },
@@ -26,7 +27,7 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
 	},
 	{
 		name: "Tìm kiếm & Tra cứu (Search)",
-		icon: "🔍",
+		icon: "",
 		tools: [
 			{ id: "grep", name: "grep", description: "Tìm regex trong nội dung" },
 			{ id: "search_codebase", name: "search_codebase", description: "Tìm kiếm codebase" },
@@ -35,12 +36,12 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
 	},
 	{
 		name: "Thực thi Lệnh (Execution)",
-		icon: "⚡",
+		icon: "",
 		tools: [{ id: "execute_command", name: "execute_command", description: "Chạy lệnh trong terminal" }],
 	},
 	{
 		name: "Web & Trình duyệt (Web)",
-		icon: "🌐",
+		icon: "",
 		tools: [
 			{ id: "web_fetch", name: "web_fetch", description: "Tải trang web / API" },
 			{ id: "browser_action", name: "browser_action", description: "Thao tác trên trình duyệt" },
@@ -48,7 +49,7 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
 	},
 	{
 		name: "Cộng tác Nhóm (Team)",
-		icon: "👥",
+		icon: "",
 		tools: [
 			{ id: "orvanta_submit_handoff", name: "orvanta_submit_handoff", description: "Bàn giao kết quả" },
 			{ id: "team_spawn_teammate", name: "team_spawn_teammate", description: "Khởi tạo teammate" },
@@ -126,29 +127,30 @@ export const ToolsPermissionsTab = ({
 	}
 
 	return (
-		<div className="flex flex-col gap-5" data-testid="tab-panel-tools">
+		<div className="flex flex-col gap-4 text-(--vscode-foreground)" data-testid="tab-panel-tools">
 			{/* Tools Allow & Deny Grid */}
-			<div className="grid grid-cols-2 gap-4">
+			<div className="grid grid-cols-2 gap-3.5">
 				{/* Tools Allow */}
-				<div className="flex flex-col gap-2 rounded-lg border border-border-panel bg-[#10162a]/60 p-3">
+				<div className="flex flex-col gap-2.5 rounded-lg border border-border-panel bg-(--vscode-sideBar-background)/40 p-3">
 					<div className="flex items-center justify-between">
-						<span className="text-xs font-bold uppercase tracking-wide text-emerald-400">
-							✓ Tools cho phép (Allow)
+						<span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+							<IconCheck size={13} stroke={2} />
+							<span>Tools cho phép (Allow)</span>
 						</span>
-						<span className="text-[11px] text-slate-400">{allowTools.length} tools</span>
+						<span className="text-[11px] text-(--vscode-descriptionForeground)">{allowTools.length} tools</span>
 					</div>
 
 					<div
-						className="flex flex-wrap gap-1.5 min-h-9 p-1.5 rounded bg-slate-900/60 border border-slate-800"
+						className="flex flex-wrap gap-1.5 min-h-9 p-1.5 rounded border border-border-panel bg-input-background"
 						data-testid="allow-tools-chips">
 						{allowTools.map((t) => (
 							<span
-								className="flex items-center gap-1.5 rounded-md bg-emerald-950/70 border border-emerald-800/80 px-2 py-0.5 text-xs text-emerald-200"
+								className="flex items-center gap-1.5 rounded bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 text-xs text-emerald-300"
 								data-testid={`allow-tool-chip-${t}`}
 								key={t}>
-								<span>{t}</span>
+								<span className="font-mono text-[11px]">{t}</span>
 								<button
-									className="text-emerald-400 hover:text-white text-xs"
+									className="text-emerald-400 hover:text-white text-xs cursor-pointer ml-0.5"
 									onClick={() => setAllowTools(allowTools.filter((x) => x !== t))}
 									type="button">
 									×
@@ -156,13 +158,13 @@ export const ToolsPermissionsTab = ({
 							</span>
 						))}
 						{allowTools.length === 0 && (
-							<span className="text-xs text-slate-500 italic py-0.5">Chưa có tool nào</span>
+							<span className="text-xs text-(--vscode-descriptionForeground) italic py-0.5">Chưa có tool nào</span>
 						)}
 					</div>
 
-					<div className="flex flex-col gap-1.5 pt-1">
+					<div className="flex flex-col gap-1.5 pt-0.5">
 						<select
-							className="rounded border border-border-panel bg-input-background px-2 py-1 text-xs text-slate-200"
+							className="rounded border border-border-panel bg-input-background px-2 py-1 text-xs text-(--vscode-foreground)"
 							data-testid="select-allow-tool-category"
 							defaultValue=""
 							onChange={(e) => {
@@ -175,7 +177,7 @@ export const ToolsPermissionsTab = ({
 								+ Chọn tool từ danh mục...
 							</option>
 							{TOOL_CATEGORIES.map((cat) => (
-								<optgroup key={cat.name} label={`${cat.icon} ${cat.name}`}>
+								<optgroup key={cat.name} label={cat.name}>
 									{cat.tools.map((tool) => (
 										<option disabled={allowTools.includes(tool.id)} key={tool.id} value={tool.id}>
 											{tool.name}
@@ -187,7 +189,7 @@ export const ToolsPermissionsTab = ({
 
 						<div className="flex gap-1.5">
 							<input
-								className="flex-1 rounded border border-border-panel bg-input-background px-2.5 py-1 font-mono text-xs"
+								className="flex-1 rounded border border-border-panel bg-input-background px-2.5 py-1 font-mono text-xs text-(--vscode-foreground)"
 								data-testid="input-custom-allow-tool"
 								onChange={(e) => setNewAllowTool(e.target.value)}
 								onKeyDown={(e) => {
@@ -196,12 +198,12 @@ export const ToolsPermissionsTab = ({
 										handleAddAllowTool(newAllowTool)
 									}
 								}}
-								placeholder="Gõ tên tool custom..."
+								placeholder="Tên tool tùy chỉnh..."
 								type="text"
 								value={newAllowTool}
 							/>
 							<button
-								className="rounded bg-emerald-900/60 border border-emerald-700/60 hover:bg-emerald-800/80 px-2.5 py-1 text-xs text-emerald-200"
+								className="rounded bg-(--vscode-button-background) text-(--vscode-button-foreground) hover:bg-(--vscode-button-hoverBackground) px-2.5 py-1 text-xs font-medium cursor-pointer"
 								data-testid="btn-add-allow-tool"
 								onClick={() => handleAddAllowTool(newAllowTool)}
 								type="button">
@@ -212,23 +214,26 @@ export const ToolsPermissionsTab = ({
 				</div>
 
 				{/* Tools Deny */}
-				<div className="flex flex-col gap-2 rounded-lg border border-border-panel bg-[#10162a]/60 p-3">
+				<div className="flex flex-col gap-2.5 rounded-lg border border-border-panel bg-(--vscode-sideBar-background)/40 p-3">
 					<div className="flex items-center justify-between">
-						<span className="text-xs font-bold uppercase tracking-wide text-rose-400">✕ Tools bị cấm (Deny)</span>
-						<span className="text-[11px] text-slate-400">{denyTools.length} tools</span>
+						<span className="flex items-center gap-1.5 text-xs font-semibold text-rose-400">
+							<IconBan size={13} stroke={1.5} />
+							<span>Tools bị cấm (Deny)</span>
+						</span>
+						<span className="text-[11px] text-(--vscode-descriptionForeground)">{denyTools.length} tools</span>
 					</div>
 
 					<div
-						className="flex flex-wrap gap-1.5 min-h-9 p-1.5 rounded bg-slate-900/60 border border-slate-800"
+						className="flex flex-wrap gap-1.5 min-h-9 p-1.5 rounded border border-border-panel bg-input-background"
 						data-testid="deny-tools-chips">
 						{denyTools.map((t) => (
 							<span
-								className="flex items-center gap-1.5 rounded-md bg-rose-950/70 border border-rose-800/80 px-2 py-0.5 text-xs text-rose-200"
+								className="flex items-center gap-1.5 rounded bg-rose-500/10 border border-rose-500/25 px-2 py-0.5 text-xs text-rose-300"
 								data-testid={`deny-tool-chip-${t}`}
 								key={t}>
-								<span>{t}</span>
+								<span className="font-mono text-[11px]">{t}</span>
 								<button
-									className="text-rose-400 hover:text-white text-xs"
+									className="text-rose-400 hover:text-white text-xs cursor-pointer ml-0.5"
 									onClick={() => setDenyTools(denyTools.filter((x) => x !== t))}
 									type="button">
 									×
@@ -236,13 +241,15 @@ export const ToolsPermissionsTab = ({
 							</span>
 						))}
 						{denyTools.length === 0 && (
-							<span className="text-xs text-slate-500 italic py-0.5">Không cấm tool nào</span>
+							<span className="text-xs text-(--vscode-descriptionForeground) italic py-0.5">
+								Không cấm tool nào
+							</span>
 						)}
 					</div>
 
-					<div className="flex flex-col gap-1.5 pt-1">
+					<div className="flex flex-col gap-1.5 pt-0.5">
 						<select
-							className="rounded border border-border-panel bg-input-background px-2 py-1 text-xs text-slate-200"
+							className="rounded border border-border-panel bg-input-background px-2 py-1 text-xs text-(--vscode-foreground)"
 							data-testid="select-deny-tool-category"
 							defaultValue=""
 							onChange={(e) => {
@@ -255,7 +262,7 @@ export const ToolsPermissionsTab = ({
 								+ Chọn tool để cấm...
 							</option>
 							{TOOL_CATEGORIES.map((cat) => (
-								<optgroup key={cat.name} label={`${cat.icon} ${cat.name}`}>
+								<optgroup key={cat.name} label={cat.name}>
 									{cat.tools.map((tool) => (
 										<option disabled={denyTools.includes(tool.id)} key={tool.id} value={tool.id}>
 											{tool.name}
@@ -267,7 +274,7 @@ export const ToolsPermissionsTab = ({
 
 						<div className="flex gap-1.5">
 							<input
-								className="flex-1 rounded border border-border-panel bg-input-background px-2.5 py-1 font-mono text-xs"
+								className="flex-1 rounded border border-border-panel bg-input-background px-2.5 py-1 font-mono text-xs text-(--vscode-foreground)"
 								data-testid="input-custom-deny-tool"
 								onChange={(e) => setNewDenyTool(e.target.value)}
 								onKeyDown={(e) => {
@@ -276,12 +283,12 @@ export const ToolsPermissionsTab = ({
 										handleAddDenyTool(newDenyTool)
 									}
 								}}
-								placeholder="Gõ tên tool custom..."
+								placeholder="Tên tool tùy chỉnh..."
 								type="text"
 								value={newDenyTool}
 							/>
 							<button
-								className="rounded bg-rose-900/60 border border-rose-700/60 hover:bg-rose-800/80 px-2.5 py-1 text-xs text-rose-200"
+								className="rounded bg-error/80 text-white hover:bg-error px-2.5 py-1 text-xs font-medium cursor-pointer"
 								data-testid="btn-add-deny-tool"
 								onClick={() => handleAddDenyTool(newDenyTool)}
 								type="button">
@@ -293,28 +300,26 @@ export const ToolsPermissionsTab = ({
 			</div>
 
 			{/* Scope Paths Grid */}
-			<div className="grid grid-cols-2 gap-4">
+			<div className="grid grid-cols-2 gap-3.5">
 				{/* Scope Paths: Allow */}
-				<div className="flex flex-col gap-2 rounded-lg border border-border-panel bg-[#10162a]/60 p-3">
+				<div className="flex flex-col gap-2.5 rounded-lg border border-border-panel bg-(--vscode-sideBar-background)/40 p-3">
 					<div className="flex items-center justify-between">
-						<span className="text-xs font-bold uppercase tracking-wide opacity-70">
-							Phạm vi truy cập (Scope Allow)
-						</span>
-						<span className="text-[11px] text-slate-400">Mặc định: **/*</span>
+						<span className="text-xs font-semibold text-(--vscode-foreground)">Phạm vi truy cập (Scope)</span>
+						<span className="text-[11px] text-(--vscode-descriptionForeground)">Mặc định: **/*</span>
 					</div>
 
 					<div
-						className="flex flex-wrap gap-1.5 min-h-9 p-1.5 rounded bg-slate-900/60 border border-slate-800"
+						className="flex flex-wrap gap-1.5 min-h-9 p-1.5 rounded border border-border-panel bg-input-background"
 						data-testid="allow-paths-chips">
 						{allowPaths.map((p) => (
 							<span
-								className="flex items-center gap-1.5 rounded-md bg-indigo-950/60 border border-indigo-800/70 px-2 py-0.5 font-mono text-xs text-indigo-200"
+								className="flex items-center gap-1.5 rounded bg-(--vscode-badge-background) border border-border-panel px-2 py-0.5 font-mono text-xs text-(--vscode-badge-foreground)"
 								data-testid={`allow-path-chip-${p}`}
 								key={p}>
 								<span>{p}</span>
 								{allowPaths.length > 1 && (
 									<button
-										className="text-indigo-400 hover:text-white text-xs"
+										className="text-(--vscode-descriptionForeground) hover:text-white text-xs cursor-pointer ml-0.5"
 										onClick={() => setAllowPaths(allowPaths.filter((x) => x !== p))}
 										type="button">
 										×
@@ -324,9 +329,9 @@ export const ToolsPermissionsTab = ({
 						))}
 					</div>
 
-					<div className="flex gap-1.5 pt-1">
+					<div className="flex gap-1.5 pt-0.5">
 						<input
-							className="flex-1 rounded border border-border-panel bg-input-background px-2.5 py-1 font-mono text-xs"
+							className="flex-1 rounded border border-border-panel bg-input-background px-2.5 py-1 font-mono text-xs text-(--vscode-foreground)"
 							data-testid="input-allow-path"
 							onChange={(e) => setNewAllowPath(e.target.value)}
 							onKeyDown={(e) => {
@@ -340,7 +345,7 @@ export const ToolsPermissionsTab = ({
 							value={newAllowPath}
 						/>
 						<button
-							className="rounded bg-slate-800 hover:bg-slate-700 px-2.5 py-1 text-xs text-slate-200"
+							className="rounded bg-(--vscode-button-background) text-(--vscode-button-foreground) hover:bg-(--vscode-button-hoverBackground) px-2.5 py-1 text-xs font-medium cursor-pointer"
 							data-testid="btn-add-allow-path"
 							onClick={() => handleAddAllowPath(newAllowPath)}
 							type="button">
@@ -349,10 +354,10 @@ export const ToolsPermissionsTab = ({
 					</div>
 
 					<div className="flex items-center gap-1.5 pt-0.5">
-						<span className="text-[10px] text-slate-500">Gợi ý nhanh:</span>
+						<span className="text-[10px] text-(--vscode-descriptionForeground)">Gợi ý:</span>
 						{["**/*", "src/**", "docs/**"].map((preset) => (
 							<button
-								className="text-[10px] px-1.5 py-0.5 rounded border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200"
+								className="text-[10px] px-1.5 py-0.5 rounded border border-border-panel bg-input-background text-(--vscode-descriptionForeground) hover:text-(--vscode-foreground) cursor-pointer"
 								data-testid={`preset-allow-path-${preset}`}
 								key={preset}
 								onClick={() => handleAddAllowPath(preset)}
@@ -364,25 +369,27 @@ export const ToolsPermissionsTab = ({
 				</div>
 
 				{/* Scope Paths: Deny Write */}
-				<div className="flex flex-col gap-2 rounded-lg border border-border-panel bg-[#10162a]/60 p-3">
+				<div className="flex flex-col gap-2.5 rounded-lg border border-border-panel bg-(--vscode-sideBar-background)/40 p-3">
 					<div className="flex items-center justify-between">
-						<span className="text-xs font-bold uppercase tracking-wide opacity-70">
-							Đường dẫn cấm ghi (Deny Write)
+						<span className="text-xs font-semibold text-(--vscode-foreground)">Đường dẫn cấm ghi (Deny Write)</span>
+						<span className="flex items-center gap-1 text-[11px] text-amber-400">
+							<IconShieldLock size={12} stroke={1.5} />
+							<span>3 đường dẫn bảo vệ</span>
 						</span>
-						<span className="text-[11px] text-amber-400">🔒 3 đường dẫn bảo vệ</span>
 					</div>
 
 					<div
-						className="flex flex-wrap gap-1.5 min-h-9 p-1.5 rounded bg-slate-900/60 border border-slate-800"
+						className="flex flex-wrap gap-1.5 min-h-9 p-1.5 rounded border border-border-panel bg-input-background"
 						data-testid="deny-write-paths-chips">
 						{/* Mandatory Locked Paths */}
 						{MANDATORY_DENY_WRITE_PATHS.map((p) => (
 							<span
-								className="flex items-center gap-1 rounded-md bg-rose-950/60 border border-rose-800/80 px-2 py-0.5 font-mono text-xs text-rose-300"
+								className="flex items-center gap-1 rounded bg-rose-500/10 border border-rose-500/25 px-2 py-0.5 font-mono text-xs text-rose-300"
 								data-testid={`mandatory-deny-path-${p}`}
 								key={p}
 								title="Bắt buộc bởi Purpose Lock — Không thể sửa hoặc xóa">
-								<span>🔒</span>
+								<IconLock className="text-amber-400 shrink-0" size={12} stroke={1.5} />
+								<span className="sr-only">🔒</span>
 								<span>{p}</span>
 							</span>
 						))}
@@ -390,12 +397,12 @@ export const ToolsPermissionsTab = ({
 						{/* Custom Deny Paths */}
 						{customDenyPaths.map((p) => (
 							<span
-								className="flex items-center gap-1.5 rounded-md bg-slate-800 border border-slate-700 px-2 py-0.5 font-mono text-xs text-slate-300"
+								className="flex items-center gap-1.5 rounded bg-input-background border border-border-panel px-2 py-0.5 font-mono text-xs text-(--vscode-foreground)"
 								data-testid={`custom-deny-path-${p}`}
 								key={p}>
 								<span>{p}</span>
 								<button
-									className="text-slate-400 hover:text-white text-xs"
+									className="text-(--vscode-descriptionForeground) hover:text-white text-xs cursor-pointer ml-0.5"
 									onClick={() => setCustomDenyPaths(customDenyPaths.filter((x) => x !== p))}
 									type="button">
 									×
@@ -404,9 +411,9 @@ export const ToolsPermissionsTab = ({
 						))}
 					</div>
 
-					<div className="flex gap-1.5 pt-1">
+					<div className="flex gap-1.5 pt-0.5">
 						<input
-							className="flex-1 rounded border border-border-panel bg-input-background px-2.5 py-1 font-mono text-xs"
+							className="flex-1 rounded border border-border-panel bg-input-background px-2.5 py-1 font-mono text-xs text-(--vscode-foreground)"
 							data-testid="input-deny-write-path"
 							onChange={(e) => setNewDenyPath(e.target.value)}
 							onKeyDown={(e) => {
@@ -415,12 +422,12 @@ export const ToolsPermissionsTab = ({
 									handleAddDenyPath(newDenyPath)
 								}
 							}}
-							placeholder="Thêm path cấm ghi (ví dụ: .env)..."
+							placeholder="Thêm pattern cấm ghi (ví dụ: .env)..."
 							type="text"
 							value={newDenyPath}
 						/>
 						<button
-							className="rounded bg-slate-800 hover:bg-slate-700 px-2.5 py-1 text-xs text-slate-200"
+							className="rounded bg-(--vscode-button-background) text-(--vscode-button-foreground) hover:bg-(--vscode-button-hoverBackground) px-2.5 py-1 text-xs font-medium cursor-pointer"
 							data-testid="btn-add-deny-write-path"
 							onClick={() => handleAddDenyPath(newDenyPath)}
 							type="button">
@@ -429,10 +436,10 @@ export const ToolsPermissionsTab = ({
 					</div>
 
 					<div className="flex items-center gap-1.5 pt-0.5">
-						<span className="text-[10px] text-slate-500">Gợi ý nhanh:</span>
+						<span className="text-[10px] text-(--vscode-descriptionForeground)">Gợi ý:</span>
 						{["*.env", "secrets/**", "dist/**"].map((preset) => (
 							<button
-								className="text-[10px] px-1.5 py-0.5 rounded border border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200"
+								className="text-[10px] px-1.5 py-0.5 rounded border border-border-panel bg-input-background text-(--vscode-descriptionForeground) hover:text-(--vscode-foreground) cursor-pointer"
 								data-testid={`preset-deny-path-${preset}`}
 								key={preset}
 								onClick={() => handleAddDenyPath(preset)}

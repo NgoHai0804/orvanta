@@ -1,4 +1,4 @@
-import { IconRefresh } from "@tabler/icons-react"
+import { IconBookmark, IconClock, IconHistory, IconRefresh } from "@tabler/icons-react"
 import { useEffect, useMemo, useState } from "react"
 import type { OrvantaDecisionItem, OrvantaHistoryEntry } from "../../../src/shared/proto/cline/orvanta"
 import { InboxConfirmModal } from "./inbox/InboxConfirmModal"
@@ -24,6 +24,7 @@ export default function InboxView({ pending, deferred, history, loading, error, 
 	const [selectedId, setSelectedId] = useState<string | null>(focusId || null)
 	const [confirmAction, setConfirmAction] = useState<"approve" | "reject" | null>(null)
 	const [resolving, setResolving] = useState<boolean>(false)
+
 	useEffect(() => {
 		if (focusId) {
 			setSelectedId(focusId)
@@ -88,41 +89,44 @@ export default function InboxView({ pending, deferred, history, loading, error, 
 	return (
 		<div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background text-foreground">
 			{/* Sub-tabs header */}
-			<div className="flex shrink-0 items-center justify-between border-b border-border-panel px-3 py-2 bg-(--vscode-sideBar-background)/50">
-				<div className="flex gap-1.5">
+			<div className="flex shrink-0 items-center justify-between border-b border-border-panel px-3 py-1.5 bg-(--vscode-sideBar-background)/50">
+				<div className="flex items-center gap-1.5">
 					<button
-						className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer select-none ${
+						className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer select-none inline-flex items-center gap-1.5 ${
 							activeSubTab === "pending"
 								? "bg-(--vscode-button-background) text-(--vscode-button-foreground) shadow-xs"
 								: "text-muted-foreground hover:text-foreground hover:bg-(--vscode-list-hoverBackground)"
 						}`}
 						onClick={() => setActiveSubTab("pending")}
 						type="button">
-						Chờ duyệt ({pending.length})
+						<IconClock size={13} stroke={1.5} />
+						<span>Chờ duyệt ({pending.length})</span>
 					</button>
 					<button
-						className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer select-none ${
+						className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer select-none inline-flex items-center gap-1.5 ${
 							activeSubTab === "deferred"
 								? "bg-(--vscode-button-background) text-(--vscode-button-foreground) shadow-xs"
 								: "text-muted-foreground hover:text-foreground hover:bg-(--vscode-list-hoverBackground)"
 						}`}
 						onClick={() => setActiveSubTab("deferred")}
 						type="button">
-						Để sau ({deferred.length})
+						<IconBookmark size={13} stroke={1.5} />
+						<span>Để sau ({deferred.length})</span>
 					</button>
 					<button
-						className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer select-none ${
+						className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer select-none inline-flex items-center gap-1.5 ${
 							activeSubTab === "history"
 								? "bg-(--vscode-button-background) text-(--vscode-button-foreground) shadow-xs"
 								: "text-muted-foreground hover:text-foreground hover:bg-(--vscode-list-hoverBackground)"
 						}`}
 						onClick={() => setActiveSubTab("history")}
 						type="button">
-						Lịch sử ({history.length})
+						<IconHistory size={13} stroke={1.5} />
+						<span>Lịch sử ({history.length})</span>
 					</button>
 				</div>
 				<button
-					className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 px-2 py-1 rounded hover:bg-(--vscode-list-hoverBackground) cursor-pointer transition-colors"
+					className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 px-2 py-1 rounded hover:bg-(--vscode-list-hoverBackground) cursor-pointer transition-colors"
 					disabled={loading}
 					onClick={onRefresh}
 					title="Làm mới"
@@ -143,14 +147,14 @@ export default function InboxView({ pending, deferred, history, loading, error, 
 						<option value="all">Tất cả loại</option>
 						<option value="hire_agent">Tuyển Agent</option>
 						<option value="fire_agent">Sa thải Agent</option>
-						<option value="change_role">Đổi Role Agent</option>
+						<option value="change_role">Đổi Role</option>
 						<option value="change_purpose">Đổi Purpose</option>
-						<option value="change_scope">Đổi Scope Task</option>
+						<option value="change_scope">Đổi Scope</option>
 						<option value="merge">Duyệt Merge</option>
 						<option value="over_budget">Vượt Budget</option>
 						<option value="over_ephemeral">Vượt Ephemeral</option>
-						<option value="escalate_blocked">Bế tắc (Blocker)</option>
-						<option value="change_policy">Đổi Chính sách</option>
+						<option value="escalate_blocked">Báo bế tắc</option>
+						<option value="change_policy">Đổi chính sách</option>
 					</select>
 				</div>
 				<div className="flex items-center gap-1.5">
@@ -160,19 +164,20 @@ export default function InboxView({ pending, deferred, history, loading, error, 
 						className="rounded border border-border-panel bg-(--vscode-dropdown-background) px-1.5 py-0.5 text-xs text-(--vscode-dropdown-foreground) focus:outline-none focus:ring-1 focus:ring-ring"
 						onChange={(e) => setUrgencyFilter(e.target.value)}
 						value={urgencyFilter}>
-						<option value="all">Tất cả</option>
-						<option value="high">Gấp</option>
-						<option value="normal">Bình thường</option>
-						<option value="low">Thấp</option>
+						<option value="all">Tất cả mức độ</option>
+						<option value="critical">Khẩn cấp (critical)</option>
+						<option value="high">Cao (high)</option>
+						<option value="normal">Bình thường (normal)</option>
+						<option value="low">Thấp (low)</option>
 					</select>
 				</div>
 			</div>
 
 			{error && <div className="border-b border-rose-500/20 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-400">{error}</div>}
 
-			{/* List + Detail split layout */}
+			{/* Master-Detail 2-Column Split Layout */}
 			<div className="flex min-h-0 flex-1 overflow-hidden">
-				<div className="flex w-5/12 min-w-[200px] flex-col border-r border-border-panel scroller-y">
+				<div className="flex w-2/5 min-w-[220px] max-w-[420px] flex-col border-r border-border-panel min-h-0 h-full overflow-hidden bg-(--vscode-sideBar-background)/20">
 					<InboxList
 						activeSubTab={activeSubTab}
 						items={filteredList}
@@ -180,7 +185,7 @@ export default function InboxView({ pending, deferred, history, loading, error, 
 						selectedId={effectiveSelectedId}
 					/>
 				</div>
-				<div className="flex flex-1 flex-col scroller-y p-4">
+				<div className="flex flex-1 min-w-0 min-h-0 flex-col overflow-hidden bg-(--vscode-editor-background)">
 					<InboxDetail activeSubTab={activeSubTab} item={selectedItem} onAction={handleAction} resolving={resolving} />
 				</div>
 			</div>
