@@ -198,8 +198,8 @@ export const SkillsTab = ({ availableSkills, selectedSkills, setSelectedSkills }
 						value={search}
 					/>
 				</div>
-				{/* Skill List with Switch Toggles & Scroll */}
-				<div className="flex flex-col gap-1.5 max-h-60 min-h-0 overflow-y-auto scroller-y pr-1">
+				{/* Skill List with Switch Toggles */}
+				<div className="flex flex-col gap-1.5" data-testid="skills-checklist">
 					{filteredSkills.map((skill) => {
 						const isEnabled = selectedSkills.includes(skill.id)
 						return (

@@ -322,11 +322,11 @@ const AgentsView = ({
 
 	return (
 		<div
-			className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-(--vscode-editor-background) text-(--vscode-foreground)"
+			className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-(--vscode-editor-background) text-(--vscode-foreground)"
 			data-testid="agents-view"
 			ref={containerRef}>
 			<div
-				className="flex shrink-0 flex-col overflow-hidden border-b border-border-panel"
+				className="flex shrink-0 min-h-0 min-w-0 flex-col overflow-hidden border-b border-border-panel"
 				data-testid="agents-tree-panel"
 				style={{ height: treeHeight }}>
 				<AgentTreeChart
@@ -356,7 +356,7 @@ const AgentsView = ({
 				/>
 			</div>
 
-			<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+			<div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" data-testid="agents-detail-pane">
 				{activeProfile ? (
 					<AgentEditor
 						allProfiles={profilesMap}

@@ -3,7 +3,6 @@ import { OrvantaAgentProfile, type OrvantaRosterAgent } from "@shared/proto/clin
 import {
 	type Icon,
 	IconAlertCircle,
-	IconAlertTriangle,
 	IconBrain,
 	IconBroadcast,
 	IconCheck,
@@ -23,10 +22,11 @@ import {
 	IconTarget,
 	IconTools,
 	IconTrash,
+	IconUpload,
 	IconUser,
-	IconX,
 } from "@tabler/icons-react"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import ReactMarkdown from "react-markdown"
 import { InstructionsRulesTab, type WorkspaceRuleItem } from "./InstructionsRulesTab"
 import { ModelParamsTab } from "./ModelParamsTab"
 import { SkillsTab, type WorkspaceSkillItem } from "./SkillsTab"
@@ -155,8 +155,39 @@ export const AgentEditor = ({
 	const [error, setError] = useState<string | undefined>()
 	const [saving, setSaving] = useState(false)
 	const [saveSuccess, setSaveSuccess] = useState(false)
-	const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
 	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+	const mdFileInputRef = useRef<HTMLInputElement>(null)
+	const [instructionsMode, setInstructionsMode] = useState<"edit" | "preview">("edit")
+
+	const handleLoadFromMdFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0]
+		if (!file) return
+		const reader = new FileReader()
+		reader.onload = (event) => {
+			const text = (event.target?.result as string) || ""
+			if (text) {
+				const frontmatterMatch = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/)
+				if (frontmatterMatch) {
+					const yamlPart = frontmatterMatch[1]
+					const bodyPart = frontmatterMatch[2].trim()
+					if (bodyPart) {
+						setInstructions(bodyPart)
+					} else {
+						setInstructions(text.trim())
+					}
+					const descMatch = yamlPart.match(/description:\s*(?:["'](.*?)["']|(.*))$/m)
+					const extractedDesc = descMatch ? (descMatch[1] || descMatch[2] || "").trim() : ""
+					if (extractedDesc) {
+						setDescription(extractedDesc.slice(0, 200))
+					}
+				} else {
+					setInstructions(text.trim())
+				}
+			}
+		}
+		reader.readAsText(file)
+		e.target.value = ""
+	}
 
 	const availableRosterAgents = useMemo<OrvantaRosterAgent[]>(() => {
 		if (rosterAgents && rosterAgents.length > 0) {
@@ -219,14 +250,6 @@ export const AgentEditor = ({
 	useEffect(() => {
 		onDirtyChange?.(isDirty)
 	}, [isDirty, onDirtyChange])
-
-	const handleCloseRequest = () => {
-		if (isDirty) {
-			setShowDiscardConfirm(true)
-		} else {
-			onClose()
-		}
-	}
 
 	const handleSave = async () => {
 		const trimmedId = id.trim()
@@ -333,10 +356,12 @@ export const AgentEditor = ({
 
 	return (
 		<div
-			className="relative flex h-full min-h-0 w-full flex-col bg-(--vscode-editor-background) text-sm text-(--vscode-foreground)"
+			className="relative flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden bg-(--vscode-editor-background) text-sm text-(--vscode-foreground)"
 			data-testid="agent-editor-panel">
 			{/* Top Header Bar */}
-			<div className="flex shrink-0 items-center justify-between border-b border-border-panel px-4 py-2 bg-(--vscode-sideBar-background)/50">
+			<div
+				className="flex shrink-0 items-center justify-between border-b border-border-panel px-4 py-2 bg-(--vscode-sideBar-background)/50"
+				data-testid="agent-editor-header">
 				<div className="flex items-center gap-2 truncate pr-2">
 					<span className="font-semibold text-sm truncate text-(--vscode-foreground)">
 						{isNew ? "Thêm agent mới" : `Sửa agent: ${displayName || id}`}
@@ -373,12 +398,13 @@ export const AgentEditor = ({
 
 					{!isNew && !isCoordinator && onDelete && (
 						<button
-							className="flex items-center gap-1 rounded border border-transparent px-2.5 py-1 text-xs text-error hover:bg-error/10 hover:border-error/30 cursor-pointer transition-colors"
+							className="flex items-center gap-1.5 rounded border border-error/50 hover:border-error hover:bg-error/10 px-2.5 py-1 text-xs font-medium text-error transition-colors cursor-pointer"
+							data-testid="quick-fire-button"
 							disabled={saving}
 							onClick={() => setShowDeleteConfirm(true)}
 							type="button">
 							<IconTrash size={13} stroke={1.5} />
-							<span>Xóa</span>
+							<span>Sa thải</span>
 						</button>
 					)}
 
@@ -395,20 +421,13 @@ export const AgentEditor = ({
 						)}
 						<span>{saving ? "Đang lưu…" : "Lưu"}</span>
 					</button>
-
-					<button
-						aria-label="Đóng"
-						className="flex items-center gap-1 rounded border border-border-panel px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-white/5 cursor-pointer transition-colors"
-						onClick={handleCloseRequest}
-						type="button">
-						<IconX size={13} stroke={1.5} />
-						<span>Đóng</span>
-					</button>
 				</div>
 			</div>
 
 			{/* Sub-tabs bar */}
-			<div className="flex items-center gap-1 border-b border-border-panel bg-(--vscode-sideBar-background)/30 px-4 py-1.5 shrink-0 scroller-x">
+			<div
+				className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border-panel bg-(--vscode-sideBar-background)/30 px-4 py-1.5 scroller-x"
+				data-testid="agent-editor-tabs">
 				{EDITOR_TABS.map((tab) => {
 					const isActive = activeTab === tab.id
 					const TabIcon = tab.icon
@@ -430,290 +449,307 @@ export const AgentEditor = ({
 				})}
 			</div>
 
-			<div className="flex min-h-0 flex-1 flex-col gap-4 scroller-y p-4">
-				{error && (
-					<div
-						className="flex shrink-0 items-center gap-2 rounded border border-error/50 bg-error/10 p-2.5 text-xs text-error"
-						data-testid="agent-editor-error">
-						<IconAlertCircle className="shrink-0" size={14} stroke={1.5} />
-						<span className="flex-1">{error}</span>
-						<button
-							className="hover:underline text-xs cursor-pointer opacity-70 hover:opacity-100"
-							onClick={() => setError(undefined)}
-							type="button">
-							Bỏ qua
-						</button>
-					</div>
-				)}
+			<div className="flex-1 min-h-0 min-w-0 w-full overflow-y-auto scroller-y" data-testid="agent-editor-scroll">
+				<div className="flex flex-col gap-4 p-4 pb-6">
+					{error && (
+						<div
+							className="flex shrink-0 items-center gap-2 rounded border border-error/50 bg-error/10 p-2.5 text-xs text-error"
+							data-testid="agent-editor-error">
+							<IconAlertCircle className="shrink-0" size={14} stroke={1.5} />
+							<span className="flex-1">{error}</span>
+							<button
+								className="hover:underline text-xs cursor-pointer opacity-70 hover:opacity-100"
+								onClick={() => setError(undefined)}
+								type="button">
+								Bỏ qua
+							</button>
+						</div>
+					)}
 
-				{saveSuccess && (
-					<div
-						className="rounded border border-emerald-500/50 bg-emerald-950/30 p-2.5 text-xs text-emerald-300 flex items-center gap-2"
-						data-testid="save-success-banner">
-						<IconCheck className="text-emerald-400 shrink-0" size={14} stroke={2} />
-						<span>Đã lưu thông tin agent thành công!</span>
-					</div>
-				)}
+					{saveSuccess && (
+						<div
+							className="rounded border border-emerald-500/50 bg-emerald-950/30 p-2.5 text-xs text-emerald-300 flex items-center gap-2"
+							data-testid="save-success-banner">
+							<IconCheck className="text-emerald-400 shrink-0" size={14} stroke={2} />
+							<span>Đã lưu thông tin agent thành công!</span>
+						</div>
+					)}
 
-				{/* Tab 1: Profile */}
-				{activeTab === "profile" && (
-					<div className="flex flex-col gap-4" data-testid="tab-panel-profile">
-						{/* Overview Card with Avatar and Chat Action */}
-						<div className="flex items-center justify-between rounded-lg border border-border-panel bg-(--vscode-sideBar-background)/40 p-3.5">
-							<div className="flex items-center gap-3 min-w-0">
-								<div
-									className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${avatarInfo.bg}`}>
-									<RoleIconComponent className={avatarInfo.color} size={22} stroke={1.5} />
-								</div>
-								<div className="flex flex-col min-w-0">
-									<div className="flex items-center gap-2">
-										<span className="font-semibold text-sm text-(--vscode-foreground) truncate">
-											{displayName || id || "Chưa đặt tên"}
-										</span>
-										{isCoordinator ? (
-											<span className="rounded bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.2 text-[10px] font-semibold text-amber-300">
-												Root Lead
-											</span>
-										) : (
-											<span className="rounded bg-(--vscode-badge-background) px-1.5 py-0.2 text-[10px] font-medium text-(--vscode-badge-foreground)">
-												{role === "lead" ? "Lead" : "Teammate"}
-											</span>
-										)}
+					{/* Tab 1: Profile */}
+					{activeTab === "profile" && (
+						<div className="flex flex-col gap-4" data-testid="tab-panel-profile">
+							{/* Overview Card with Avatar and Chat Action */}
+							<div className="flex items-center justify-between rounded-lg border border-border-panel bg-(--vscode-sideBar-background)/40 p-3.5">
+								<div className="flex items-center gap-3 min-w-0">
+									<div
+										className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${avatarInfo.bg}`}>
+										<RoleIconComponent className={avatarInfo.color} size={22} stroke={1.5} />
 									</div>
-									<span className="font-mono text-xs text-(--vscode-descriptionForeground) opacity-80 truncate">
-										@{id || "id"} {reportsTo ? `• Báo cáo cho: @${reportsTo}` : ""}
+									<div className="flex flex-col min-w-0">
+										<div className="flex items-center gap-2">
+											<span className="font-semibold text-sm text-(--vscode-foreground) truncate">
+												{displayName || id || "Chưa đặt tên"}
+											</span>
+											{isCoordinator ? (
+												<span className="rounded bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.2 text-[10px] font-semibold text-amber-300">
+													Root Lead
+												</span>
+											) : (
+												<span className="rounded bg-(--vscode-badge-background) px-1.5 py-0.2 text-[10px] font-medium text-(--vscode-badge-foreground)">
+													{role === "lead" ? "Lead" : "Teammate"}
+												</span>
+											)}
+										</div>
+										<span className="font-mono text-xs text-(--vscode-descriptionForeground) opacity-80 truncate">
+											@{id || "id"} {reportsTo ? `• Báo cáo cho: @${reportsTo}` : ""}
+										</span>
+									</div>
+								</div>
+
+								<div className="flex flex-wrap items-center gap-2 shrink-0">
+									<button
+										className="flex items-center gap-1.5 rounded bg-(--vscode-button-background) hover:bg-(--vscode-button-hoverBackground) px-3 py-1.5 text-xs font-medium text-(--vscode-button-foreground) transition-colors cursor-pointer shadow-xs"
+										data-testid="quick-chat-button"
+										onClick={handleQuickChat}
+										type="button">
+										<IconMessage size={14} stroke={1.5} />
+										<span>Chat</span>
+									</button>
+									{onOpenWarRoom && (
+										<button
+											className="flex items-center gap-1.5 rounded border border-border-panel bg-input-background hover:bg-white/5 px-3 py-1.5 text-xs font-medium text-(--vscode-foreground) transition-colors cursor-pointer"
+											data-testid="quick-war-room-button"
+											onClick={onOpenWarRoom}
+											type="button">
+											<IconBroadcast size={14} stroke={1.5} />
+											<span>War room</span>
+										</button>
+									)}
+								</div>
+							</div>
+
+							{/* Form inputs */}
+							<div className="grid grid-cols-2 gap-3.5">
+								<label className="flex flex-col gap-1.5">
+									<span className="text-xs font-medium text-(--vscode-foreground)">Mã định danh (ID)</span>
+									<input
+										className="rounded border border-border-panel bg-input-background px-2.5 py-1.5 font-mono text-xs text-(--vscode-foreground) disabled:opacity-50"
+										disabled={!isNew || isCoordinator}
+										maxLength={32}
+										onChange={(e) => setId(e.target.value.toLowerCase())}
+										placeholder="ví dụ: reviewer"
+										value={id}
+									/>
+								</label>
+
+								<label className="flex flex-col gap-1.5">
+									<span className="text-xs font-medium text-(--vscode-foreground)">
+										Tên hiển thị (Display Name)
+									</span>
+									<input
+										className="rounded border border-border-panel bg-input-background px-2.5 py-1.5 text-xs text-(--vscode-foreground)"
+										maxLength={48}
+										onChange={(e) => setDisplayName(e.target.value)}
+										placeholder="Tên agent"
+										value={displayName}
+									/>
+								</label>
+							</div>
+
+							<div className="grid grid-cols-2 gap-3.5">
+								<label className="flex flex-col gap-1.5">
+									<span className="text-xs font-medium text-(--vscode-foreground)">Vai trò (Role)</span>
+									<select
+										className="rounded border border-border-panel bg-input-background px-2.5 py-1.5 text-xs text-(--vscode-foreground) disabled:opacity-50"
+										data-testid="agent-role-select"
+										disabled={isCoordinator}
+										onChange={(e) => setRole(e.target.value)}
+										value={role}>
+										<option value="teammate">Teammate (Thành viên)</option>
+										<option value="lead">Lead (Trưởng nhóm)</option>
+									</select>
+								</label>
+
+								<label className="flex flex-col gap-1.5">
+									<span className="text-xs font-medium text-(--vscode-foreground)">
+										Quản lý bởi (Reports To)
+									</span>
+									{isCoordinator ? (
+										<input
+											className="rounded border border-border-panel bg-input-background px-2.5 py-1.5 text-xs opacity-60 text-(--vscode-foreground)"
+											disabled
+											value="Không (Root Coordinator)"
+										/>
+									) : (
+										<select
+											className="rounded border border-border-panel bg-input-background px-2.5 py-1.5 text-xs text-(--vscode-foreground)"
+											data-testid="agent-reports-to-select"
+											onChange={(e) => setReportsTo(e.target.value || null)}
+											value={reportsTo ?? ""}>
+											{allowedManagers.map((m) => (
+												<option key={m.id} value={m.id}>
+													{m.displayName} (@{m.id})
+												</option>
+											))}
+											{allowedManagers.length === 0 && <option value="">Không có quản lý khả dụng</option>}
+										</select>
+									)}
+								</label>
+							</div>
+
+							{/* Short Description */}
+							<label className="flex flex-col gap-1.5">
+								<div className="flex items-center justify-between">
+									<span className="text-xs font-medium text-(--vscode-foreground)">Mô tả</span>
+									<span className="text-[11px] text-(--vscode-descriptionForeground) opacity-80">
+										{description.length}/200 ký tự
 									</span>
 								</div>
-							</div>
-
-							<div className="flex flex-wrap items-center gap-2 shrink-0">
-								<button
-									className="flex items-center gap-1.5 rounded bg-(--vscode-button-background) hover:bg-(--vscode-button-hoverBackground) px-3 py-1.5 text-xs font-medium text-(--vscode-button-foreground) transition-colors cursor-pointer shadow-xs"
-									data-testid="quick-chat-button"
-									onClick={handleQuickChat}
-									type="button">
-									<IconMessage size={14} stroke={1.5} />
-									<span>Chat</span>
-								</button>
-								{onOpenWarRoom && (
-									<button
-										className="flex items-center gap-1.5 rounded border border-border-panel bg-input-background hover:bg-white/5 px-3 py-1.5 text-xs font-medium text-(--vscode-foreground) transition-colors cursor-pointer"
-										data-testid="quick-war-room-button"
-										onClick={onOpenWarRoom}
-										type="button">
-										<IconBroadcast size={14} stroke={1.5} />
-										<span>War room</span>
-									</button>
-								)}
-								{!isNew && !isCoordinator && onDelete && (
-									<button
-										className="flex items-center gap-1.5 rounded border border-transparent px-3 py-1.5 text-xs text-error hover:bg-error/10 hover:border-error/30 cursor-pointer transition-colors"
-										data-testid="quick-fire-button"
-										onClick={() => setShowDeleteConfirm(true)}
-										type="button">
-										<IconTrash size={14} stroke={1.5} />
-										<span>Sa thải agent</span>
-									</button>
-								)}
-							</div>
-						</div>
-
-						{/* Form inputs */}
-						<div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-							<label className="flex flex-col gap-1.5">
-								<span className="text-xs font-medium text-(--vscode-foreground)">Mã định danh (ID)</span>
-								<input
-									className="rounded border border-border-panel bg-input-background px-2.5 py-1.5 font-mono text-xs text-(--vscode-foreground) disabled:opacity-50"
-									disabled={!isNew || isCoordinator}
-									maxLength={32}
-									onChange={(e) => setId(e.target.value.toLowerCase())}
-									placeholder="ví dụ: reviewer"
-									value={id}
+								<textarea
+									className="field-sizing-content min-h-[60px] w-full resize-y rounded border border-border-panel bg-input-background p-2.5 text-xs leading-relaxed text-(--vscode-foreground) focus:outline-hidden focus:border-(--vscode-focusBorder)"
+									maxLength={200}
+									onChange={(e) => setDescription(e.target.value)}
+									placeholder="Tóm tắt ngắn gọn nhiệm vụ chính, vai trò và phạm vi làm việc của agent..."
+									rows={2}
+									value={description}
 								/>
 							</label>
 
-							<label className="flex flex-col gap-1.5">
-								<span className="text-xs font-medium text-(--vscode-foreground)">
-									Tên hiển thị (Display Name)
-								</span>
-								<input
-									className="rounded border border-border-panel bg-input-background px-2.5 py-1.5 text-xs text-(--vscode-foreground)"
-									maxLength={48}
-									onChange={(e) => setDisplayName(e.target.value)}
-									placeholder="Tên agent"
-									value={displayName}
-								/>
-							</label>
-						</div>
+							{/* Detailed Description (Instructions / SOP from md) */}
+							<div className="flex flex-col gap-2 rounded-lg border border-border-panel bg-(--vscode-sideBar-background)/40 p-3.5">
+								<div className="flex items-center justify-between flex-wrap gap-2">
+									<div className="flex items-center gap-2">
+										<span className="text-xs font-semibold text-(--vscode-foreground)">
+											Mô tả chi tiết (System Prompt / SOP)
+										</span>
+										<span className="font-mono text-[10px] text-(--vscode-descriptionForeground) opacity-80">
+											{instructions.trim() ? instructions.trim().split(/\s+/).length : 0} từ •{" "}
+											{instructions.length} ký tự
+										</span>
+									</div>
+									<div className="flex items-center gap-1.5">
+										<input
+											accept=".md,.markdown,text/markdown,text/plain"
+											className="hidden"
+											id="profile-load-md-file"
+											onChange={handleLoadFromMdFile}
+											ref={mdFileInputRef}
+											type="file"
+										/>
+										<button
+											className="flex items-center gap-1 rounded border border-border-panel bg-input-background hover:bg-white/5 px-2.5 py-1 text-xs text-(--vscode-foreground) cursor-pointer transition-colors"
+											data-testid="load-md-file-button"
+											onClick={() => mdFileInputRef.current?.click()}
+											title="Tải nội dung từ file Markdown (.md)"
+											type="button">
+											<IconUpload size={13} stroke={1.5} />
+											<span>Tải từ file .md</span>
+										</button>
+										<div className="flex rounded border border-border-panel p-0.5 bg-input-background">
+											<button
+												className={`px-2 py-0.5 text-xs rounded transition-colors cursor-pointer ${
+													instructionsMode === "edit"
+														? "bg-(--vscode-button-background) text-(--vscode-button-foreground) font-semibold"
+														: "text-(--vscode-descriptionForeground) hover:text-(--vscode-foreground)"
+												}`}
+												onClick={() => setInstructionsMode("edit")}
+												type="button">
+												Soạn thảo
+											</button>
+											<button
+												className={`px-2 py-0.5 text-xs rounded transition-colors cursor-pointer ${
+													instructionsMode === "preview"
+														? "bg-(--vscode-button-background) text-(--vscode-button-foreground) font-semibold"
+														: "text-(--vscode-descriptionForeground) hover:text-(--vscode-foreground)"
+												}`}
+												onClick={() => setInstructionsMode("preview")}
+												type="button">
+												Xem trước
+											</button>
+										</div>
+									</div>
+								</div>
 
-						<div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-							<label className="flex flex-col gap-1.5">
-								<span className="text-xs font-medium text-(--vscode-foreground)">Vai trò (Role)</span>
-								<select
-									className="rounded border border-border-panel bg-input-background px-2.5 py-1.5 text-xs text-(--vscode-foreground) disabled:opacity-50"
-									data-testid="agent-role-select"
-									disabled={isCoordinator}
-									onChange={(e) => setRole(e.target.value)}
-									value={role}>
-									<option value="teammate">Teammate (Thành viên)</option>
-									<option value="lead">Lead (Trưởng nhóm)</option>
-								</select>
-							</label>
-
-							<label className="flex flex-col gap-1.5">
-								<span className="text-xs font-medium text-(--vscode-foreground)">Quản lý bởi (Reports To)</span>
-								{isCoordinator ? (
-									<input
-										className="rounded border border-border-panel bg-input-background px-2.5 py-1.5 text-xs opacity-60 text-(--vscode-foreground)"
-										disabled
-										value="Không (Root Coordinator)"
+								{instructionsMode === "edit" ? (
+									<textarea
+										className="min-h-[160px] w-full resize-y rounded border border-border-panel bg-input-background p-2.5 font-mono text-xs leading-relaxed text-(--vscode-foreground) focus:outline-hidden focus:border-(--vscode-focusBorder) scroller-y"
+										data-testid="profile-instructions-textarea"
+										onChange={(e) => setInstructions(e.target.value)}
+										placeholder="Nội dung Markdown hướng dẫn chi tiết, SOP, quy trình thực thi nhiệm vụ..."
+										rows={7}
+										value={instructions}
 									/>
 								) : (
-									<select
-										className="rounded border border-border-panel bg-input-background px-2.5 py-1.5 text-xs text-(--vscode-foreground)"
-										data-testid="agent-reports-to-select"
-										onChange={(e) => setReportsTo(e.target.value || null)}
-										value={reportsTo ?? ""}>
-										{allowedManagers.map((m) => (
-											<option key={m.id} value={m.id}>
-												{m.displayName} (@{m.id})
-											</option>
-										))}
-										{allowedManagers.length === 0 && <option value="">Không có quản lý khả dụng</option>}
-									</select>
+									<div
+										className="min-h-[160px] max-h-80 w-full overflow-y-auto rounded border border-border-panel bg-input-background/60 p-3 text-xs leading-relaxed max-w-none scroller-y"
+										data-testid="profile-instructions-preview">
+										{instructions.trim() ? (
+											<div className="prose prose-invert max-w-none text-xs text-(--vscode-foreground)">
+												<ReactMarkdown>{instructions}</ReactMarkdown>
+											</div>
+										) : (
+											<div className="text-(--vscode-descriptionForeground) italic text-center py-8">
+												Chưa có nội dung mô tả chi tiết để xem trước.
+											</div>
+										)}
+									</div>
 								)}
-							</label>
-						</div>
-
-						{/* Multiline Description with scroll */}
-						<label className="flex flex-col gap-1.5">
-							<div className="flex items-center justify-between">
-								<span className="text-xs font-medium text-(--vscode-foreground)">
-									Mô tả chức năng & Trách nhiệm
-								</span>
-								<span className="text-[11px] text-(--vscode-descriptionForeground) opacity-80">
-									{description.length}/200 ký tự
-								</span>
 							</div>
-							<textarea
-								className="min-h-[76px] max-h-36 resize-y scroller-y rounded border border-border-panel bg-input-background p-2.5 text-xs leading-relaxed text-(--vscode-foreground) focus:outline-hidden focus:border-(--vscode-focusBorder)"
-								maxLength={200}
-								onChange={(e) => setDescription(e.target.value)}
-								placeholder="Nhiệm vụ chính, trách nhiệm cụ thể và phạm vi làm việc của agent trong tổ chức..."
-								rows={3}
-								value={description}
-							/>
-						</label>
-
-						{/* Danger Zone: Delete Agent */}
-						{!isNew && !isCoordinator && onDelete && (
-							<div className="flex items-center justify-between pt-3 border-t border-border-panel">
-								<div className="flex flex-col">
-									<span className="text-xs font-medium text-error">Xóa bỏ agent</span>
-									<span className="text-[11px] text-(--vscode-descriptionForeground)">
-										Xóa toàn bộ cấu hình profile và thư mục của agent này
-									</span>
-								</div>
-								<button
-									className="flex items-center gap-1.5 rounded border border-error/40 bg-error/10 hover:bg-error/20 px-3 py-1 text-xs text-error transition-colors cursor-pointer"
-									data-testid="quick-fire-button"
-									disabled={saving}
-									onClick={() => setShowDeleteConfirm(true)}
-									type="button">
-									<IconTrash size={13} stroke={1.5} />
-									<span>Sa thải agent</span>
-								</button>
-							</div>
-						)}
-					</div>
-				)}
-
-				{/* Tab 2: Model & Thông số AI */}
-				{activeTab === "model" && (
-					<ModelParamsTab
-						contextWindow={contextWindow}
-						maxIterations={maxIterations}
-						maxOutputTokens={maxOutputTokens}
-						modelId={modelId}
-						providerId={providerId}
-						reasoningEffort={reasoningEffort}
-						setContextWindow={setContextWindow}
-						setMaxIterations={setMaxIterations}
-						setMaxOutputTokens={setMaxOutputTokens}
-						setModelId={setModelId}
-						setProviderId={setProviderId}
-						setReasoningEffort={setReasoningEffort}
-						setSupportsImages={setSupportsImages}
-						setTemperature={setTemperature}
-						supportsImages={supportsImages}
-						temperature={temperature}
-					/>
-				)}
-				{/* Tab 3: Tools & Quyền Hạn */}
-				{activeTab === "tools" && (
-					<ToolsPermissionsTab
-						allowPaths={allowPaths}
-						allowTools={allowTools}
-						customDenyPaths={customDenyPaths}
-						denyTools={denyTools}
-						setAllowPaths={setAllowPaths}
-						setAllowTools={setAllowTools}
-						setCustomDenyPaths={setCustomDenyPaths}
-						setDenyTools={setDenyTools}
-					/>
-				)}
-
-				{/* Tab 4: Rules & Instructions */}
-				{activeTab === "rules" && (
-					<InstructionsRulesTab
-						availableRules={availableRules}
-						instructions={instructions}
-						selectedRules={rules}
-						setInstructions={setInstructions}
-						setSelectedRules={setRules}
-					/>
-				)}
-
-				{/* Tab 5: Skills */}
-				{activeTab === "skills" && (
-					<SkillsTab availableSkills={availableSkills} selectedSkills={skills} setSelectedSkills={setSkills} />
-				)}
-			</div>
-
-			{/* Confirm Discard Modal */}
-			{showDiscardConfirm && (
-				<div
-					className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
-					data-testid="discard-confirm-modal">
-					<div className="flex flex-col gap-3 rounded-lg border border-border-panel bg-(--vscode-sideBar-background) p-4 shadow-2xl max-w-sm w-full">
-						<div className="flex items-center gap-2">
-							<IconAlertTriangle className="text-amber-400 shrink-0" size={18} stroke={1.5} />
-							<h3 className="font-semibold text-sm text-(--vscode-foreground)">Thay đổi chưa được lưu</h3>
 						</div>
-						<p className="text-xs text-(--vscode-descriptionForeground)">
-							Bạn có thay đổi chưa lưu trên Agent này. Bạn có muốn bỏ thay đổi không?
-						</p>
-						<div className="flex justify-end gap-2 pt-2">
-							<button
-								className="rounded border border-border-panel px-3 py-1.5 text-xs text-(--vscode-foreground) hover:bg-white/5 cursor-pointer transition-colors"
-								onClick={() => setShowDiscardConfirm(false)}
-								type="button">
-								Tiếp tục chỉnh sửa
-							</button>
-							<button
-								className="rounded bg-error px-3 py-1.5 text-xs font-semibold text-white hover:bg-error/80 cursor-pointer transition-colors"
-								data-testid="discard-confirm-button"
-								onClick={() => {
-									setShowDiscardConfirm(false)
-									onClose()
-								}}
-								type="button">
-								Bỏ thay đổi
-							</button>
-						</div>
-					</div>
+					)}
+
+					{/* Tab 2: Model & Thông số AI */}
+					{activeTab === "model" && (
+						<ModelParamsTab
+							contextWindow={contextWindow}
+							maxIterations={maxIterations}
+							maxOutputTokens={maxOutputTokens}
+							modelId={modelId}
+							providerId={providerId}
+							reasoningEffort={reasoningEffort}
+							setContextWindow={setContextWindow}
+							setMaxIterations={setMaxIterations}
+							setMaxOutputTokens={setMaxOutputTokens}
+							setModelId={setModelId}
+							setProviderId={setProviderId}
+							setReasoningEffort={setReasoningEffort}
+							setSupportsImages={setSupportsImages}
+							setTemperature={setTemperature}
+							supportsImages={supportsImages}
+							temperature={temperature}
+						/>
+					)}
+					{/* Tab 3: Tools & Quyền Hạn */}
+					{activeTab === "tools" && (
+						<ToolsPermissionsTab
+							allowPaths={allowPaths}
+							allowTools={allowTools}
+							customDenyPaths={customDenyPaths}
+							denyTools={denyTools}
+							setAllowPaths={setAllowPaths}
+							setAllowTools={setAllowTools}
+							setCustomDenyPaths={setCustomDenyPaths}
+							setDenyTools={setDenyTools}
+						/>
+					)}
+
+					{/* Tab 4: Rules & Instructions */}
+					{activeTab === "rules" && (
+						<InstructionsRulesTab
+							availableRules={availableRules}
+							instructions={instructions}
+							selectedRules={rules}
+							setInstructions={setInstructions}
+							setSelectedRules={setRules}
+						/>
+					)}
+
+					{/* Tab 5: Skills */}
+					{activeTab === "skills" && (
+						<SkillsTab availableSkills={availableSkills} selectedSkills={skills} setSelectedSkills={setSkills} />
+					)}
 				</div>
-			)}
+			</div>
 
 			{/* Confirm Delete Modal */}
 			{showDeleteConfirm && (

@@ -131,7 +131,7 @@ export function InboxDetail({ item, activeSubTab, resolving, onAction }: InboxDe
 						</span>
 					</div>
 
-					<div className="grid grid-cols-2 gap-2 text-[11px] border-b border-border-panel/40 pb-2">
+					<div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] border-b border-border-panel/40 pb-2">
 						<div>
 							<span className="text-muted-foreground">Đề xuất (Maker):</span>
 							<div className="font-mono font-medium text-foreground">@{item.createdBy || "coordinator"}</div>
@@ -523,12 +523,12 @@ export function InboxDetail({ item, activeSubTab, resolving, onAction }: InboxDe
 			</div>
 
 			{/* Sticky Action Footer */}
-			<div className="shrink-0 border-t border-border-panel p-2.5 bg-(--vscode-sideBar-background)/80 backdrop-blur-xs flex items-center justify-between gap-2">
+			<div className="shrink-0 border-t border-border-panel p-2.5 bg-(--vscode-sideBar-background)/80 backdrop-blur-xs flex flex-wrap items-center justify-between gap-2">
 				<div className="text-[11px] text-muted-foreground truncate max-w-[260px]" title={getFooterContextNotice()}>
 					{getFooterContextNotice()}
 				</div>
 
-				<div className="flex items-center gap-1.5 shrink-0">
+				<div className="flex flex-wrap items-center gap-1.5 shrink-0">
 					{activeSubTab === "pending" && (
 						<>
 							{/* Secondary: Để sau */}

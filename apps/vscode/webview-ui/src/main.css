@@ -40,6 +40,17 @@ body {
 	overflow: hidden; /* Children handle their own scroll */
 }
 
+#root > [data-overlay-container="true"],
+#root > div {
+	height: 100%;
+	width: 100%;
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+}
+
 /* ============================================================
    .scroller – Thin scrollbar standard class
    Ref: specs/web/styles/scroll.md

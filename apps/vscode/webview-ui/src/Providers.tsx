@@ -11,7 +11,7 @@ export function Providers({ children }: { children: ReactNode }) {
 			<ExtensionStateContextProvider>
 				<CustomPostHogProvider>
 					<ClineAuthProvider>
-						<HeroUIProvider>{children}</HeroUIProvider>
+						<HeroUIProvider className="h-full w-full flex flex-col flex-1 min-h-0">{children}</HeroUIProvider>
 					</ClineAuthProvider>
 				</CustomPostHogProvider>
 			</ExtensionStateContextProvider>

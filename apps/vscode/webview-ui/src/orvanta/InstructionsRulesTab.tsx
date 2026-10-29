@@ -212,7 +212,7 @@ export const InstructionsRulesTab = ({
 								</button>
 							</div>
 							<textarea
-								className="min-h-36 max-h-72 w-full resize-y rounded border border-border-panel bg-input-background p-3 font-mono text-xs leading-relaxed text-(--vscode-foreground) focus:outline-hidden focus:border-(--vscode-focusBorder) scroller-y"
+								className="field-sizing-content min-h-36 w-full resize-y rounded border border-border-panel bg-input-background p-3 font-mono text-xs leading-relaxed text-(--vscode-foreground) focus:outline-hidden focus:border-(--vscode-focusBorder)"
 								data-testid="instructions-textarea"
 								onChange={(e) => setInstructions(e.target.value)}
 								placeholder="Hướng dẫn chi tiết vai trò, mục tiêu và nguyên tắc hành xử của agent..."
@@ -226,7 +226,7 @@ export const InstructionsRulesTab = ({
 						</div>
 					) : (
 						<div
-							className="min-h-36 max-h-72 w-full rounded border border-border-panel bg-input-background/50 p-3.5 text-xs leading-relaxed overflow-y-auto scroller-y"
+							className="min-h-36 w-full rounded border border-border-panel bg-input-background/50 p-3.5 text-xs leading-relaxed"
 							data-testid="instructions-preview-content">
 							{instructions.trim() ? (
 								<div className="prose prose-invert max-w-none text-xs text-(--vscode-foreground)">
@@ -297,10 +297,8 @@ export const InstructionsRulesTab = ({
 					/>
 				</div>
 
-				{/* Rules List with Switch Toggles and Scroll */}
-				<div
-					className="flex flex-col gap-1.5 max-h-56 min-h-0 overflow-y-auto scroller-y pr-1"
-					data-testid="rules-checklist">
+				{/* Rules List with Switch Toggles */}
+				<div className="flex flex-col gap-1.5" data-testid="rules-checklist">
 					{filteredRules.map((rule) => {
 						const isChecked = selectedRules.includes(rule.id)
 						return (

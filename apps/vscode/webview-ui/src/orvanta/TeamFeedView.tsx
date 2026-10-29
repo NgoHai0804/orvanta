@@ -129,7 +129,7 @@ export function TeamFeedView({ onSelectAgent, companyName }: TeamFeedViewProps) 
 						Chưa có thông tin nhân sự. Các thẻ trạng thái sẽ xuất hiện khi session khởi động.
 					</div>
 				) : (
-					<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5">
+					<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1.5">
 						{agents.map((agent) => {
 							const isRunning = agent.status === "running"
 							const AgentIcon = getAgentRoleIconComponent(agent.role, agent.id)
@@ -225,7 +225,7 @@ export function TeamFeedView({ onSelectAgent, companyName }: TeamFeedViewProps) 
 									<span className="font-mono text-[10px] text-muted-foreground/60 shrink-0 mt-0.5">
 										[{entry.time}]
 									</span>
-									<div className="shrink-0 min-w-28">
+									<div className="shrink-0 max-w-28 min-w-16">
 										{!isSameSpeaker ? (
 											<AgentBadge
 												agentId={entry.agentId}

@@ -342,7 +342,7 @@ export const AgentTreeChart = ({ tree, selectedAgentId, onSelectAgent, onAddAgen
 
 	return (
 		<div
-			className={`relative flex flex-col h-full w-full bg-(--vscode-editor-background) overflow-hidden select-none ${className}`}
+			className={`relative flex flex-col min-h-0 min-w-0 h-full w-full bg-(--vscode-editor-background) overflow-hidden select-none ${className}`}
 			data-testid="agent-tree-chart">
 			{/* Top Chart Header / Toolbar */}
 			<div className="flex items-center justify-between px-3 py-2 border-b border-border-panel bg-(--vscode-sideBar-background)/90 backdrop-blur-xs shrink-0 z-10">
@@ -406,7 +406,7 @@ export const AgentTreeChart = ({ tree, selectedAgentId, onSelectAgent, onAddAgen
 			</div>
 
 			{/* Chart Viewport */}
-			<div className="flex-1 min-h-0 w-full overflow-auto scroller p-4">
+			<div className="flex-1 min-h-0 min-w-0 w-full overflow-auto scroller p-4">
 				{tree ? (
 					<div className="min-w-fit min-h-fit mx-auto flex items-start justify-center p-2">
 						<div

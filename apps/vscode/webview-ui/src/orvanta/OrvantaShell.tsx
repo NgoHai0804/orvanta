@@ -74,7 +74,7 @@ const OrvantaShell = ({ activeTab: rawActiveTab, onTabChange, inboxFocusId: prop
 	const isFullView = activeTab === "home" || activeTab === "agents" || activeTab === "inbox"
 
 	return (
-		<div className={isFullView ? "flex h-full min-h-0 flex-1 flex-col overflow-hidden" : "shrink-0"}>
+		<div className={isFullView ? "flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden" : "shrink-0"}>
 			<nav
 				aria-label="Điều hướng chính"
 				className="flex shrink-0 items-center gap-1 border-b border-border-panel bg-(--vscode-sideBar-background) px-2 py-1">
@@ -114,7 +114,7 @@ const OrvantaShell = ({ activeTab: rawActiveTab, onTabChange, inboxFocusId: prop
 				})}
 			</nav>
 			{isFullView && (
-				<div className="flex-1 min-h-0 overflow-hidden">
+				<div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
 					{activeTab === "home" && (
 						<HomeView
 							company={company}

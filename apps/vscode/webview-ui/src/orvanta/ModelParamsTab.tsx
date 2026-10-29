@@ -52,41 +52,35 @@ export const ModelParamsTab = ({
 	return (
 		<div className="flex flex-col gap-4 text-(--vscode-foreground)" data-testid="tab-panel-model">
 			{/* Card 1: Model LLM & Provider */}
-			<div className="rounded-lg border border-border-panel bg-(--vscode-sideBar-background)/40 p-3.5 flex flex-col gap-2">
-				<div className="flex items-center justify-between">
-					<span className="text-xs font-semibold text-(--vscode-foreground)">Model AI & Nhà cung cấp</span>
-					<span className="text-[11px] text-(--vscode-descriptionForeground)">
-						Chọn model chuyên biệt hoặc kế thừa từ hệ thống
-					</span>
+			<div className="rounded-lg border border-border-panel bg-(--vscode-sideBar-background)/40 p-3.5 flex items-center justify-between gap-3">
+				<span className="text-xs font-semibold text-(--vscode-foreground) shrink-0">Model AI & Nhà cung cấp</span>
+				<div className="flex-1 min-w-0">
+					<ModelPickerCombobox
+						contextWindow={contextWindow}
+						modelId={modelId}
+						onSelectModel={handleSelectModel}
+						providerId={providerId}
+						setModelId={setModelId}
+						setProviderId={setProviderId}
+					/>
 				</div>
-				<ModelPickerCombobox
-					contextWindow={contextWindow}
-					modelId={modelId}
-					onSelectModel={handleSelectModel}
-					providerId={providerId}
-					setModelId={setModelId}
-					setProviderId={setProviderId}
-				/>
 			</div>
 
 			{/* Card 2: Capabilities (Reasoning & Vision) */}
 			<div className="rounded-lg border border-border-panel bg-(--vscode-sideBar-background)/40 p-3.5 flex flex-col gap-3.5">
 				{/* Reasoning Effort */}
-				<div className="flex flex-col gap-1.5">
-					<div className="flex items-center justify-between">
-						<span className="text-xs font-medium text-(--vscode-foreground)">Reasoning Effort (Độ sâu suy luận)</span>
-						<span className="text-[11px] text-(--vscode-descriptionForeground)">
-							Mức độ đào sâu tư duy trước khi đưa ra câu trả lời
-						</span>
-					</div>
+				<div className="flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
+					<span className="text-xs font-medium text-(--vscode-foreground) shrink-0">
+						Reasoning Effort (Độ sâu suy luận)
+					</span>
 					<div
-						className="grid grid-cols-5 gap-1 bg-(--vscode-editor-background)/80 p-1 rounded-lg border border-border-panel"
+						className="grid grid-cols-5 gap-1 bg-(--vscode-editor-background)/80 p-1 rounded-lg border border-border-panel shrink-0"
 						data-testid="reasoning-effort-segmented">
 						{REASONING_LEVELS.map((lvl) => {
 							const isActive = reasoningEffort === lvl.id
 							return (
 								<button
-									className={`py-1.5 rounded-md text-xs font-medium transition-all text-center cursor-pointer ${
+									className={`py-1 px-2 rounded-md text-xs font-medium transition-all text-center cursor-pointer ${
 										isActive
 											? "bg-(--vscode-button-background) text-(--vscode-button-foreground) font-semibold shadow-xs"
 											: "text-(--vscode-descriptionForeground) hover:text-(--vscode-foreground) hover:bg-white/5"
@@ -133,7 +127,7 @@ export const ModelParamsTab = ({
 			{/* Card 3: Context Window & Output Tokens */}
 			<div className="rounded-lg border border-border-panel bg-(--vscode-sideBar-background)/40 p-3.5 flex flex-col gap-3">
 				<span className="text-xs font-semibold text-(--vscode-foreground)">Giới hạn Ngữ cảnh (Tokens)</span>
-				<div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+				<div className="grid grid-cols-2 gap-3.5">
 					{/* Context Window */}
 					<div className="flex flex-col gap-1.5">
 						<span className="text-xs font-medium text-(--vscode-foreground)">Context Window</span>
@@ -199,20 +193,18 @@ export const ModelParamsTab = ({
 				<span className="text-xs font-semibold text-(--vscode-foreground)">Điều khiển Thực thi & Nhiệt độ</span>
 
 				{/* Temperature Slider */}
-				<div className="flex flex-col gap-1.5">
-					<div className="flex items-center justify-between">
+				<div className="flex items-center justify-between gap-3">
+					<div className="flex items-center gap-2 shrink-0">
 						<span className="text-xs font-medium text-(--vscode-foreground)">Temperature</span>
-						<div className="flex items-center gap-2">
-							<span className="font-mono text-xs font-bold text-indigo-400" data-testid="temperature-display-value">
-								{parseFloat(temperature || "0").toFixed(1)}
-							</span>
-							<span className="text-[11px] text-(--vscode-descriptionForeground)">
-								({getTemperatureDescription(parseFloat(temperature || "0"))})
-							</span>
-						</div>
+						<span className="font-mono text-xs font-bold text-indigo-400" data-testid="temperature-display-value">
+							{parseFloat(temperature || "0").toFixed(1)}
+						</span>
+						<span className="text-[11px] text-(--vscode-descriptionForeground)">
+							({getTemperatureDescription(parseFloat(temperature || "0"))})
+						</span>
 					</div>
 					<input
-						className="w-full accent-indigo-500 cursor-pointer h-1.5 bg-input-background rounded-lg"
+						className="flex-1 max-w-xs accent-indigo-500 cursor-pointer h-1.5 bg-input-background rounded-lg"
 						data-testid="temperature-slider"
 						max="2.0"
 						min="0.0"
@@ -221,23 +213,16 @@ export const ModelParamsTab = ({
 						type="range"
 						value={temperature || "0.7"}
 					/>
-					<div className="flex justify-between text-[10px] text-(--vscode-descriptionForeground) px-0.5">
-						<span>0.0 (Chính xác)</span>
-						<span>0.7 (Cân bằng)</span>
-						<span>2.0 (Sáng tạo)</span>
-					</div>
 				</div>
 
 				{/* Max Iterations */}
-				<div className="flex flex-col gap-1.5 pt-2 border-t border-border-panel/60">
-					<div className="flex items-center justify-between">
+				<div className="flex items-center justify-between gap-3 pt-2 border-t border-border-panel/60">
+					<div className="flex items-center gap-2">
 						<span className="text-xs font-medium text-(--vscode-foreground)">Max Iterations</span>
-						<span className="text-[11px] text-(--vscode-descriptionForeground)">
-							Giới hạn số vòng lặp tối đa của agent (1-200)
-						</span>
+						<span className="text-[11px] text-(--vscode-descriptionForeground)">(1–200 vòng lặp)</span>
 					</div>
 					<input
-						className="rounded border border-border-panel bg-input-background px-2.5 py-1.5 text-xs text-(--vscode-foreground)"
+						className="w-24 rounded border border-border-panel bg-input-background px-2.5 py-1.5 text-xs text-(--vscode-foreground) text-right"
 						data-testid="max-iterations-input"
 						max={200}
 						min={1}

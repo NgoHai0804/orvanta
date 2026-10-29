@@ -47,7 +47,7 @@ export function InboxConfirmModal({ item, action, resolving, onClose, onConfirm 
 
 	return (
 		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-			<div className="w-full max-w-md rounded-lg border border-border-panel bg-(--vscode-editor-background) p-4 shadow-xl text-foreground flex flex-col gap-3">
+			<div className="w-full max-w-md max-h-[90%] overflow-y-auto scroller-y rounded-lg border border-border-panel bg-(--vscode-editor-background) p-4 shadow-xl text-foreground flex flex-col gap-3">
 				<div className="flex items-start justify-between gap-2">
 					<div className="flex items-center gap-2">
 						<IconAlertTriangle

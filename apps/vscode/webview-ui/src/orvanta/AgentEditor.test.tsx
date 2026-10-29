@@ -60,7 +60,7 @@ describe("AgentEditor", () => {
 		)
 
 		expect(screen.getByText("Sửa agent: Implementer")).toBeInTheDocument()
-		expect(screen.getByRole("button", { name: "Xóa" })).toBeInTheDocument()
+		expect(screen.getByRole("button", { name: "Sa thải" })).toBeInTheDocument()
 	})
 
 	it("allows editing id when isNew is true", () => {
@@ -126,7 +126,7 @@ describe("AgentEditor", () => {
 			/>,
 		)
 
-		const deleteBtn = screen.getByRole("button", { name: "Xóa" })
+		const deleteBtn = screen.getByRole("button", { name: "Sa thải" })
 		fireEvent.click(deleteBtn)
 
 		expect(screen.getByText("Xóa agent?")).toBeInTheDocument()
@@ -157,24 +157,35 @@ describe("AgentEditor", () => {
 		expect(screen.getByTestId("editor-tab-rules")).toBeInTheDocument()
 		expect(screen.getByTestId("editor-tab-skills")).toBeInTheDocument()
 
+		const editor = screen.getByTestId("agent-editor-panel")
+		const scroll = screen.getByTestId("agent-editor-scroll")
+		expect(editor.className).toMatch(/\boverflow-hidden\b/)
+		expect(editor.className).toMatch(/\bflex-col\b/)
+		expect(editor.className).toMatch(/\bmin-h-0\b/)
+		expect(screen.getByTestId("agent-editor-header").className).toMatch(/\bshrink-0\b/)
+		expect(screen.getByTestId("agent-editor-tabs").className).toMatch(/\bshrink-0\b/)
+		expect(scroll.className).toMatch(/\bflex-1\b/)
+		expect(scroll.className).toMatch(/\bmin-h-0\b/)
+		expect(scroll.className).toMatch(/\boverflow-y-auto\b/)
+
 		// Default is profile
-		expect(screen.getByTestId("tab-panel-profile")).toBeInTheDocument()
+		expect(scroll).toContainElement(screen.getByTestId("tab-panel-profile"))
 
 		// Switch to model
 		fireEvent.click(screen.getByTestId("editor-tab-model"))
-		expect(screen.getByTestId("tab-panel-model")).toBeInTheDocument()
+		expect(scroll).toContainElement(screen.getByTestId("tab-panel-model"))
 
 		// Switch to tools
 		fireEvent.click(screen.getByTestId("editor-tab-tools"))
-		expect(screen.getByTestId("tab-panel-tools")).toBeInTheDocument()
+		expect(scroll).toContainElement(screen.getByTestId("tab-panel-tools"))
 
 		// Switch to rules
 		fireEvent.click(screen.getByTestId("editor-tab-rules"))
-		expect(screen.getByTestId("tab-panel-rules")).toBeInTheDocument()
+		expect(scroll).toContainElement(screen.getByTestId("tab-panel-rules"))
 
 		// Switch to skills
 		fireEvent.click(screen.getByTestId("editor-tab-skills"))
-		expect(screen.getByTestId("tab-panel-skills")).toBeInTheDocument()
+		expect(scroll).toContainElement(screen.getByTestId("tab-panel-skills"))
 	})
 
 	it("renders locked purpose paths under denyWrite in tools tab", () => {
@@ -683,46 +694,104 @@ describe("AgentEditor", () => {
 		expect(screen.getByTestId("editor-save-button")).toBeInTheDocument()
 	})
 
-	it("guards against unsaved changes on close and allows user to discard or continue", async () => {
-		const onClose = vi.fn()
-
+	it("does not render a close button on agent editor per design requirement", () => {
 		render(
 			<AgentEditor
 				existingIds={["implementer"]}
 				initialProfile={teammateProfile}
 				isCoordinator={false}
 				isNew={false}
-				onClose={onClose}
+				onClose={vi.fn()}
 				onSave={vi.fn().mockResolvedValue(true)}
 			/>,
 		)
 
-		// Change instructions to make it dirty
-		fireEvent.click(screen.getByTestId("editor-tab-rules"))
-		const textarea = screen.getByTestId("instructions-textarea")
-		fireEvent.change(textarea, { target: { value: "Modified instructions" } })
+		expect(screen.queryByRole("button", { name: /Đóng/ })).not.toBeInTheDocument()
+	})
 
-		// Click Close button
-		const closeButtons = screen.getAllByRole("button", { name: /Đóng/ })
-		fireEvent.click(closeButtons[0])
-
-		// Discard confirm modal appears
-		expect(screen.getByTestId("discard-confirm-modal")).toBeInTheDocument()
-		expect(screen.getByTestId("discard-confirm-modal")).toHaveTextContent(
-			"Bạn có thay đổi chưa lưu trên Agent này. Bạn có muốn bỏ thay đổi không?",
+	it("renders exactly one Sa thải button at top action bar with border and no duplicate fire buttons or danger zone", () => {
+		render(
+			<AgentEditor
+				existingIds={["coordinator", "implementer"]}
+				initialProfile={teammateProfile}
+				isCoordinator={false}
+				isNew={false}
+				onClose={vi.fn()}
+				onDelete={vi.fn().mockResolvedValue(true)}
+				onSave={vi.fn().mockResolvedValue(true)}
+			/>,
 		)
-		expect(onClose).not.toHaveBeenCalled()
 
-		// User clicks "Tiếp tục chỉnh sửa"
-		fireEvent.click(screen.getByRole("button", { name: "Tiếp tục chỉnh sửa" }))
-		expect(screen.queryByTestId("discard-confirm-modal")).not.toBeInTheDocument()
-		expect(onClose).not.toHaveBeenCalled()
+		// Exactly one Sa thải button
+		const fireButtons = screen.getAllByRole("button", { name: "Sa thải" })
+		expect(fireButtons).toHaveLength(1)
+		expect(fireButtons[0]).toHaveClass("border")
 
-		// Click Close again and confirm discard
-		fireEvent.click(closeButtons[0])
-		expect(screen.getByTestId("discard-confirm-modal")).toBeInTheDocument()
-		fireEvent.click(screen.getByTestId("discard-confirm-button"))
+		// No Danger Zone at the bottom of the profile tab
+		expect(screen.queryByText("Xóa bỏ agent")).not.toBeInTheDocument()
+		expect(screen.queryByText("Sa thải agent")).not.toBeInTheDocument()
+	})
 
-		expect(onClose).toHaveBeenCalled()
+	it("renders separated short description and detailed description with .md loading capability", () => {
+		render(
+			<AgentEditor
+				defaultTab="profile"
+				existingIds={["coordinator", "implementer"]}
+				initialProfile={teammateProfile}
+				isCoordinator={false}
+				isNew={false}
+				onClose={vi.fn()}
+				onSave={vi.fn().mockResolvedValue(true)}
+			/>,
+		)
+
+		// Short description label
+		expect(screen.getByText("Mô tả")).toBeInTheDocument()
+
+		// Detailed description section
+		expect(screen.getByText("Mô tả chi tiết (System Prompt / SOP)")).toBeInTheDocument()
+		expect(screen.getByTestId("load-md-file-button")).toBeInTheDocument()
+		expect(screen.getByTestId("profile-instructions-textarea")).toHaveValue("You implement features.")
+
+		// Switch to Preview
+		fireEvent.click(screen.getByRole("button", { name: "Xem trước" }))
+		expect(screen.getByTestId("profile-instructions-preview")).toBeInTheDocument()
+
+		// Switch back to Edit
+		fireEvent.click(screen.getByRole("button", { name: "Soạn thảo" }))
+		expect(screen.getByTestId("profile-instructions-textarea")).toBeInTheDocument()
+	})
+
+	it("renders Model tab with one-row layouts, side-by-side token limits, and no inherit text", () => {
+		render(
+			<AgentEditor
+				defaultTab="model"
+				existingIds={["coordinator", "implementer"]}
+				initialProfile={teammateProfile}
+				isCoordinator={false}
+				isNew={false}
+				onClose={vi.fn()}
+				onSave={vi.fn().mockResolvedValue(true)}
+			/>,
+		)
+
+		// No inherit subtitle text
+		expect(screen.queryByText("Chọn model chuyên biệt hoặc kế thừa từ hệ thống")).not.toBeInTheDocument()
+		expect(screen.queryByText("Mức độ đào sâu tư duy trước khi đưa ra câu trả lời")).not.toBeInTheDocument()
+
+		// Combobox trigger exists and doesn't say "Kế thừa từ hệ thống"
+		const trigger = screen.getByTestId("model-combobox-trigger")
+		expect(trigger.textContent).not.toContain("Kế thừa từ hệ thống")
+
+		// Context window and Max output tokens inputs both exist in 2-column layout
+		expect(screen.getByTestId("context-window-input")).toBeInTheDocument()
+		expect(screen.getByTestId("max-output-tokens-input")).toBeInTheDocument()
+
+		// Temperature slider and value
+		expect(screen.getByTestId("temperature-slider")).toBeInTheDocument()
+		expect(screen.getByTestId("temperature-display-value")).toBeInTheDocument()
+
+		// Max iterations
+		expect(screen.getByTestId("max-iterations-input")).toBeInTheDocument()
 	})
 })

@@ -129,7 +129,7 @@ export const ToolsPermissionsTab = ({
 	return (
 		<div className="flex flex-col gap-4 text-(--vscode-foreground)" data-testid="tab-panel-tools">
 			{/* Tools Allow & Deny Grid */}
-			<div className="grid grid-cols-2 gap-3.5">
+			<div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
 				{/* Tools Allow */}
 				<div className="flex flex-col gap-2.5 rounded-lg border border-border-panel bg-(--vscode-sideBar-background)/40 p-3">
 					<div className="flex items-center justify-between">
@@ -300,7 +300,7 @@ export const ToolsPermissionsTab = ({
 			</div>
 
 			{/* Scope Paths Grid */}
-			<div className="grid grid-cols-2 gap-3.5">
+			<div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
 				{/* Scope Paths: Allow */}
 				<div className="flex flex-col gap-2.5 rounded-lg border border-border-panel bg-(--vscode-sideBar-background)/40 p-3">
 					<div className="flex items-center justify-between">

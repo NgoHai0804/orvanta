@@ -132,6 +132,9 @@ export const TeamSidebar: React.FC<TeamSidebarProps> = ({
 			if (saved !== null) {
 				return saved === "true"
 			}
+			if (window.innerWidth > 0 && window.innerWidth < 420) {
+				return true
+			}
 		}
 		return false
 	})

@@ -209,7 +209,7 @@ const AppContent = () => {
 
 	if (!didHydrateState) {
 		return (
-			<div className="flex h-full min-h-0 w-full flex-col">
+			<div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
 				<OrvantaShell activeTab={orvantaTab} inboxFocusId={inboxFocusId} onTabChange={setOrvantaTab} />
 			</div>
 		)
@@ -218,7 +218,7 @@ const AppContent = () => {
 	const showOnboarding = showWelcome && orvantaTab === "console"
 
 	return (
-		<div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
+		<div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
 			{(accountSwitch || accountSwitchError) && !showAccount && (
 				<div className="z-50 bg-editor-background p-2 text-xs" role="status">
 					{accountSwitch

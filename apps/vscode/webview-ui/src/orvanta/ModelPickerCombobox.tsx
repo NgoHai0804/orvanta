@@ -87,7 +87,7 @@ export const ModelPickerCombobox = ({
 					<IconBrain className="text-indigo-400 shrink-0" size={16} stroke={1.5} />
 					<div className="flex flex-col min-w-0">
 						<span className="font-medium text-xs text-(--vscode-foreground) truncate">
-							{selectedModel ? selectedModel.name : modelId || "Kế thừa từ hệ thống (mặc định)"}
+							{selectedModel ? selectedModel.name : modelId || "Mặc định (theo file md)"}
 						</span>
 						{modelId && (
 							<span className="font-mono text-[11px] text-(--vscode-descriptionForeground) truncate">
@@ -177,9 +177,9 @@ export const ModelPickerCombobox = ({
 							<div className="flex items-center gap-2">
 								<IconSparkles className="text-amber-400 shrink-0" size={14} stroke={1.5} />
 								<div className="flex flex-col">
-									<span className="font-semibold text-xs">Kế thừa từ hệ thống (Mặc định)</span>
+									<span className="font-semibold text-xs">Mặc định (theo file md)</span>
 									<span className="text-[11px] text-(--vscode-descriptionForeground)">
-										Sử dụng model mặc định của workspace/extension
+										Sử dụng cấu hình model mặc định của agent
 									</span>
 								</div>
 							</div>

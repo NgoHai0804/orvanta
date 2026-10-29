@@ -175,9 +175,9 @@ export default function InboxView({ pending, deferred, history, loading, error, 
 
 			{error && <div className="border-b border-rose-500/20 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-400">{error}</div>}
 
-			{/* Master-Detail 2-Column Split Layout */}
-			<div className="flex min-h-0 flex-1 overflow-hidden">
-				<div className="flex w-2/5 min-w-[220px] max-w-[420px] flex-col border-r border-border-panel min-h-0 h-full overflow-hidden bg-(--vscode-sideBar-background)/20">
+			{/* Master-Detail Split Layout */}
+			<div className="flex min-h-0 flex-1 overflow-x-auto overflow-y-hidden scroller-x">
+				<div className="flex w-2/5 min-w-[140px] max-w-[360px] flex-col border-r border-border-panel min-h-0 h-full overflow-hidden bg-(--vscode-sideBar-background)/20 shrink-0">
 					<InboxList
 						activeSubTab={activeSubTab}
 						items={filteredList}
@@ -185,7 +185,7 @@ export default function InboxView({ pending, deferred, history, loading, error, 
 						selectedId={effectiveSelectedId}
 					/>
 				</div>
-				<div className="flex flex-1 min-w-0 min-h-0 flex-col overflow-hidden bg-(--vscode-editor-background)">
+				<div className="flex flex-1 min-w-[160px] min-h-0 flex-col overflow-hidden bg-(--vscode-editor-background)">
 					<InboxDetail activeSubTab={activeSubTab} item={selectedItem} onAction={handleAction} resolving={resolving} />
 				</div>
 			</div>

@@ -44,18 +44,16 @@ export function ConsoleView({
 			/>
 
 			{/* Right Content Area: Simple, standard flex column filling full height */}
-			<div className="flex flex-1 min-w-0 h-full flex-col overflow-hidden">
+			<div className="flex flex-1 min-w-0 min-h-0 flex-col overflow-hidden">
 				{/* 1. When #team-feed is active */}
 				{isTeamFeed && (
-					<div className="flex flex-1 min-h-0 h-full w-full overflow-hidden flex-col">
+					<div className="flex flex-1 min-h-0 w-full overflow-hidden flex-col">
 						<TeamFeedView companyName={companyName} onSelectAgent={onSelectAgent} />
 					</div>
 				)}
 
 				{/* 2. When an @agent channel is active: show ChatView with Agent Channel Header */}
-				<div
-					className="flex-col flex-1 min-h-0 h-full w-full overflow-hidden"
-					style={{ display: isTeamFeed ? "none" : "flex" }}>
+				<div className="flex-col flex-1 min-h-0 w-full overflow-hidden" style={{ display: isTeamFeed ? "none" : "flex" }}>
 					{focusedAgent && (
 						<div
 							className="shrink-0 h-[36px] min-h-[36px] border-b border-border-panel bg-(--vscode-sideBar-background) px-3 flex items-center justify-between select-none z-10 gap-2 overflow-hidden text-xs"
@@ -104,7 +102,7 @@ export function ConsoleView({
 							</div>
 						</div>
 					)}
-					<div className="flex flex-col flex-1 min-h-0 h-full w-full overflow-hidden relative">{children}</div>
+					<div className="flex flex-col flex-1 min-h-0 w-full overflow-hidden relative">{children}</div>
 				</div>
 			</div>
 		</div>
