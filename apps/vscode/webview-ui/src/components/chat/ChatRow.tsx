@@ -171,6 +171,7 @@ interface TeamRunTaskPayload {
 	taskTitle?: string
 	subject?: string
 	content?: string
+	reportText?: string
 }
 
 const cleanAgentName = (id?: string, fallback = "Coordinator"): string => {

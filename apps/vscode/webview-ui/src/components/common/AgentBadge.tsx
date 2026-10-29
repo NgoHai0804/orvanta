@@ -129,7 +129,7 @@ export const AgentBadge: React.FC<AgentBadgeProps> = ({
 	role,
 	agentRole,
 	className,
-	showRole = false,
+	showRole = true,
 	size = "sm",
 }) => {
 	const effectiveRole = agentRole || role

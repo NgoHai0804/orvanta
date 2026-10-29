@@ -233,10 +233,7 @@ const FileBlock = memo<{
 		prev.file.action === next.file.action &&
 		prev.file.additions === next.file.additions &&
 		prev.file.deletions === next.file.deletions &&
-		prev.file.lines === next.file.lines &&
-		prev.agentId === next.agentId &&
-		prev.agentDisplayName === next.agentDisplayName &&
-		prev.agentRole === next.agentRole,
+		prev.file.lines === next.file.lines,
 )
 
 const DiffStats = memo<{ additions: number; deletions: number }>(({ additions, deletions }) => (
