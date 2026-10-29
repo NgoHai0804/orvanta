@@ -4438,6 +4438,80 @@ describe("tool display paths are relativized to the cwd", () => {
 	})
 })
 
+describe("coordination tool cards survive nested teammate tools", () => {
+	it("keeps team_run_task input after a nested read_file overwrites the streaming slot", () => {
+		const state = new MessageTranslatorState()
+		const startAssign: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "team_run_task",
+					toolCallId: "assign-1",
+					input: { agentId: "coder", task: "Write login", taskId: "t-1" },
+				} as AgentEvent,
+			},
+		}
+		const startNested: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "read_files",
+					toolCallId: "read-1",
+					input: { path: "/src/auth.ts" },
+					agentId: "coder",
+				} as AgentEvent,
+			},
+		}
+		const endNested: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_end",
+					contentType: "tool",
+					toolName: "read_files",
+					toolCallId: "read-1",
+					output: "file contents",
+					agentId: "coder",
+				} as AgentEvent,
+			},
+		}
+		const endAssign: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_end",
+					contentType: "tool",
+					toolName: "team_run_task",
+					toolCallId: "assign-1",
+					output: { status: "completed", text: "done" },
+				} as AgentEvent,
+			},
+		}
+
+		const startResult = translateSessionEvent(startAssign, state)
+		expect(startResult.messages[0]?.text).toContain("team_run_task")
+		expect(startResult.messages[0]?.text).toContain("Write login")
+
+		translateSessionEvent(startNested, state)
+		translateSessionEvent(endNested, state)
+		const endResult = translateSessionEvent(endAssign, state)
+		const sayTool = JSON.parse(endResult.messages[0]?.text || "{}") as { tool?: string; content?: string }
+		const payload = JSON.parse(sayTool.content || "{}") as { agentId?: string; task?: string }
+		expect(sayTool.tool).toBe("team_run_task")
+		expect(payload.agentId).toBe("coder")
+		expect(payload.task).toBe("Write login")
+		expect(endResult.messages[0]?.partial).toBe(false)
+	})
+})
+
 describe("persisted display-only errors", () => {
 	it("restores a failed task with error recovery UI, not completion UI", () => {
 		const messages: MessageWithMetadata[] = [

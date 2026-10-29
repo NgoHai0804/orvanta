@@ -28,6 +28,7 @@ describe("agent-proto-conversions", () => {
 			},
 			rules: ["code-simplification", "test-driven-development"],
 			skills: ["code-review-and-quality"],
+			mcpServers: ["github", "postgres"],
 			instructions: "Write clean code.",
 			filePath: "org/agents/implementer/profile.md",
 		}
@@ -70,6 +71,7 @@ describe("agent-proto-conversions", () => {
 			scopePaths: { allow: ["**/*"], denyWrite: [] },
 			rules: [],
 			skills: [],
+			mcpServers: [],
 			instructions: "Coordinate tasks.",
 			filePath: "org/agents/coordinator/profile.md",
 		}

@@ -8,6 +8,18 @@ export type AgentProfileLookup =
 	| Record<string, AgentProfile>
 	| ((agentId: string) => AgentProfile | undefined);
 
+/** Appended to every teammate rolePrompt so the report is the end of the run. */
+export const TEAMMATE_CLOSEOUT_PROMPT = `## Kết thúc nhiệm vụ
+Khi xong việc, gửi báo cáo đầy đủ cho Coordinator bằng \`orvanta_submit_handoff\` hoặc \`team_send_message\` (toàn bộ chi tiết, artifact, evidence nằm trong nội dung báo cáo). Sau khi gửi báo cáo, dừng ngay — không viết thêm tin chat, không gọi \`submit_and_exit\`, không tóm tắt lại trên kênh.`;
+
+export function appendTeammateCloseout(prompt: string): string {
+	const trimmed = prompt.trim();
+	if (trimmed.includes("## Kết thúc nhiệm vụ")) {
+		return trimmed;
+	}
+	return trimmed ? `${trimmed}\n\n${TEAMMATE_CLOSEOUT_PROMPT}` : TEAMMATE_CLOSEOUT_PROMPT;
+}
+
 export interface BuildTeammateSpecsOptions {
 	fallbackModelId?: string;
 	memories?:
@@ -69,6 +81,8 @@ export function buildTeammateSpecs(
 				rolePrompt = injectAgentMemory(rolePrompt, memory);
 			}
 		}
+
+		rolePrompt = appendTeammateCloseout(rolePrompt);
 
 		const rawModelId = profile?.modelId ?? agent.modelId ?? options.fallbackModelId;
 		const modelId =

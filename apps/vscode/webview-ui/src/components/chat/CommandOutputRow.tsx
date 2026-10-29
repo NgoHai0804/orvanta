@@ -1,12 +1,13 @@
 import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
-import { memo, useEffect, useRef } from "react"
-import { AgentBadge } from "@/components/common/AgentBadge"
+import { ChevronDown, ChevronRight } from "lucide-react"
+import { memo, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
 import CodeBlock from "../common/CodeBlock"
+import { CHAT_HEADER_ROW, CHAT_HEADER_TITLE, CHAT_ROW_LUCIDE } from "./chatRowStyles"
 import ExpandHandle from "./ExpandHandle"
 
 export const CommandOutputContent = memo(
@@ -177,20 +178,18 @@ export const CommandOutputRow = memo(
 		const showCancelButton =
 			(isCommandExecuting || isCommandPending) && typeof onCancelCommand === "function" && isBackgroundExec
 
-		const hasAgent = Boolean(message?.agentId || message?.agent_id || message?.agentRole || message?.agent_role)
+		const [isCommandBodyExpanded, setIsCommandBodyExpanded] = useState(false)
+
+		const actorId = message?.agentId ?? message?.agent_id
+		const actor =
+			(actorId
+				? actorId.charAt(0).toUpperCase() + actorId.slice(1)
+				: (message?.agentDisplayName ?? message?.agent_display_name)) || "Cline"
 
 		const commandHeader = (
-			<div className="flex items-center gap-2.5 mb-3 flex-wrap">
+			<div className={`${CHAT_HEADER_ROW} flex-wrap`}>
 				{icon}
-				{hasAgent && (
-					<AgentBadge
-						agentId={message.agentId ?? message.agent_id}
-						displayName={message.agentDisplayName ?? message.agent_display_name}
-						role={message.agentRole ?? message.agent_role}
-						size="sm"
-					/>
-				)}
-				{title}
+				{title ?? <span className={CHAT_HEADER_TITLE}>{actor} wants to execute this command:</span>}
 			</div>
 		)
 
@@ -203,20 +202,33 @@ export const CommandOutputRow = memo(
 						transition: "all 0.3s ease-in-out",
 					}}>
 					{command && (
-						<div className="bg-code flex items-center justify-between px-2 py-2.5 border-b border-editor-group-border rounded-sm rounded-b-none overflow-hidden">
-							<div className="flex items-center gap-2 flex-1 m-w-0">
+						<div
+							className="bg-code flex items-center justify-between px-2.5 py-1.5 border-b border-editor-group-border rounded-sm cursor-pointer select-none hover:bg-slate-800/40 transition-colors"
+							onClick={() => setIsCommandBodyExpanded((prev) => !prev)}>
+							<div className="flex items-center gap-2 flex-1 min-w-0 mr-2">
 								<div
-									className={cn("bg-description rounded-full w-2 h-2 shrink-0", {
-										"bg-success animate-pulse": isCommandExecuting,
-										"bg-editor-warning-foreground": isCommandPending,
-									})}
-								/>
-								<span
-									className={cn("text-description font-medium text-base shrink-0", {
-										"text-success": isCommandExecuting,
-										"text-editor-warning-foreground": isCommandPending,
-									})}>
-									{getCommandStatusText(isCommandExecuting, isCommandPending, isCommandCompleted)}
+									className={cn(
+										"inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium border shrink-0",
+										{
+											"bg-emerald-500/10 text-emerald-400 border-emerald-500/30": isCommandExecuting,
+											"bg-amber-500/10 text-amber-400 border-amber-500/30": isCommandPending,
+											"bg-slate-800/80 text-slate-300 border-slate-700/60": isCommandCompleted,
+											"bg-slate-800 text-slate-400 border-slate-700":
+												!isCommandExecuting && !isCommandPending && !isCommandCompleted,
+										},
+									)}>
+									<span
+										className={cn("rounded-full w-1.5 h-1.5 shrink-0", {
+											"bg-emerald-400 animate-pulse": isCommandExecuting,
+											"bg-amber-400 animate-ping": isCommandPending,
+											"bg-emerald-400": isCommandCompleted,
+											"bg-slate-400": !isCommandExecuting && !isCommandPending && !isCommandCompleted,
+										})}
+									/>
+									<span>{getCommandStatusText(isCommandExecuting, isCommandPending, isCommandCompleted)}</span>
+								</div>
+								<span className="font-mono text-xs text-foreground/80 truncate opacity-90 max-w-sm">
+									{command}
 								</span>
 							</div>
 							<div className="flex items-center gap-2 shrink-0">
@@ -227,7 +239,6 @@ export const CommandOutputRow = memo(
 											if (isBackgroundExec) {
 												onCancelCommand?.()
 											} else {
-												// For regular terminal mode, show a message
 												alert(
 													"This command is running in the VSCode terminal. You can manually stop it using Ctrl+C in the terminal, or switch to Background Execution mode in settings for cancellable commands.",
 												)
@@ -238,22 +249,33 @@ export const CommandOutputRow = memo(
 										{isBackgroundExec ? "cancel" : "stop"}
 									</Button>
 								)}
+								<div className="text-description hover:text-foreground p-0.5">
+									{isCommandBodyExpanded ? (
+										<ChevronDown {...CHAT_ROW_LUCIDE} />
+									) : (
+										<ChevronRight {...CHAT_ROW_LUCIDE} />
+									)}
+								</div>
 							</div>
 						</div>
 					)}
 
-					<div className="bg-code opacity-60 text-sm">
-						<CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />
-					</div>
+					{isCommandBodyExpanded && (
+						<>
+							<div className="bg-code opacity-75 text-sm max-h-48 overflow-auto">
+								<CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />
+							</div>
 
-					{output.length > 0 && (
-						<CommandOutputContent
-							isContainerExpanded={true}
-							isOutputFullyExpanded={isOutputFullyExpanded}
-							onOutputChange={onOutputChange}
-							onToggle={() => setIsOutputFullyExpanded(!isOutputFullyExpanded)}
-							output={output}
-						/>
+							{output.length > 0 && (
+								<CommandOutputContent
+									isContainerExpanded={true}
+									isOutputFullyExpanded={isOutputFullyExpanded}
+									onOutputChange={onOutputChange}
+									onToggle={() => setIsOutputFullyExpanded(!isOutputFullyExpanded)}
+									output={output}
+								/>
+							)}
+						</>
 					)}
 				</div>
 				{requestsApproval && (
@@ -270,10 +292,10 @@ export const CommandOutputRow = memo(
 CommandOutputRow.displayName = "CommandOutputRow"
 
 const CommandStatusMap = {
-	executing: "Running",
-	pending: "Pending",
-	completed: "Completed",
-	skipped: "Skipped",
+	executing: "Đang chạy",
+	pending: "Chờ duyệt",
+	completed: "Hoàn tất",
+	skipped: "Bỏ qua",
 }
 
 function getCommandStatusText(isExecuting: boolean, isPending: boolean, isCompleted: boolean): string {

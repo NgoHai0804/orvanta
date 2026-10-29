@@ -1,9 +1,9 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { FilePlus, FileText, FileX, SquareArrowOutUpRightIcon } from "lucide-react"
 import { memo, useEffect, useMemo, useRef, useState } from "react"
-import { AgentBadge } from "@/components/common/AgentBadge"
 import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
+import { CHAT_HEADER_TITLE, CHAT_ROW_LUCIDE } from "./chatRowStyles"
 
 interface Patch {
 	action: string
@@ -41,58 +41,54 @@ interface DiffEditRowProps {
 	 * workspace.
 	 */
 	canOpenFile?: boolean
-	agentId?: string
-	agentDisplayName?: string
-	agentRole?: string
 }
 
-export const DiffEditRow = memo<DiffEditRowProps>(
-	({ patch, path, isLoading, startLineNumbers, canOpenFile = true, agentId, agentDisplayName, agentRole }) => {
-		const { parsedFiles, isStreaming } = useMemo(() => {
-			const parsed = parsePatch(patch, path)
-			return {
-				parsedFiles: parsed.parsedFiles,
-				isStreaming: isLoading || parsed.isStreaming,
-			}
-		}, [patch, path, isLoading])
-
-		if (!path) {
-			return null
+export const DiffEditRow = memo<DiffEditRowProps>(({ patch, path, isLoading, startLineNumbers, canOpenFile = true }) => {
+	const { parsedFiles, isStreaming } = useMemo(() => {
+		const parsed = parsePatch(patch, path)
+		return {
+			parsedFiles: parsed.parsedFiles,
+			isStreaming: isLoading || parsed.isStreaming,
 		}
+	}, [patch, path, isLoading])
 
-		return (
-			<div className="space-y-4 rounded-xs">
-				{parsedFiles.map((file, index) => (
-					<FileBlock
-						agentDisplayName={agentDisplayName}
-						agentId={agentId}
-						agentRole={agentRole}
-						canOpenFile={canOpenFile}
-						file={file}
-						isStreaming={isStreaming}
-						key={`${file.path}-${index}`}
-						startLineNumber={startLineNumbers?.[index]}
-					/>
-				))}
-			</div>
-		)
-	},
-)
+	if (!path) {
+		return null
+	}
+
+	return (
+		<div className="space-y-3 rounded-xs max-h-[420px] overflow-y-auto pr-1">
+			{parsedFiles.map((file, index) => (
+				<FileBlock
+					canOpenFile={canOpenFile}
+					file={file}
+					isStreaming={isStreaming}
+					key={`${file.path}-${index}`}
+					startLineNumber={startLineNumbers?.[index]}
+				/>
+			))}
+		</div>
+	)
+})
 
 const FileBlock = memo<{
 	file: Patch
 	isStreaming: boolean
 	startLineNumber?: number
 	canOpenFile: boolean
-	agentId?: string
-	agentDisplayName?: string
-	agentRole?: string
 }>(
-	({ file, isStreaming, startLineNumber, canOpenFile, agentId, agentDisplayName, agentRole }) => {
-		const [isExpanded, setIsExpanded] = useState(true)
+	({ file, isStreaming, startLineNumber, canOpenFile }) => {
+		const [isExpanded, setIsExpanded] = useState(false)
 		const scrollContainerRef = useRef<HTMLDivElement>(null)
 		const shouldFollowRef = useRef(true)
 		const isProgrammaticScrollRef = useRef(false)
+
+		// Auto-expand when streaming
+		useEffect(() => {
+			if (isStreaming) {
+				setIsExpanded(true)
+			}
+		}, [isStreaming])
 
 		// Auto-scroll to bottom during streaming
 		useEffect(() => {
@@ -117,16 +113,6 @@ const FileBlock = memo<{
 
 			const { scrollTop, scrollHeight, clientHeight } = container
 			shouldFollowRef.current = Math.abs(scrollHeight - clientHeight - scrollTop) < 10
-		}
-
-		const handleOpenFile = (event: React.MouseEvent) => {
-			event.stopPropagation()
-
-			if (file.path) {
-				FileServiceClient.openFileRelativePath(StringRequest.create({ value: file.path })).catch((err) =>
-					console.error("Failed to open file:", err),
-				)
-			}
 		}
 
 		const actionStyle = ACTION_STYLES[file.action as keyof typeof ACTION_STYLES] ?? ACTION_STYLES.default
@@ -160,8 +146,31 @@ const FileBlock = memo<{
 			})
 		}, [file.lines, startLineNumber])
 
-		const hasAgent = Boolean(agentId || agentRole)
-		const totalChangedLines = (file.additions ?? 0) + (file.deletions ?? 0)
+		const fileName = useMemo(() => {
+			const parts = file.path.split(/[/\\]/)
+			return parts[parts.length - 1] || file.path
+		}, [file.path])
+
+		const firstChangeLine = useMemo(() => {
+			if (startLineNumber !== undefined) return startLineNumber
+			if (!lineNumbers) return undefined
+			const firstIdx = file.lines.findIndex((l) => l.startsWith("+") || l.startsWith("-"))
+			if (firstIdx !== -1 && lineNumbers[firstIdx] !== undefined) {
+				return lineNumbers[firstIdx]
+			}
+			return undefined
+		}, [startLineNumber, lineNumbers, file.lines])
+
+		const handleOpenFile = (event: React.MouseEvent) => {
+			event.stopPropagation()
+
+			if (file.path) {
+				const targetPath = firstChangeLine ? `${file.path}:${firstChangeLine}` : file.path
+				FileServiceClient.openFileRelativePath(StringRequest.create({ value: targetPath })).catch((err) =>
+					console.error("Failed to open file:", err),
+				)
+			}
+		}
 
 		return (
 			<div className="bg-code rounded-xs border border-editor-group-border overflow-hidden">
@@ -171,24 +180,17 @@ const FileBlock = memo<{
 					type="button">
 					<div className="flex items-center gap-3 flex-1 w-full overflow-hidden">
 						<div className={cn("flex items-center gap-2 w-full", actionStyle.borderClass)}>
-							<ActionIcon className={cn("w-5 h-5", actionStyle.iconClass)} />
-							{hasAgent && (
-								<AgentBadge agentId={agentId} displayName={agentDisplayName} role={agentRole} size="sm" />
-							)}
+							<ActionIcon {...CHAT_ROW_LUCIDE} className={cn("shrink-0", actionStyle.iconClass)} />
 							{canOpenFile ? (
 								<span
-									className="font-medium truncate hover:underline hover:text-link"
+									className={cn(CHAT_HEADER_TITLE, "truncate hover:underline hover:text-link")}
 									onClick={handleOpenFile}
-									title="Open file in editor">
-									{hasAgent
-										? `đang đề xuất sửa ${totalChangedLines > 0 ? `${totalChangedLines} dòng trong ` : ""}${file.path}`
-										: file.path}
+									title={file.path}>
+									{fileName}
 								</span>
 							) : (
-								<span className="font-medium truncate">
-									{hasAgent
-										? `đang đề xuất sửa ${totalChangedLines > 0 ? `${totalChangedLines} dòng trong ` : ""}${file.path}`
-										: file.path}
+								<span className={cn(CHAT_HEADER_TITLE, "truncate")} title={file.path}>
+									{fileName}
 								</span>
 							)}
 						</div>
@@ -199,8 +201,11 @@ const FileBlock = memo<{
 							<span
 								className="p-1 hover:bg-description/20 rounded-xs transition-colors"
 								onClick={handleOpenFile}
-								title="Open file in editor">
-								<SquareArrowOutUpRightIcon className="size-2 text-description hover:text-foreground" />
+								title={`Open ${file.path} in editor`}>
+								<SquareArrowOutUpRightIcon
+									{...CHAT_ROW_LUCIDE}
+									className="shrink-0 text-description hover:text-foreground"
+								/>
 							</span>
 						)}
 					</div>

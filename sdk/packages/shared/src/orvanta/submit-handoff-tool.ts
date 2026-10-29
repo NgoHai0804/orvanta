@@ -30,8 +30,9 @@ export function createOrvantaSubmitHandoffTool(options: {
 	>({
 		name: "orvanta_submit_handoff",
 		description:
-			"Nộp bài bàn giao kết quả (handoff) cho task. Host sẽ ghi vào .orvanta/shared/handoffs/<taskId>/<requesterId>.md",
+			"Nộp bài bàn giao kết quả (handoff) cho task. Host ghi vào .orvanta/shared/handoffs/<taskId>/<requesterId>.md. Đặt toàn bộ báo cáo vào content. Gọi thành công sẽ kết thúc lượt — không viết thêm tin chat và không gọi submit_and_exit.",
 		inputSchema: OrvantaSubmitHandoffInputSchema,
+		lifecycle: { completesRun: true },
 		execute: async (input) => {
 			try {
 				const requesterId = options.requesterId || "agent";

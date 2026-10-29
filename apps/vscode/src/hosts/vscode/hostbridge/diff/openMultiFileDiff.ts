@@ -11,15 +11,21 @@ export async function openMultiFileDiff(request: OpenMultiFileDiffRequest): Prom
 		request.title,
 		request.diffs.map((diff) => {
 			const file = vscode.Uri.file(diff.filePath || "")
-			const relativePath = path.relative(cwd, diff.filePath || "")
+			const rawRelative = path.relative(cwd, diff.filePath || "")
+			// Normalize Windows backslashes so URI path is always well-formed
+			const normalizedRelative = rawRelative.split(path.sep).join("/")
 			const left = diff.leftContent ?? ""
 			const right = diff.rightContent ?? ""
 			return [
 				file,
-				vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${relativePath}`).with({
+				vscode.Uri.from({
+					scheme: DIFF_VIEW_URI_SCHEME,
+					path: `/${normalizedRelative}`,
 					query: Buffer.from(left).toString("base64"),
 				}),
-				vscode.Uri.parse(`${DIFF_VIEW_URI_SCHEME}:${relativePath}`).with({
+				vscode.Uri.from({
+					scheme: DIFF_VIEW_URI_SCHEME,
+					path: `/${normalizedRelative}`,
 					query: Buffer.from(right).toString("base64"),
 				}),
 			]

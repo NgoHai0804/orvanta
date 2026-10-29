@@ -80,7 +80,7 @@ describe("CommandOutputContent", () => {
 })
 
 describe("CommandOutputRow", () => {
-	it("renders AgentBadge when agent metadata is present on message", () => {
+	it("renders the command title without an agent badge", () => {
 		const message: ClineMessage = {
 			ts: Date.now(),
 			type: "say",
@@ -100,9 +100,7 @@ describe("CommandOutputRow", () => {
 			/>,
 		)
 
-		const badge = screen.getByTestId("agent-badge")
-		expect(badge).toBeInTheDocument()
-		expect(badge.textContent).toContain("Dave")
+		expect(screen.queryByTestId("agent-badge")).not.toBeInTheDocument()
 		expect(screen.getByText("Terminal Command")).toBeInTheDocument()
 	})
 

@@ -28,6 +28,8 @@ export function toOrvantaAgentProfile(profile: AgentProfile): OrvantaAgentProfil
 		},
 		rules: profile.rules ?? [],
 		skills: profile.skills ?? [],
+		autoApprovalJson: profile.autoApproval ? JSON.stringify(profile.autoApproval) : undefined,
+		mcpServers: profile.mcpServers ?? [],
 	})
 }
 
@@ -58,5 +60,15 @@ export function fromOrvantaAgentProfile(proto: OrvantaAgentProfile): AgentProfil
 		},
 		rules: proto.rules ?? [],
 		skills: proto.skills ?? [],
+		autoApproval: proto.autoApprovalJson
+			? (() => {
+					try {
+						return JSON.parse(proto.autoApprovalJson)
+					} catch {
+						return undefined
+					}
+				})()
+			: undefined,
+		mcpServers: proto.mcpServers ?? [],
 	}
 }

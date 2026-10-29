@@ -292,7 +292,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					key={message.ts}
 					lastModifiedMessage={props.lastModifiedMessage}
 					message={message}
-					onSetQuote={props.onSetQuote}
+					onSetQuote={onSetQuote}
 					onToggleExpand={props.onToggleExpand}
 					setMaxActionHeight={setMaxActionHeight}
 				/>
@@ -438,7 +438,11 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 							cursor: "pointer",
 							padding: `9px 8px ${consoleLogsExpanded ? 0 : 8}px 8px`,
 						}}>
-						{consoleLogsExpanded ? <ChevronDownIcon size={16} /> : <ChevronRightIcon size={16} />}
+						{consoleLogsExpanded ? (
+							<ChevronDownIcon size={12} strokeWidth={1.75} />
+						) : (
+							<ChevronRightIcon size={12} strokeWidth={1.75} />
+						)}
 						<span style={consoleLogsTextStyle}>Console Logs</span>
 					</div>
 					{consoleLogsExpanded && (

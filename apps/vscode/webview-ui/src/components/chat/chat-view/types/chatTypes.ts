@@ -115,6 +115,7 @@ export interface ScrollBehavior {
 	pendingScrollToMessage: number | null
 	setPendingScrollToMessage: React.Dispatch<React.SetStateAction<number | null>>
 	scrolledPastUserMessage: ClineMessage | null
+	stickyPushOffset: number
 	handleRangeChanged: (range: ListRange) => void
 }
 
@@ -128,6 +129,6 @@ export interface WelcomeSectionProps {
 	showHistoryView: () => void
 	telemetrySetting: string
 	version: string
-	taskHistory: any[]
+	taskHistory: unknown[]
 	shouldShowQuickWins: boolean
 }

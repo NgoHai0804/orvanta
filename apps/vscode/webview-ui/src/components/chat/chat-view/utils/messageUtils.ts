@@ -10,6 +10,7 @@ import type {
 	ClineSayTool,
 } from "@shared/ExtensionMessage"
 import { FileIcon, FolderOpenDotIcon, FolderOpenIcon, SearchIcon, ShapesIcon, WrenchIcon } from "lucide-react"
+import { isNonVisualToolMessage } from "./filterAgentChannelMessages"
 
 /**
  * Low-stakes tool types that should be grouped together
@@ -136,12 +137,22 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
 				}
 				break
 		}
+		if (isNonVisualToolMessage(message)) {
+			return false
+		}
+
 		switch (message.say) {
 			case "api_req_finished": // combineApiRequests removes this from modifiedMessages anyways
 			case "deleted_api_reqs": // aggregated api_req metrics from deleted messages
 			case "subagent_usage": // aggregated subagent usage metrics for task-level accounting
 			case "checkpoint_created": // checkpoint restore is exposed from user-message edit controls
+			case "hook_output_stream":
 				return false
+			case "completion_result":
+				if ((message.text ?? "") === "") {
+					return false
+				}
+				break
 			// NOTE: reasoning passes through to be included in tool groups
 			case "api_req_started": {
 				// api_req_started rows only render visible content for errors/cancels.

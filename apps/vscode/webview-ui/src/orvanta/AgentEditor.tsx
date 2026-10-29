@@ -1,4 +1,5 @@
 import { MANDATORY_DENY_WRITE_PATHS } from "@cline/shared/orvanta"
+import { type AgentAutoApproval } from "@shared/AutoApprovalSettings"
 import { OrvantaAgentProfile, type OrvantaRosterAgent } from "@shared/proto/cline/orvanta"
 import {
 	type Icon,
@@ -15,6 +16,7 @@ import {
 	IconRobot,
 	IconRuler,
 	IconSearch,
+	IconServer,
 	IconShieldExclamation as IconShieldAlert,
 	IconShieldLock,
 	IconSparkles,
@@ -28,6 +30,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react"
 import ReactMarkdown from "react-markdown"
 import { InstructionsRulesTab, type WorkspaceRuleItem } from "./InstructionsRulesTab"
+import { McpServersTab } from "./McpServersTab"
 import { ModelParamsTab } from "./ModelParamsTab"
 import { SkillsTab, type WorkspaceSkillItem } from "./SkillsTab"
 import { ToolsPermissionsTab } from "./ToolsPermissionsTab"
@@ -35,7 +38,7 @@ import { getAllowedManagers } from "./tree-utils"
 
 const AGENT_ID_RE = /^[a-z][a-z0-9_-]{1,31}$/
 
-export type EditorTab = "profile" | "model" | "tools" | "rules" | "skills"
+export type EditorTab = "profile" | "model" | "tools" | "rules" | "skills" | "mcp"
 
 export interface EditorTabInfo {
 	id: EditorTab
@@ -49,6 +52,7 @@ export const EDITOR_TABS: EditorTabInfo[] = [
 	{ id: "tools", label: "Tools", icon: IconTools },
 	{ id: "rules", label: "Rules", icon: IconFileText },
 	{ id: "skills", label: "Skills", icon: IconSparkles },
+	{ id: "mcp", label: "MCP", icon: IconServer },
 ]
 
 function getAgentRoleIcon(role: string, id: string) {
@@ -152,6 +156,62 @@ export const AgentEditor = ({
 	)
 	const [customDenyPaths, setCustomDenyPaths] = useState<string[]>(initialCustomDeny)
 
+	const parseInitialAutoApproval = (): AgentAutoApproval => {
+		if (initialProfile.autoApprovalJson) {
+			try {
+				return JSON.parse(initialProfile.autoApprovalJson)
+			} catch {}
+		}
+		return {
+			enabled: false,
+			readFiles: true,
+			editFiles: false,
+			executeCommands: false,
+			useBrowser: false,
+			useMcp: false,
+		}
+	}
+
+	const [autoApproval, setAutoApproval] = useState<AgentAutoApproval>(parseInitialAutoApproval)
+	const [agentMcpServers, setAgentMcpServers] = useState<string[]>(initialProfile.mcpServers ?? [])
+
+	useEffect(() => {
+		setId(initialProfile.id)
+		setDisplayName(initialProfile.displayName)
+		setDescription(initialProfile.description)
+		setRole(initialProfile.role || (isCoordinator ? "lead" : "teammate"))
+		setReportsTo(initialProfile.reportsTo ?? (isCoordinator ? null : "coordinator"))
+		setModelId(initialProfile.modelId ?? "")
+		setProviderId(initialProfile.providerId ?? "")
+		setReasoningEffort(initialProfile.reasoningEffort || "none")
+		setSupportsImages(initialProfile.supportsImages ?? true)
+		setContextWindow(initialProfile.contextWindow || 128000)
+		setMaxOutputTokens(initialProfile.maxOutputTokens || 8192)
+		setMaxIterations(initialProfile.maxIterations || 40)
+		setTemperature(
+			initialProfile.temperature !== undefined && initialProfile.temperature !== null
+				? String(initialProfile.temperature)
+				: "0.7",
+		)
+		setInstructions(initialProfile.instructions)
+		setRules(initialProfile.rules ?? [])
+		setSkills(initialProfile.skills ?? [])
+		setAllowTools(initialProfile.tools?.allow ?? [])
+		setDenyTools(initialProfile.tools?.deny ?? [])
+		setAllowPaths(
+			initialProfile.scopePaths?.allow && initialProfile.scopePaths.allow.length > 0
+				? initialProfile.scopePaths.allow
+				: ["**/*"],
+		)
+		setCustomDenyPaths(
+			(initialProfile.scopePaths?.denyWrite ?? []).filter(
+				(p) => !(MANDATORY_DENY_WRITE_PATHS as readonly string[]).includes(p),
+			),
+		)
+		setAutoApproval(parseInitialAutoApproval())
+		setAgentMcpServers(initialProfile.mcpServers ?? [])
+	}, [initialProfile, isCoordinator])
+
 	const [error, setError] = useState<string | undefined>()
 	const [saving, setSaving] = useState(false)
 	const [saveSuccess, setSaveSuccess] = useState(false)
@@ -245,7 +305,9 @@ export const AgentEditor = ({
 		JSON.stringify(allowTools) !== JSON.stringify(initialProfile.tools?.allow ?? []) ||
 		JSON.stringify(denyTools) !== JSON.stringify(initialProfile.tools?.deny ?? []) ||
 		JSON.stringify(allowPaths) !== JSON.stringify(initialAllowPaths) ||
-		JSON.stringify(customDenyPaths) !== JSON.stringify(initialCustomDeny)
+		JSON.stringify(customDenyPaths) !== JSON.stringify(initialCustomDeny) ||
+		JSON.stringify(autoApproval) !== JSON.stringify(parseInitialAutoApproval()) ||
+		JSON.stringify(agentMcpServers) !== JSON.stringify(initialProfile.mcpServers ?? [])
 
 	useEffect(() => {
 		onDirtyChange?.(isDirty)
@@ -316,6 +378,8 @@ export const AgentEditor = ({
 				allow: allowPaths,
 				denyWrite: allDenyWrite,
 			},
+			autoApprovalJson: JSON.stringify(autoApproval),
+			mcpServers: agentMcpServers,
 		})
 
 		setError(undefined)
@@ -724,10 +788,12 @@ export const AgentEditor = ({
 						<ToolsPermissionsTab
 							allowPaths={allowPaths}
 							allowTools={allowTools}
+							autoApproval={autoApproval}
 							customDenyPaths={customDenyPaths}
 							denyTools={denyTools}
 							setAllowPaths={setAllowPaths}
 							setAllowTools={setAllowTools}
+							setAutoApproval={setAutoApproval}
 							setCustomDenyPaths={setCustomDenyPaths}
 							setDenyTools={setDenyTools}
 						/>
@@ -747,6 +813,11 @@ export const AgentEditor = ({
 					{/* Tab 5: Skills */}
 					{activeTab === "skills" && (
 						<SkillsTab availableSkills={availableSkills} selectedSkills={skills} setSelectedSkills={setSkills} />
+					)}
+
+					{/* Tab 6: MCP */}
+					{activeTab === "mcp" && (
+						<McpServersTab agentMcpServers={agentMcpServers} setAgentMcpServers={setAgentMcpServers} />
 					)}
 				</div>
 			</div>

@@ -1,8 +1,11 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { GitCompare } from "lucide-react"
 import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { CheckpointsServiceClient } from "@/services/grpc-client"
 import { useExtensionState } from "../../../../../context/ExtensionStateContext"
 import { type ButtonActionType, getButtonConfigFromState } from "../../shared/buttonConfig"
 import type { ButtonActionInvocation, ChatState, DraftSnapshot, MessageHandlers } from "../../types/chatTypes"
@@ -116,40 +119,110 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ task, messages, ch
 		return () => window.removeEventListener("keydown", handleKeyDown)
 	}, [handleKeyDown])
 
+	const [changesCount, setChangesCount] = useState(0)
+	const [viewChangesPending, setViewChangesPending] = useState(false)
+
+	useEffect(() => {
+		let cancelled = false
+		const checkChanges = () => {
+			CheckpointsServiceClient.checkpointLatestChangesCount(EmptyRequest.create({}))
+				.then((res) => {
+					if (!cancelled) {
+						setChangesCount(res.value ?? 0)
+					}
+				})
+				.catch(() => {
+					if (!cancelled) setChangesCount(0)
+				})
+		}
+
+		checkChanges()
+		const interval = setInterval(checkChanges, 2500)
+		return () => {
+			cancelled = true
+			clearInterval(interval)
+		}
+	}, [messages.length, turnState?.seq])
+
 	if (!task) {
 		return null
 	}
 
-	const { primaryText, secondaryText, primaryAction, secondaryAction, enableButtons } = buttonConfig
-	const hasButtons = primaryText || secondaryText
-	const isStreaming = task.partial === true
-	const canInteract = enableButtons && !isProcessing && !messageHandlers.recoveryActionInFlight
+	const isOmittedAction = (action?: string, text?: string) => {
+		if (!action && !text) return false
+		return (
+			action === "retry" ||
+			action === "new_task" ||
+			text === "Retry" ||
+			text === "Start New Task" ||
+			text === "Start New Task with Context"
+		)
+	}
 
-	if (!hasButtons) {
+	const filteredPrimaryText = isOmittedAction(buttonConfig.primaryAction, buttonConfig.primaryText)
+		? undefined
+		: buttonConfig.primaryText
+	const filteredPrimaryAction = isOmittedAction(buttonConfig.primaryAction, buttonConfig.primaryText)
+		? undefined
+		: buttonConfig.primaryAction
+	const filteredSecondaryText = isOmittedAction(buttonConfig.secondaryAction, buttonConfig.secondaryText)
+		? undefined
+		: buttonConfig.secondaryText
+	const filteredSecondaryAction = isOmittedAction(buttonConfig.secondaryAction, buttonConfig.secondaryText)
+		? undefined
+		: buttonConfig.secondaryAction
+
+	const hasButtons = Boolean(filteredPrimaryText || filteredSecondaryText)
+	const isStreaming = task.partial === true
+	const canInteract = buttonConfig.enableButtons && !isProcessing && !messageHandlers.recoveryActionInFlight
+
+	if (!hasButtons && changesCount === 0) {
 		return null
 	}
 
 	const opacity = canInteract || isStreaming ? 1 : 0.5
 
 	return (
-		<div className="flex px-3.5" style={{ opacity }}>
-			{primaryText && primaryAction && (
-				<VSCodeButton
-					appearance="primary"
-					className={secondaryText ? "flex-1 mr-[6px]" : "flex-2"}
-					disabled={!canInteract}
-					onClick={() => handleActionClick(createActionInvocation(primaryAction, getDraftSnapshot))}>
-					{primaryText}
-				</VSCodeButton>
+		<div className="flex flex-col px-3.5 pb-2" style={{ opacity }}>
+			{changesCount > 0 && (
+				<button
+					className="flex items-center justify-center gap-1.5 px-3 py-1.5 mb-2 text-xs font-medium rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all shadow-sm cursor-pointer disabled:opacity-50"
+					disabled={viewChangesPending}
+					onClick={() => {
+						setViewChangesPending(true)
+						CheckpointsServiceClient.checkpointViewLatestChanges(EmptyRequest.create({}))
+							.catch((err) => console.error("Failed to view changes:", err))
+							.finally(() => setViewChangesPending(false))
+					}}
+					title="Xem các thay đổi file đang diễn ra (cập nhật liên tục)"
+					type="button">
+					<GitCompare className="size-3.5" />
+					<span>
+						View Changes ({changesCount} {changesCount === 1 ? "file" : "files"})
+					</span>
+				</button>
 			)}
-			{secondaryText && secondaryAction && (
-				<VSCodeButton
-					appearance="secondary"
-					className={primaryText ? "flex-1" : "flex-2"}
-					disabled={!canInteract}
-					onClick={() => handleActionClick(createActionInvocation(secondaryAction, getDraftSnapshot))}>
-					{secondaryText}
-				</VSCodeButton>
+			{hasButtons && (
+				<div className="flex">
+					{filteredPrimaryText && filteredPrimaryAction && (
+						<VSCodeButton
+							appearance="primary"
+							className={filteredSecondaryText ? "flex-1 mr-[6px]" : "flex-2"}
+							disabled={!canInteract}
+							onClick={() => handleActionClick(createActionInvocation(filteredPrimaryAction, getDraftSnapshot))}>
+							{filteredPrimaryText}
+						</VSCodeButton>
+					)}
+					{filteredSecondaryText && filteredSecondaryAction && (
+						<VSCodeButton
+							appearance="secondary"
+							className={filteredPrimaryText ? "flex-1" : "flex-2"}
+							disabled={!canInteract}
+							onClick={() => handleActionClick(createActionInvocation(filteredSecondaryAction, getDraftSnapshot))}>
+							{filteredSecondaryText}
+						</VSCodeButton>
+					)}
+				</div>
 			)}
 		</div>
 	)

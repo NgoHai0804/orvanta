@@ -167,6 +167,12 @@ export class MessageTranslatorState {
 	private streamingToolName: string | undefined
 	/** Output snapshot for the active command tool's partial row. */
 	private streamingCommandOutput: { toolCallId: string | undefined; text: string; totalChars: number } | undefined
+	/**
+	 * Coordination tools (team_run_task / handoff / send_message) stay open while a
+	 * nested teammate run emits other tools. Keep their original input + row ts so
+	 * content_end can still render the assignment/report card.
+	 */
+	private coordinationToolByCallId = new Map<string, { toolName: string; input: unknown; ts: number }>()
 	/** Approved tool-call ids mapped to the approval row that should be updated in place. */
 	private approvedToolMessageTsByCallId = new Map<string, number>()
 	/**
@@ -317,6 +323,32 @@ export class MessageTranslatorState {
 		this.streamingToolName = toolName
 		this.streamingToolInput = input
 		this.streamingCommandOutput = { toolCallId, text: "", totalChars: 0 }
+	}
+
+	rememberCoordinationTool(toolCallId: string | undefined, toolName: string, input: unknown, ts: number): void {
+		if (!toolCallId) {
+			return
+		}
+		this.coordinationToolByCallId.set(toolCallId, { toolName, input, ts })
+	}
+
+	takeCoordinationTool(toolCallId: string | undefined): { toolName: string; input: unknown; ts: number } | undefined {
+		if (!toolCallId) {
+			return undefined
+		}
+		const stored = this.coordinationToolByCallId.get(toolCallId)
+		if (stored) {
+			this.coordinationToolByCallId.delete(toolCallId)
+		}
+		return stored
+	}
+
+	/** Free the singleton streaming slot without dropping preserved coordination tools. */
+	detachStreamingToolSlot(): void {
+		this.streamingToolTs = undefined
+		this.streamingToolInput = undefined
+		this.streamingToolName = undefined
+		this.streamingCommandOutput = undefined
 	}
 
 	/** Remember the approval prompt row for a tool call after the user approves it. */
@@ -588,6 +620,8 @@ export class MessageTranslatorState {
 		this.streamingToolInput = undefined
 		this.streamingToolName = undefined
 		this.streamingCommandOutput = undefined
+		this.coordinationToolByCallId.clear()
+		this.currentAgentAttribution = undefined
 		this.clearApprovedToolMessageTs()
 		this.deniedToolApprovalsByCallId.clear()
 		this.clearSpawnAgents()
@@ -733,6 +767,17 @@ function relativizePatchPaths(patch: string | undefined, cwd: string): string | 
  *   ask_question/ask_followup_question → (not a visual tool — handled by askQuestion executor in SdkController)
  *   MCP tools (serverName__toolName)   → (handled before reaching sdkToolToClineSayTool — emitted as say="use_mcp_server")
  */
+const COORDINATION_TOOL_NAMES = new Set([
+	"team_run_task",
+	"orvanta_submit_handoff",
+	"team_send_message",
+	"orvanta_request_decision",
+])
+
+function isCoordinationTool(toolName: string | undefined): boolean {
+	return !!toolName && COORDINATION_TOOL_NAMES.has(toolName)
+}
+
 function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool {
 	// Parse input if it's a string (some SDK tools pass stringified JSON)
 	const parsedInput = parseToolInput(input)
@@ -910,6 +955,24 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 			return {
 				tool: "team_run_task" as ClineSayTool["tool"],
 				path: taskName,
+				content: JSON.stringify(parsedInput ?? {}),
+			}
+		}
+
+		case "orvanta_submit_handoff": {
+			const summary = getStringField(parsedInput, "summary") ?? getStringField(parsedInput, "result") ?? ""
+			return {
+				tool: "orvanta_submit_handoff" as ClineSayTool["tool"],
+				path: summary,
+				content: JSON.stringify(parsedInput ?? {}),
+			}
+		}
+
+		case "team_send_message": {
+			const msgContent = getStringField(parsedInput, "message") ?? getStringField(parsedInput, "content") ?? ""
+			return {
+				tool: "team_send_message" as ClineSayTool["tool"],
+				path: msgContent,
 				content: JSON.stringify(parsedInput ?? {}),
 			}
 		}
@@ -1550,6 +1613,24 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 						break
 					}
 
+					// Emit coordination cards immediately from content_start input (the payload is
+					// already complete). Preserve that input + row ts so a nested teammate run
+					// cannot overwrite the singleton streaming slot and leave an empty dummy card.
+					if (isCoordinationTool(toolName)) {
+						const ts = state.getStreamingToolTs()
+						state.rememberCoordinationTool(event.toolCallId, toolName, input, ts)
+						const sayTool = toDisplaySayTool(sdkToolToClineSayTool(toolName, input), state.currentCwd())
+						messages.push({
+							ts,
+							type: "say",
+							say: "tool",
+							text: JSON.stringify(sayTool),
+							partial: true,
+						})
+						state.detachStreamingToolSlot()
+						break
+					}
+
 					// All other tools → say="tool" with ClineSayTool JSON
 					// apply_patch is intentionally NOT split per-file here: the streaming
 					// (partial) row shows the whole patch, and the per-file split happens
@@ -1859,8 +1940,9 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// All other tools → finalize the say="tool" message
 					// Use the stored input from content_start since content_end
 					// doesn't carry the input (S6-24 fix)
-					const storedInput = state.getStreamingToolInput()
-					const ts = state.clearStreamingTool()
+					const coordination = state.takeCoordinationTool(event.toolCallId)
+					const storedInput = coordination?.input ?? state.getStreamingToolInput()
+					const ts = coordination?.ts ?? state.clearStreamingTool()
 
 					// Special handling: read_files may read multiple files in one tool call.
 					// Emit one readFile UI message per file so the tool group summary and
@@ -1920,6 +2002,25 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 									...existingContent,
 									decisionId: (event.output as any).decisionId ?? existingContent.decisionId,
 									status: (event.output as any).status ?? existingContent.status,
+								}),
+							}
+						} catch {}
+					}
+					if (toolName === "team_run_task" && event.output && typeof event.output === "object") {
+						try {
+							const existingContent = JSON.parse(sayTool.content || "{}")
+							const outputObj = event.output as Record<string, unknown>
+							const reportText =
+								(typeof outputObj.text === "string" ? outputObj.text : undefined) ||
+								(typeof outputObj.message === "string" ? outputObj.message : undefined) ||
+								""
+							sayTool = {
+								...sayTool,
+								content: JSON.stringify({
+									...existingContent,
+									output: event.output,
+									reportText,
+									status: outputObj.status ?? "completed",
 								}),
 							}
 						} catch {}
@@ -2124,7 +2225,8 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 	if (attribution) {
 		state.setCurrentAgent(attribution)
 	} else {
-		attribution = state.getCurrentAgent()
+		attribution = resolveAgentAttribution("coordinator", "lead")
+		state.setCurrentAgent(attribution)
 	}
 	if (attribution) {
 		for (const msg of messages) {
@@ -2206,7 +2308,8 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 			if (attribution) {
 				state.setCurrentAgent(attribution)
 			} else {
-				attribution = state.getCurrentAgent()
+				attribution = resolveAgentAttribution("coordinator", "lead")
+				state.setCurrentAgent(attribution)
 			}
 
 			// Agent events contain structured content (text, reasoning, tools)
@@ -2226,6 +2329,7 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 			// Check for done/error events
 			if (agentEvent.type === "done") {
 				result.turnComplete = true
+				state.setCurrentAgent(undefined)
 			}
 			// Recoverable errors don't end the turn — the run continues (see the
 			// translator's "error" case), so they must not resolve the turn phase.

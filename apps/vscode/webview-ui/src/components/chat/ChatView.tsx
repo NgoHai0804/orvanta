@@ -12,7 +12,6 @@ import { useShowNavbar } from "@/context/PlatformContext"
 import { useNormalizedApiConfiguration } from "@/hooks/useNormalizedApiConfiguration"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { Navbar } from "../menu/Navbar"
-import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
 // Import utilities and hooks from the new structure
 import {
 	ActionButtons,
@@ -31,6 +30,7 @@ import {
 	useScrollBehavior,
 	WelcomeSection,
 } from "./chat-view"
+import { filterMessagesForAgentChannel } from "./chat-view/utils/filterAgentChannelMessages"
 import {
 	hasPendingMessageConfirmation,
 	isPendingResponseUnconfirmed,
@@ -108,36 +108,7 @@ const ChatView = ({
 
 	const displayMessages = useMemo(() => {
 		const raw = withPendingUserMessage(messages, pendingUserMessage)
-		if (!selectedAgentId || selectedAgentId === "team-feed") {
-			return raw
-		}
-		if (selectedAgentId === "coordinator" || selectedAgentId === "lead") {
-			return raw.filter(
-				(m) =>
-					!m.agentId ||
-					m.agentId === "coordinator" ||
-					m.agent_id === "coordinator" ||
-					m.agentId === "lead" ||
-					m.agent_id === "lead" ||
-					m.say === "task" ||
-					m.type === "ask",
-			)
-		}
-		// Teammate agent channel:
-		// Always keep the initial task message (index 0) if it's say === "task" so TaskSection / task context is preserved,
-		// and include all messages that belong to this agent or are direct messages to this agent
-		const agentItems = raw.filter(
-			(m) =>
-				m.agentId === selectedAgentId ||
-				m.agent_id === selectedAgentId ||
-				(m.say === "tool" &&
-					(m.text?.includes(`"agentId":"${selectedAgentId}"`) || m.text?.includes(`"assignee":"${selectedAgentId}"`))),
-		)
-		const initialTask = raw.find((m) => m.say === "task")
-		if (initialTask && !agentItems.includes(initialTask)) {
-			return [initialTask, ...agentItems]
-		}
-		return agentItems
+		return filterMessagesForAgentChannel(raw, selectedAgentId)
 	}, [messages, pendingUserMessage, selectedAgentId])
 
 	useEffect(() => {
@@ -277,9 +248,6 @@ const ChatView = ({
 
 	// Cloud sandboxes cannot read local files; only images (sent inline) can be attached.
 	const imagesOnly =
-		!!currentCloudTask || (messages.length === 0 && cloudSessionsEnabled && cloudTaskTarget?.target === "cloud")
-	// Cloud sessions always auto-approve; local auto-approve settings don't apply there.
-	const hideAutoApprove =
 		!!currentCloudTask || (messages.length === 0 && cloudSessionsEnabled && cloudTaskTarget?.target === "cloud")
 
 	const selectFilesAndImages = useCallback(async () => {
@@ -480,6 +448,7 @@ const ChatView = ({
 						messageHandlers={messageHandlers}
 						modifiedMessages={modifiedMessages}
 						scrollBehavior={scrollBehavior}
+						selectedAgentId={selectedAgentId}
 						task={task}
 					/>
 				)}
@@ -504,7 +473,6 @@ const ChatView = ({
 
 			{/* Chat Footer: Sát hoàn toàn với phần bên dưới */}
 			<footer className="shrink-0 w-full bg-(--vscode-sideBar-background) border-t border-border-panel/40 flex flex-col z-10">
-				{!hideAutoApprove && <AutoApproveBar />}
 				<ActionButtons
 					chatState={chatState}
 					messageHandlers={messageHandlers}

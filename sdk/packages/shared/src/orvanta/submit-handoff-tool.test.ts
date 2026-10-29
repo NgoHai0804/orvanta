@@ -9,6 +9,14 @@ async function tempWorkspace(): Promise<string> {
 }
 
 describe("orvanta_submit_handoff tool", () => {
+	it("ends the agent run after a successful handoff", () => {
+		const tool = createOrvantaSubmitHandoffTool({
+			workspaceRoot: "/tmp",
+			requesterId: "coder",
+		});
+		expect(tool.lifecycle).toEqual({ completesRun: true });
+	});
+
 	it("writes handoff content to .orvanta/shared/handoffs/<taskId>/<requesterId>.md", async () => {
 		const ws = await tempWorkspace();
 		try {

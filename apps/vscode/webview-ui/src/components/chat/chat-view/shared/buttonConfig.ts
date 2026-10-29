@@ -28,26 +28,26 @@ export interface ButtonConfig {
 export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	// Error recovery states - user must take action
 	api_req_failed: {
-		sendingDisabled: true,
-		enableButtons: true,
-		primaryText: "Retry",
-		secondaryText: "Start New Task",
-		primaryAction: "retry",
-		secondaryAction: "new_task",
+		sendingDisabled: false,
+		enableButtons: false,
+		primaryText: undefined,
+		secondaryText: undefined,
+		primaryAction: undefined,
+		secondaryAction: undefined,
 	},
 	cloud_creation_unconfirmed: {
-		sendingDisabled: true,
-		enableButtons: true,
-		primaryText: "Start New Task",
-		primaryAction: "new_task",
+		sendingDisabled: false,
+		enableButtons: false,
+		primaryText: undefined,
+		primaryAction: undefined,
 	},
 	mistake_limit_reached: {
 		sendingDisabled: false,
 		enableButtons: true,
 		primaryText: "Proceed Anyways",
-		secondaryText: "Start New Task",
+		secondaryText: undefined,
 		primaryAction: "proceed",
-		secondaryAction: "new_task",
+		secondaryAction: undefined,
 	},
 
 	// Tool approval states - most common during task execution
@@ -131,10 +131,10 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	// Task lifecycle states
 	completion_result: {
 		sendingDisabled: false,
-		enableButtons: true,
-		primaryText: "Start New Task",
+		enableButtons: false,
+		primaryText: undefined,
 		secondaryText: undefined,
-		primaryAction: "new_task",
+		primaryAction: undefined,
 		secondaryAction: undefined,
 	},
 	resume_task: {
@@ -147,18 +147,18 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	},
 	resume_completed_task: {
 		sendingDisabled: false,
-		enableButtons: true,
-		primaryText: "Start New Task",
+		enableButtons: false,
+		primaryText: undefined,
 		secondaryText: undefined,
-		primaryAction: "new_task",
+		primaryAction: undefined,
 		secondaryAction: undefined,
 	},
 	new_task: {
 		sendingDisabled: false,
-		enableButtons: true,
-		primaryText: "Start New Task with Context",
+		enableButtons: false,
+		primaryText: undefined,
 		secondaryText: undefined,
-		primaryAction: "new_task",
+		primaryAction: undefined,
 		secondaryAction: undefined,
 	},
 

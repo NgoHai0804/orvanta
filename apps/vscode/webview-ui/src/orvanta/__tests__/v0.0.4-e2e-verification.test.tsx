@@ -133,8 +133,7 @@ describe("Orvanta v0.0.4 E2E Verification Workflow (Phase 6.2)", () => {
 		)
 
 		expect(screen.getAllByText("Dave").length).toBeGreaterThan(0)
-		expect(screen.getAllByText("Implementer").length).toBeGreaterThan(0)
-		expect(screen.getByText(/đang đề xuất sửa.*src\/auth\.ts/)).toBeDefined()
+		expect(screen.getAllByText("auth.ts").length).toBeGreaterThan(0)
 		expect(screen.queryByText(/Cline đã sửa/i)).toBeNull()
 
 		// Step 5: Test Sidebar Collapse

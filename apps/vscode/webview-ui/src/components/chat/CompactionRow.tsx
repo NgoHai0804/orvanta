@@ -1,6 +1,7 @@
 import type { ClineCompactionInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { FoldVerticalIcon, LoaderCircleIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { CHAT_HEADER_TITLE_MUTED, CHAT_ROW_LUCIDE } from "./chatRowStyles"
 
 /** Mirrors the CLI's formatTokenCount (apps/cli/src/tui/utils/compaction-status.ts). */
 function formatTokenCount(count: number): string {
@@ -71,14 +72,14 @@ export const CompactionRow = ({ message }: { message: ClineMessage }) => {
 
 	return (
 		<div
-			className={cn("flex items-center gap-2 py-1.5 text-description", {
+			className={cn("flex items-center gap-1.5 py-1.5", CHAT_HEADER_TITLE_MUTED, {
 				"text-error": isFailed,
 				"opacity-70": isMuted,
 			})}>
 			{inProgress ? (
-				<LoaderCircleIcon className="size-2 shrink-0 animate-spin" />
+				<LoaderCircleIcon {...CHAT_ROW_LUCIDE} className="shrink-0 animate-spin" />
 			) : (
-				<FoldVerticalIcon className="size-2 shrink-0" />
+				<FoldVerticalIcon {...CHAT_ROW_LUCIDE} className="shrink-0" />
 			)}
 			<span className="min-w-0">
 				{formatCompactionLabel(info)}

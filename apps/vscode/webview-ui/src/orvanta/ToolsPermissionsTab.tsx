@@ -1,5 +1,6 @@
 import { MANDATORY_DENY_WRITE_PATHS } from "@cline/shared/orvanta"
-import { IconBan, IconCheck, IconLock, IconShieldLock } from "@tabler/icons-react"
+import { type AgentAutoApproval } from "@shared/AutoApprovalSettings"
+import { IconBan, IconCheck, IconLock, IconShieldCheck, IconShieldLock } from "@tabler/icons-react"
 import { useState } from "react"
 
 export interface ToolItem {
@@ -67,6 +68,8 @@ export interface ToolsPermissionsTabProps {
 	setAllowPaths: (paths: string[]) => void
 	customDenyPaths: string[]
 	setCustomDenyPaths: (paths: string[]) => void
+	autoApproval?: AgentAutoApproval
+	setAutoApproval?: (autoApproval: AgentAutoApproval) => void
 }
 
 export const ToolsPermissionsTab = ({
@@ -78,6 +81,8 @@ export const ToolsPermissionsTab = ({
 	setAllowPaths,
 	customDenyPaths,
 	setCustomDenyPaths,
+	autoApproval,
+	setAutoApproval,
 }: ToolsPermissionsTabProps) => {
 	const [newAllowTool, setNewAllowTool] = useState("")
 	const [newDenyTool, setNewDenyTool] = useState("")
@@ -449,6 +454,105 @@ export const ToolsPermissionsTab = ({
 						))}
 					</div>
 				</div>
+
+				{/* Auto-Approval Settings for this Agent */}
+				{autoApproval && setAutoApproval && (
+					<div className="flex flex-col gap-3 rounded-lg border border-indigo-500/20 bg-indigo-500/5 p-3.5">
+						<div className="flex items-center justify-between">
+							<div className="flex items-center gap-2">
+								<IconShieldCheck className="text-indigo-400" size={16} />
+								<div>
+									<span className="text-xs font-semibold text-slate-100">
+										Cấu hình Tự động duyệt (Auto-Approve)
+									</span>
+									<div className="text-[11px] text-(--vscode-descriptionForeground)">
+										Áp dụng riêng cho Agent này. Không dùng chung trạng thái giữa các Agent.
+									</div>
+								</div>
+							</div>
+							<label className="relative inline-flex items-center cursor-pointer">
+								<input
+									checked={autoApproval.enabled}
+									className="sr-only peer"
+									onChange={(e) => setAutoApproval({ ...autoApproval, enabled: e.target.checked })}
+									type="checkbox"
+								/>
+								<div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600" />
+							</label>
+						</div>
+
+						{autoApproval.enabled && (
+							<div className="space-y-3 pt-1 border-t border-indigo-500/10">
+								<div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+									<label className="flex items-center gap-2 cursor-pointer p-1.5 rounded hover:bg-white/5 transition-colors">
+										<input
+											checked={!!autoApproval.readFiles}
+											className="rounded border-slate-700 text-indigo-600 focus:ring-indigo-500"
+											onChange={(e) => setAutoApproval({ ...autoApproval, readFiles: e.target.checked })}
+											type="checkbox"
+										/>
+										<span>📖 Tự động đọc tệp tin (Read files)</span>
+									</label>
+									<label className="flex items-center gap-2 cursor-pointer p-1.5 rounded hover:bg-white/5 transition-colors">
+										<input
+											checked={!!autoApproval.editFiles}
+											className="rounded border-slate-700 text-indigo-600 focus:ring-indigo-500"
+											onChange={(e) => setAutoApproval({ ...autoApproval, editFiles: e.target.checked })}
+											type="checkbox"
+										/>
+										<span>✏️ Tự động sửa tệp tin (Edit files)</span>
+									</label>
+									<label className="flex items-center gap-2 cursor-pointer p-1.5 rounded hover:bg-white/5 transition-colors">
+										<input
+											checked={!!autoApproval.executeCommands}
+											className="rounded border-slate-700 text-indigo-600 focus:ring-indigo-500"
+											onChange={(e) =>
+												setAutoApproval({ ...autoApproval, executeCommands: e.target.checked })
+											}
+											type="checkbox"
+										/>
+										<span>⚡ Tự động chạy lệnh (Execute commands)</span>
+									</label>
+									<label className="flex items-center gap-2 cursor-pointer p-1.5 rounded hover:bg-white/5 transition-colors">
+										<input
+											checked={!!autoApproval.useBrowser}
+											className="rounded border-slate-700 text-indigo-600 focus:ring-indigo-500"
+											onChange={(e) => setAutoApproval({ ...autoApproval, useBrowser: e.target.checked })}
+											type="checkbox"
+										/>
+										<span>🌐 Tự động thao tác browser (Browser)</span>
+									</label>
+									<label className="flex items-center gap-2 cursor-pointer p-1.5 rounded hover:bg-white/5 transition-colors sm:col-span-2">
+										<input
+											checked={!!autoApproval.useMcp}
+											className="rounded border-slate-700 text-indigo-600 focus:ring-indigo-500"
+											onChange={(e) => setAutoApproval({ ...autoApproval, useMcp: e.target.checked })}
+											type="checkbox"
+										/>
+										<span>🔌 Tự động gọi công cụ MCP (MCP Tools)</span>
+									</label>
+								</div>
+
+								<div className="flex items-center justify-between pt-2 border-t border-indigo-500/10 text-xs">
+									<span className="text-(--vscode-descriptionForeground)">Giới hạn số yêu cầu tối đa:</span>
+									<input
+										className="w-20 rounded border border-border-panel bg-input-background px-2 py-0.5 text-xs text-right font-mono"
+										max={100}
+										min={1}
+										onChange={(e) =>
+											setAutoApproval({
+												...autoApproval,
+												maxRequests: parseInt(e.target.value, 10) || 20,
+											})
+										}
+										type="number"
+										value={autoApproval.maxRequests ?? 20}
+									/>
+								</div>
+							</div>
+						)}
+					</div>
+				)}
 			</div>
 		</div>
 	)

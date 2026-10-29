@@ -82,6 +82,8 @@ message OrvantaAgentProfile {
   repeated string rules = 17;
   repeated string skills = 18;
   optional string provider_id = 19;
+  optional string auto_approval_json = 20;
+  repeated string mcp_servers = 21;
 }
 
 message OrvantaAgentProfileList {

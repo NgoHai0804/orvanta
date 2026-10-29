@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import MarkdownBlock from "../common/MarkdownBlock"
+import { CHAT_HEADER_ROW, CHAT_HEADER_TITLE, CHAT_ROW_LUCIDE } from "./chatRowStyles"
 
 interface SubagentStatusRowProps {
 	message: ClineMessage
@@ -41,15 +42,15 @@ interface SubagentPromptTextProps {
 const statusIcon = (status: DisplayStatus) => {
 	switch (status) {
 		case "running":
-			return <LoaderCircleIcon className="size-2 animate-spin text-link shrink-0 mt-[1px]" />
+			return <LoaderCircleIcon {...CHAT_ROW_LUCIDE} className="animate-spin text-link shrink-0 mt-[1px]" />
 		case "completed":
-			return <CheckIcon className="size-2 text-success shrink-0 mt-[1px]" />
+			return <CheckIcon {...CHAT_ROW_LUCIDE} className="text-success shrink-0 mt-[1px]" />
 		case "failed":
-			return <CircleXIcon className="size-2 text-error shrink-0 mt-[1px]" />
+			return <CircleXIcon {...CHAT_ROW_LUCIDE} className="text-error shrink-0 mt-[1px]" />
 		case "cancelled":
-			return <CircleSlashIcon className="size-2 text-foreground shrink-0 mt-[1px]" />
+			return <CircleSlashIcon {...CHAT_ROW_LUCIDE} className="text-foreground shrink-0 mt-[1px]" />
 		default:
-			return <BotIcon className="size-2 text-foreground/70 shrink-0 mt-[1px]" />
+			return <BotIcon {...CHAT_ROW_LUCIDE} className="text-foreground/70 shrink-0 mt-[1px]" />
 	}
 }
 
@@ -214,9 +215,9 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 
 	return (
 		<div className="mb-2">
-			<div className="flex items-center gap-2.5 mb-3">
-				<NetworkIcon className="size-2 text-foreground" />
-				<span className="font-bold text-foreground">{title}</span>
+			<div className={CHAT_HEADER_ROW}>
+				<NetworkIcon {...CHAT_ROW_LUCIDE} className="shrink-0 text-foreground" />
+				<span className={CHAT_HEADER_TITLE}>{title}</span>
 			</div>
 			<div className="space-y-2">
 				{data.items.map((entry, index) => {
@@ -258,9 +259,9 @@ export default function SubagentStatusRow({ message, isLast, lastModifiedMessage
 									onClick={() => toggleItem(entry.index)}
 									type="button">
 									{isExpanded ? (
-										<ChevronDownIcon className="size-2 shrink-0" />
+										<ChevronDownIcon {...CHAT_ROW_LUCIDE} className="shrink-0" />
 									) : (
-										<ChevronRightIcon className="size-2 shrink-0" />
+										<ChevronRightIcon {...CHAT_ROW_LUCIDE} className="shrink-0" />
 									)}
 									<span className="shrink-0">{isExpanded ? "Hide output" : "Show output"}</span>
 								</button>

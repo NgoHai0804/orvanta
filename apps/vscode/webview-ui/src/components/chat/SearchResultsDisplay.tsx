@@ -96,7 +96,7 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 				overflow: "hidden",
 				border: "1px solid var(--vscode-editorGroup-border)",
 			}}>
-			<div
+			<button
 				aria-label={isExpanded ? "Collapse search results" : "Expand search results"}
 				onClick={onToggleExpand}
 				onKeyDown={(e) => {
@@ -110,6 +110,11 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 					color: "var(--vscode-descriptionForeground)",
 					display: "flex",
 					alignItems: "center",
+					width: "100%",
+					background: "none",
+					border: "none",
+					font: "inherit",
+					textAlign: "left",
 					padding: "9px 10px",
 					cursor: "pointer",
 					userSelect: "none",
@@ -117,7 +122,7 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 					MozUserSelect: "none",
 					msUserSelect: "none",
 				}}
-				tabIndex={0}>
+				type="button">
 				<span>/</span>
 				<span
 					style={{
@@ -130,11 +135,11 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 				</span>
 				<div style={{ flexGrow: 1 }} />
 				{isExpanded ? (
-					<ChevronDownIcon size={16} style={{ margin: "1px 0" }} />
+					<ChevronDownIcon size={12} strokeWidth={1.75} style={{ margin: "1px 0" }} />
 				) : (
-					<ChevronRightIcon size={16} style={{ margin: "1px 0" }} />
+					<ChevronRightIcon size={12} strokeWidth={1.75} style={{ margin: "1px 0" }} />
 				)}
-			</div>
+			</button>
 
 			{isExpanded && (
 				<div style={{ padding: "10px", borderTop: "1px solid var(--vscode-editorGroup-border)" }}>
@@ -149,7 +154,7 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 					</div>
 
 					{/* Workspace sections */}
-					{sections?.map((section: any, index: number) => (
+					{sections?.map((section, index: number) => (
 						<div
 							key={`workspace-${section.workspace}`}
 							style={{ marginBottom: index < sections.length - 1 ? "16px" : 0 }}>

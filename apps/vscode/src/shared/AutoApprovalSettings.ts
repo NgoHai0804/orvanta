@@ -24,6 +24,16 @@ export interface AutoApprovalSettings {
 	// Global settings
 	enableNotifications: boolean // Show notifications for approval and task completion
 }
+export interface AgentAutoApproval {
+	enabled: boolean
+	readFiles?: boolean
+	editFiles?: boolean
+	executeCommands?: boolean
+	useBrowser?: boolean
+	useMcp?: boolean
+	maxRequests?: number
+	enableNotifications?: boolean
+}
 
 export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 	version: 1,

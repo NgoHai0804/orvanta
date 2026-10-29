@@ -44,6 +44,7 @@ import { StateManager } from "@/core/storage/StateManager"
 import { WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
+import { getAgentProfile } from "@/orvanta/workspace-store"
 import { ExtensionRegistryInfo } from "@/registry"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { UrlContentFetcher } from "@/services/browser/UrlContentFetcher"
@@ -102,7 +103,7 @@ import { SdkTaskControlCoordinator } from "./sdk-task-control-coordinator"
 import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
 import { createVscodeSdkTelemetryHandle, type VscodeSdkTelemetryHandle } from "./sdk-telemetry"
-import { isToolAutoApproved } from "./sdk-tool-policies"
+import { isAgentAutoApproved, isToolAutoApproved } from "./sdk-tool-policies"
 import {
 	extractSdkUserText,
 	findSdkUserMessageIndexByOrdinal,
@@ -415,7 +416,18 @@ export class Controller {
 				// manual Reject and clearPending (task cancel/abort) in one place.
 				void this.diffEdits.discardPreview(toolCallId)
 			},
-			shouldAutoApproveTool: (request) => {
+			shouldAutoApproveTool: async (request) => {
+				const agentId = request.agentId
+				if (agentId && this.lastKnownWorkspaceRoot) {
+					try {
+						const profile = await getAgentProfile(this.lastKnownWorkspaceRoot, agentId)
+						if (profile?.autoApproval) {
+							return isAgentAutoApproved(request.toolName, profile.autoApproval)
+						}
+					} catch {
+						// fallback to global settings
+					}
+				}
 				const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings) : false
 			},

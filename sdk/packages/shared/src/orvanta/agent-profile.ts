@@ -33,6 +33,18 @@ export const ReasoningEffortSchema = z
 	.default(null);
 export type ReasoningEffort = z.infer<typeof ReasoningEffortSchema>;
 
+export const AgentAutoApprovalSchema = z.object({
+	enabled: z.boolean().default(false),
+	readFiles: z.boolean().default(false),
+	editFiles: z.boolean().default(false),
+	executeCommands: z.boolean().default(false),
+	useBrowser: z.boolean().default(false),
+	useMcp: z.boolean().default(false),
+	maxRequests: z.number().int().min(1).max(100).default(20),
+	enableNotifications: z.boolean().default(false),
+});
+export type AgentAutoApproval = z.infer<typeof AgentAutoApprovalSchema>;
+
 export const AgentProfileFrontmatterSchema = z.object({
 	id: z.string().regex(AGENT_ID_RE, {
 		message:
@@ -67,6 +79,8 @@ export const AgentProfileFrontmatterSchema = z.object({
 		}),
 	rules: z.array(z.string()).default([]),
 	skills: z.array(z.string()).default([]),
+	autoApproval: AgentAutoApprovalSchema.optional(),
+	mcpServers: z.array(z.string()).default([]),
 });
 export type AgentProfileFrontmatter = z.infer<
 	typeof AgentProfileFrontmatterSchema
@@ -300,6 +314,24 @@ export function parseAgentProfile(
 		},
 		rules: toArrayOfStrings(data.rules),
 		skills: toArrayOfStrings(data.skills),
+		autoApproval: (() => {
+			if (!data.autoApproval || typeof data.autoApproval !== "object") return undefined;
+			const raw = data.autoApproval as Record<string, unknown>;
+			const actions = (raw.actions as Record<string, unknown>) || {};
+			return {
+				enabled: Boolean(raw.enabled ?? false),
+				readFiles: Boolean(raw.readFiles ?? actions.readFiles ?? false),
+				editFiles: Boolean(raw.editFiles ?? actions.editFiles ?? false),
+				executeCommands: Boolean(
+					raw.executeCommands ?? actions.executeCommands ?? false,
+				),
+				useBrowser: Boolean(raw.useBrowser ?? actions.useBrowser ?? false),
+				useMcp: Boolean(raw.useMcp ?? actions.useMcp ?? false),
+				maxRequests: toNullableNumber(raw.maxRequests) ?? 20,
+				enableNotifications: Boolean(raw.enableNotifications ?? false),
+			};
+		})(),
+		mcpServers: toArrayOfStrings(data.mcpServers),
 	});
 
 	const computedFilePath =
@@ -388,6 +420,25 @@ export function serializeAgentProfile(
 		lines.push("skills:");
 		for (const s of valid.skills) {
 			lines.push(`  - ${/^[a-zA-Z0-9_\-\.\/]+$/.test(s) ? s : JSON.stringify(s)}`);
+		}
+	}
+	if (valid.autoApproval) {
+		lines.push("autoApproval:");
+		lines.push(`  enabled: ${Boolean(valid.autoApproval.enabled)}`);
+		lines.push(`  readFiles: ${Boolean(valid.autoApproval.readFiles)}`);
+		lines.push(`  editFiles: ${Boolean(valid.autoApproval.editFiles)}`);
+		lines.push(`  executeCommands: ${Boolean(valid.autoApproval.executeCommands)}`);
+		lines.push(`  useBrowser: ${Boolean(valid.autoApproval.useBrowser)}`);
+		lines.push(`  useMcp: ${Boolean(valid.autoApproval.useMcp)}`);
+		lines.push(`  maxRequests: ${valid.autoApproval.maxRequests ?? 20}`);
+		lines.push(`  enableNotifications: ${Boolean(valid.autoApproval.enableNotifications)}`);
+	}
+	if (valid.mcpServers.length === 0) {
+		lines.push("mcpServers: []");
+	} else {
+		lines.push("mcpServers:");
+		for (const m of valid.mcpServers) {
+			lines.push(`  - ${/^[a-zA-Z0-9_\-\.\/]+$/.test(m) ? m : JSON.stringify(m)}`);
 		}
 	}
 	lines.push("---");

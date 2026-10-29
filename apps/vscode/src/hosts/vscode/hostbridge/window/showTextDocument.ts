@@ -3,8 +3,16 @@ import { ShowTextDocumentRequest, TextEditorInfo } from "@/shared/proto/host/win
 import { arePathsEqual } from "@/utils/path"
 
 export async function showTextDocument(request: ShowTextDocumentRequest): Promise<TextEditorInfo> {
+	let targetLine: number | undefined
+	let cleanPath = request.path
+	const match = request.path.match(/^(.+?):(\d+)(?::\d+)?$/)
+	if (match) {
+		cleanPath = match[1]
+		targetLine = parseInt(match[2], 10)
+	}
+
 	// Convert file path to URI
-	const uri = vscode.Uri.file(request.path)
+	const uri = vscode.Uri.file(cleanPath)
 
 	// Check if the document is already open in a tab group that's not in the active editor's column.
 	//  If it is, then close it (if not dirty) so that we don't duplicate tabs
@@ -34,6 +42,10 @@ export async function showTextDocument(request: ShowTextDocumentRequest): Promis
 	}
 	if (request.options?.viewColumn !== undefined) {
 		options.viewColumn = request.options.viewColumn
+	}
+	if (targetLine !== undefined && targetLine > 0) {
+		const pos = new vscode.Position(targetLine - 1, 0)
+		options.selection = new vscode.Range(pos, pos)
 	}
 
 	const editor = await vscode.window.showTextDocument(uri, options)

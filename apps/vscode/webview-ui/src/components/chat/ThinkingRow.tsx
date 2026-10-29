@@ -1,8 +1,8 @@
-import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
-import { memo, useCallback, useEffect, useRef, useState } from "react"
-import { AgentBadge } from "@/components/common/AgentBadge"
+import { BrainIcon, ChevronDownIcon, ChevronRightIcon } from "lucide-react"
+import { memo } from "react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { CHAT_HEADER_TITLE_MUTED, CHAT_ROW_LUCIDE } from "./chatRowStyles"
 
 interface ThinkingRowProps {
 	showTitle: boolean
@@ -32,27 +32,7 @@ export const ThinkingRow = memo(
 		agentDisplayName,
 		agentRole,
 	}: ThinkingRowProps) => {
-		const scrollRef = useRef<HTMLDivElement>(null)
-		const [canScrollUp, setCanScrollUp] = useState(false)
-		const [canScrollDown, setCanScrollDown] = useState(false)
-		const hasAgent = Boolean(agentId || agentRole)
-
-		const checkScrollable = useCallback(() => {
-			if (scrollRef.current) {
-				const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
-				setCanScrollUp(scrollTop > 1)
-				setCanScrollDown(scrollTop + clientHeight < scrollHeight - 1)
-			}
-		}, [])
-
-		// Only auto-scroll to bottom during streaming (showCursor=true)
-		// For expanded collapsed thinking, start at top
-		useEffect(() => {
-			if (scrollRef.current && isVisible) {
-				scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-			}
-			checkScrollable()
-		}, [reasoningContent, isVisible, checkScrollable])
+		const hasAgent = Boolean(agentId || agentDisplayName || agentRole)
 
 		if (!isVisible) {
 			return null
@@ -77,9 +57,9 @@ export const ThinkingRow = memo(
 						onClick={onToggle}
 						size="icon"
 						variant="icon">
-						{hasAgent && <AgentBadge agentId={agentId} displayName={agentDisplayName} role={agentRole} size="sm" />}
+						<BrainIcon {...CHAT_ROW_LUCIDE} className="shrink-0 text-description" />
 						<span
-							className={cn("text-[13px] leading-[1.2]", {
+							className={cn(CHAT_HEADER_TITLE_MUTED, {
 								"animate-shimmer bg-linear-90 from-foreground to-description bg-[length:200%_100%] bg-clip-text text-transparent":
 									isStreaming,
 								"select-none": isStreaming,
@@ -88,44 +68,19 @@ export const ThinkingRow = memo(
 						</span>
 						{showChevron &&
 							(isExpanded ? (
-								<ChevronDownIcon className="!size-1 text-description" />
+								<ChevronDownIcon {...CHAT_ROW_LUCIDE} className="shrink-0 text-description" />
 							) : (
-								<ChevronRightIcon className="!size-1 text-description" />
+								<ChevronRightIcon {...CHAT_ROW_LUCIDE} className="shrink-0 text-description" />
 							))}
 					</Button>
 				) : null}
 
 				{isExpanded && (
-					<Button
-						className={cn(
-							"flex gap-0 overflow-hidden w-full min-w-0 max-h-0 opacity-0 items-baseline justify-baseline text-left !p-0 !pl-0",
-							"disabled:cursor-text disabled:opacity-100",
-							{
-								"max-h-[200px] opacity-100": isVisible,
-								"transition-[max-height] duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)] [transition:max-height_250ms_cubic-bezier(0.4,0,0.2,1),opacity_150ms_ease-out]":
-									isVisible,
-							},
-						)}
-						disabled={!showTitle}
-						onClick={onToggle}
-						variant="text">
-						<div className="relative flex-1">
-							<div
-								className={cn(
-									"flex max-h-[150px] overflow-y-auto text-description leading-normal truncated whitespace-pre-wrap wrap-break-word pl-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [direction:ltr]",
-								)}
-								onScroll={checkScrollable}
-								ref={scrollRef}>
-								<span className="pb-2 block text-sm">{reasoningContent}</span>
-							</div>
-							{canScrollUp && (
-								<div className="absolute top-0 left-0 right-0 h-6 pointer-events-none bg-gradient-to-b from-background to-transparent" />
-							)}
-							{canScrollDown && (
-								<div className="absolute bottom-0 left-0 right-0 h-6 pointer-events-none bg-gradient-to-t from-background to-transparent" />
-							)}
+					<div className="w-full min-w-0 pt-1.5 pb-2 pl-0.5 pr-1">
+						<div className="w-full text-description text-[12.5px] leading-relaxed whitespace-pre-wrap wrap-break-word select-text font-normal opacity-90">
+							{reasoningContent}
 						</div>
-					</Button>
+					</div>
 				)}
 			</div>
 		)

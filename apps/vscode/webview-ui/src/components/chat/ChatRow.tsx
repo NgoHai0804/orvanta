@@ -11,7 +11,7 @@ import {
 } from "@shared/ExtensionMessage"
 import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
-import { IconClipboardList, IconMessage, IconPackage, IconSend } from "@tabler/icons-react"
+import { IconClipboardList, IconInbox, IconPackage, IconSend } from "@tabler/icons-react"
 import deepEqual from "fast-deep-equal"
 import {
 	BellIcon,
@@ -36,10 +36,14 @@ import {
 import { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import { isOptionsAskActive } from "@/components/chat/chat-view/shared/buttonConfig"
+import {
+	canonicalAgentId,
+	getCoordinationCardKind,
+	isCoordinatorChannel,
+} from "@/components/chat/chat-view/utils/filterAgentChannelMessages"
 import { canRestoreWorkspaceFromMessage } from "@/components/chat/chat-view/utils/messageUtils"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import { CloudProvisioningRow } from "@/components/cloud/CloudProvisioningRow"
-import { AgentBadge } from "@/components/common/AgentBadge"
 import { WithCopyButton } from "@/components/common/CopyButton"
 import Thumbnails from "@/components/common/Thumbnails"
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
@@ -53,6 +57,7 @@ import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
 import CompactionRow from "./CompactionRow"
 import { CompletionOutputRow } from "./CompletionOutputRow"
+import { CHAT_HEADER_META, CHAT_HEADER_ROW, CHAT_HEADER_TITLE, CHAT_ROW_ICON_PX, CHAT_ROW_LUCIDE } from "./chatRowStyles"
 import { DiffEditRow } from "./DiffEditRow"
 import ErrorRow from "./ErrorRow"
 import { FeatureTip } from "./FeatureTip"
@@ -67,8 +72,6 @@ import SearchResultsDisplay from "./SearchResultsDisplay"
 import SubagentStatusRow from "./SubagentStatusRow"
 import { ThinkingRow } from "./ThinkingRow"
 import UserMessage from "./UserMessage"
-
-const HEADER_CLASSNAMES = "flex items-center gap-2.5 mb-3"
 
 interface ChatRowProps {
 	message: ClineMessage
@@ -86,6 +89,8 @@ interface ChatRowProps {
 	reasoningContent?: string
 	responseStarted?: boolean
 	retryFailedRequest?: () => Promise<boolean>
+	selectedAgentId?: string
+	isStickyClone?: boolean
 }
 
 export interface QuoteButtonState {
@@ -99,7 +104,7 @@ interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange" | "onL
 	onLastRowContentChange?: () => void
 }
 
-export const ProgressIndicator = () => <LoaderCircleIcon className="size-2 mr-2 animate-spin" />
+export const ProgressIndicator = () => <LoaderCircleIcon {...CHAT_ROW_LUCIDE} className="mr-2 shrink-0 animate-spin" />
 const InvisibleSpacer = () => <div aria-hidden className="h-px" />
 
 const ChatRow = memo(
@@ -138,15 +143,21 @@ const ChatRow = memo(
 export default ChatRow
 
 interface TeamRunTaskCardProps {
-	tool: { content?: string; path?: string }
-	message?: { agentId?: string; agentDisplayName?: string }
+	tool: { tool?: string; content?: string; path?: string }
+	message?: { agentId?: string; agentDisplayName?: string; ts?: number }
 	type?: "assign" | "handoff" | "message"
+	selectedAgentId?: string
+	omitDomId?: boolean
 }
 
 interface TeamRunTaskPayload {
 	agentId?: string
 	assignee?: string
 	toAgentId?: string
+	to?: string
+	recipient?: string
+	fromAgentId?: string
+	from?: string
 	instruction?: string
 	description?: string
 	prompt?: string
@@ -159,19 +170,56 @@ interface TeamRunTaskPayload {
 	title?: string
 	taskTitle?: string
 	subject?: string
+	content?: string
 }
 
-const TeamRunTaskCard = memo(({ tool, message, type = "assign" }: TeamRunTaskCardProps) => {
+const cleanAgentName = (id?: string, fallback = "Coordinator"): string => {
+	if (!id) return fallback
+	const trimmed = id.trim()
+	if (
+		/^\d+/.test(trimmed) ||
+		trimmed.includes("_") ||
+		trimmed.toLowerCase() === "coordinator" ||
+		trimmed.toLowerCase() === "lead" ||
+		trimmed.toLowerCase() === "parent" ||
+		trimmed.toLowerCase() === "system" ||
+		trimmed.toLowerCase() === "agent"
+	) {
+		return "Coordinator"
+	}
+	if (trimmed.toLowerCase() === "coder") return "Coder"
+	if (trimmed.toLowerCase() === "reviewer") return "Reviewer"
+	return trimmed.charAt(0).toUpperCase() + trimmed.slice(1)
+}
+
+function toolActorName(message: ClineMessage): string {
+	const id = message.agentId ?? message.agent_id
+	const display = message.agentDisplayName ?? message.agent_display_name
+	if (id) {
+		return cleanAgentName(id, display || "Cline")
+	}
+	return display?.trim() || "Cline"
+}
+
+const TeamRunTaskCard = memo(({ tool, message, type = "assign", selectedAgentId, omitDomId }: TeamRunTaskCardProps) => {
 	const [isExpanded, setIsExpanded] = useState(false)
 	let parsed: TeamRunTaskPayload = {}
 	try {
 		parsed = JSON.parse(tool.content || "{}") as TeamRunTaskPayload
 	} catch {}
 
-	const senderId = message?.agentId || "coordinator"
-	const senderName = message?.agentDisplayName || (senderId === "coordinator" ? "Coordinator" : senderId)
-	const recipientId = parsed.agentId || parsed.assignee || parsed.toAgentId || (type === "handoff" ? "coordinator" : "agent")
-	const recipientName = recipientId === "coordinator" ? "Coordinator" : recipientId
+	const rawSenderId = canonicalAgentId(parsed.fromAgentId || parsed.from || message?.agentId) || "coordinator"
+	const senderName = cleanAgentName(rawSenderId, message?.agentDisplayName || "Coordinator")
+	const recipientId =
+		canonicalAgentId(
+			parsed.toAgentId ||
+				parsed.assignee ||
+				parsed.to ||
+				parsed.recipient ||
+				(type === "assign" || type === "handoff" ? parsed.agentId : undefined) ||
+				(type === "handoff" || (type === "message" && !isCoordinatorChannel(rawSenderId)) ? "coordinator" : ""),
+		) || (type === "handoff" || type === "message" ? "coordinator" : "")
+	const recipientName = cleanAgentName(recipientId, "Coordinator")
 
 	const rawInstruction =
 		parsed.instruction ||
@@ -180,6 +228,8 @@ const TeamRunTaskCard = memo(({ tool, message, type = "assign" }: TeamRunTaskCar
 		parsed.task ||
 		parsed.summary ||
 		parsed.body ||
+		parsed.content ||
+		parsed.subject ||
 		tool.path ||
 		""
 	const firstLine = rawInstruction
@@ -191,54 +241,82 @@ const TeamRunTaskCard = memo(({ tool, message, type = "assign" }: TeamRunTaskCar
 	const summaryText =
 		parsed.title || parsed.taskTitle || parsed.subject || firstLine || (rawInstruction ? rawInstruction.slice(0, 140) : "")
 
-	// Title header: Ai giao cho ai / Ai báo cáo cho ai
-	let headerIcon = <IconClipboardList className="text-indigo-400 shrink-0" size={14} stroke={1.5} />
-	let headerTitle = `${senderName} giao việc cho @${recipientId}`
-	if (type === "handoff") {
-		headerIcon = <IconSend className="text-emerald-400 shrink-0" size={14} stroke={1.5} />
-		headerTitle = `@${senderId} báo cáo kết quả cho ${recipientName}`
-	} else if (type === "message") {
-		headerIcon = <IconMessage className="text-blue-400 shrink-0" size={14} stroke={1.5} />
-		headerTitle = `${senderName} gửi tin nhắn cho @${recipientId}`
+	// Drop empty ghost cards or dummy placeholder cards like "@agent"
+	if (
+		!recipientId ||
+		recipientId.toLowerCase() === "agent" ||
+		(!parsed.taskId && !rawInstruction && !parsed.title && !parsed.taskTitle && !parsed.task) ||
+		(!parsed.taskId && (!rawInstruction || rawInstruction.trim().length === 0))
+	) {
+		return null
 	}
 
+	const isRecipient = Boolean(selectedAgentId && canonicalAgentId(recipientId) === canonicalAgentId(selectedAgentId))
+
+	const toolName =
+		tool.tool || (type === "handoff" ? "orvanta_submit_handoff" : type === "message" ? "team_send_message" : "team_run_task")
+	const kind = getCoordinationCardKind(toolName, rawSenderId, recipientId)
+
+	let headerIcon = <IconClipboardList className="text-indigo-400 shrink-0" size={CHAT_ROW_ICON_PX} stroke={1.5} />
+	let headerTitle = `${senderName} giao việc cho @${recipientName}`
+	let cardColorClass = "border-indigo-500/30 bg-indigo-500/10"
+
+	if (kind === "report") {
+		cardColorClass = "border-emerald-500/30 bg-emerald-500/10"
+		headerIcon = <IconSend className="text-emerald-400 shrink-0" size={CHAT_ROW_ICON_PX} stroke={1.5} />
+		headerTitle = isRecipient
+			? `${recipientName} nhận báo cáo từ @${senderName}`
+			: `@${senderName} báo cáo cho ${recipientName}`
+	} else {
+		headerTitle = isRecipient
+			? `@${recipientName} nhận nhiệm vụ từ ${senderName}`
+			: `${senderName} giao việc cho @${recipientName}`
+	}
+
+	const isKnownTeammate =
+		recipientId &&
+		recipientId !== "coordinator" &&
+		recipientId !== "agent" &&
+		!/^\d+/.test(recipientId) &&
+		recipientId.toLowerCase() !== selectedAgentId?.toLowerCase()
+
 	return (
-		<div className="rounded-md border border-indigo-500/30 bg-indigo-500/10 p-2.5 text-xs flex flex-col gap-1.5 my-1.5 transition-all">
+		<div
+			className={`rounded-md border ${cardColorClass} p-2.5 text-xs flex flex-col gap-1.5 my-1.5 transition-all`}
+			data-task-id={parsed.taskId}
+			data-ts={message?.ts}
+			id={omitDomId ? undefined : `message-${message?.ts || ""}`}>
 			{/* Header line: Ai giao cho ai / Ai báo cáo cho ai + toggle button */}
 			<div className="flex items-center justify-between gap-2">
 				<div
-					className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer select-none"
+					className="flex items-center gap-1.5 min-w-0 flex-1 cursor-pointer select-none"
 					onClick={() => setIsExpanded(!isExpanded)}>
 					<button
-						className="text-indigo-400 hover:text-indigo-300 p-0.5 shrink-0"
+						className="text-muted-foreground hover:text-foreground p-0.5 shrink-0"
 						title={isExpanded ? "Thu gọn chi tiết" : "Xem toàn bộ nội dung"}
 						type="button">
-						{isExpanded ? <ChevronDownIcon className="size-3.5" /> : <ChevronRightIcon className="size-3.5" />}
+						{isExpanded ? <ChevronDownIcon {...CHAT_ROW_LUCIDE} /> : <ChevronRightIcon {...CHAT_ROW_LUCIDE} />}
 					</button>
 					<span className="shrink-0">{headerIcon}</span>
-					<span className="font-semibold text-foreground truncate">{headerTitle}</span>
+					<span className={`${CHAT_HEADER_TITLE} truncate`}>{headerTitle}</span>
+					{parsed.taskId && (
+						<span className="shrink-0 font-mono text-[10px] text-muted-foreground bg-surface-secondary px-1.5 py-0.2 rounded border border-border/50">
+							#{parsed.taskId}
+						</span>
+					)}
 				</div>
 				<div className="flex items-center gap-1.5 shrink-0">
-					{recipientId && recipientId !== "coordinator" && (
+					{isKnownTeammate && (
 						<button
 							className="rounded bg-indigo-500/20 px-2 py-0.5 text-[11px] text-indigo-300 hover:bg-indigo-500/30 cursor-pointer font-mono transition-colors"
 							onClick={() => {
 								window.postMessage({ type: "orvanta_switch_channel", channelId: recipientId }, "*")
 							}}
-							title={`Chuyển tới kênh @${recipientId}`}
+							title={`Chuyển tới kênh @${cleanAgentName(recipientId)}`}
 							type="button">
-							@{recipientId}
+							@{cleanAgentName(recipientId)}
 						</button>
 					)}
-					<button
-						className="rounded bg-surface-secondary/70 px-2 py-0.5 text-[11px] text-muted-foreground hover:text-foreground hover:bg-surface-secondary cursor-pointer transition-colors"
-						onClick={() => {
-							window.postMessage({ type: "orvanta_switch_tab", tab: "console" }, "*")
-						}}
-						title="Xem tổng quan #team-feed"
-						type="button">
-						#team-feed
-					</button>
 				</div>
 			</div>
 
@@ -263,25 +341,35 @@ const TeamRunTaskCard = memo(({ tool, message, type = "assign" }: TeamRunTaskCar
 					)}
 					{parsed.deliverableArtifactPath && (
 						<div className="flex items-center gap-1.5 font-mono text-[11px] text-indigo-300">
-							<IconPackage className="shrink-0" size={13} stroke={1.5} />
+							<IconPackage className="shrink-0" size={CHAT_ROW_ICON_PX} stroke={1.5} />
 							<span>Sản phẩm bàn giao:</span>
 							<span className="font-semibold underline select-all">{parsed.deliverableArtifactPath}</span>
 						</div>
 					)}
 					{rawInstruction && (
 						<div className="flex flex-col gap-1">
-							<span className="font-semibold text-foreground">
-								{type === "handoff" ? "Nội dung báo cáo chi tiết:" : "Nội dung yêu cầu chi tiết:"}
+							<span className={CHAT_HEADER_TITLE}>
+								{kind === "report" ? "Nội dung báo cáo chi tiết:" : "Nội dung yêu cầu chi tiết:"}
 							</span>
-							{/* Sổ hết không có max-h hay overflow-y-auto */}
 							<div className="bg-surface-secondary/50 rounded p-2.5 text-foreground/90 whitespace-pre-wrap font-mono text-[11px] leading-relaxed border border-border/50 select-text">
 								{rawInstruction}
 							</div>
 						</div>
 					)}
+					{parsed.reportText && (
+						<div className="flex flex-col gap-1 mt-1">
+							<div className={`flex items-center gap-1.5 ${CHAT_HEADER_TITLE} text-emerald-400`}>
+								<IconInbox size={CHAT_ROW_ICON_PX} />
+								<span>Báo cáo kết quả:</span>
+							</div>
+							<div className="bg-emerald-500/10 border border-emerald-500/20 rounded p-2.5 text-foreground/90 whitespace-pre-wrap font-mono text-[11px] leading-relaxed select-text">
+								{parsed.reportText}
+							</div>
+						</div>
+					)}
 					{parsed.context != null && (
 						<div className="flex flex-col gap-1">
-							<span className="font-semibold text-foreground">Ngữ cảnh bổ sung:</span>
+							<span className={CHAT_HEADER_TITLE}>Ngữ cảnh bổ sung:</span>
 							<div className="bg-surface-secondary/30 rounded p-2 text-foreground/80 font-mono text-[10.5px] select-text">
 								{typeof parsed.context === "string" ? parsed.context : JSON.stringify(parsed.context, null, 2)}
 							</div>
@@ -309,6 +397,8 @@ export const ChatRowContent = memo(
 		reasoningContent,
 		responseStarted,
 		retryFailedRequest,
+		selectedAgentId,
+		isStickyClone,
 	}: ChatRowContentProps) => {
 		const {
 			backgroundEditEnabled: backgroundEditSetting,
@@ -469,40 +559,46 @@ export const ChatRowContent = memo(
 			switch (type) {
 				case "error":
 					return [
-						<span className="codicon codicon-error text-error mb-[-1.5px]" />,
-						<span className="text-error font-bold">Error</span>,
+						<span className="codicon codicon-error text-error mb-[-1.5px] text-[12px]" />,
+						<span className={`${CHAT_HEADER_TITLE} text-error`}>Error</span>,
 					]
 				case "mistake_limit_reached":
 					return [
-						<CircleXIcon className="text-error size-2" />,
-						<span className="text-error font-bold">Cline is having trouble...</span>,
+						<CircleXIcon {...CHAT_ROW_LUCIDE} className="text-error shrink-0" />,
+						<span className={`${CHAT_HEADER_TITLE} text-error`}>Cline is having trouble...</span>,
 					]
 				case "command":
 					return [
-						<TerminalIcon className="text-foreground size-2" />,
-						<span className="font-bold text-foreground">Cline wants to execute this command:</span>,
+						<TerminalIcon {...CHAT_ROW_LUCIDE} className="text-foreground shrink-0" />,
+						<span className={CHAT_HEADER_TITLE}>wants to execute this command:</span>,
 					]
 				case "use_mcp_server":
 					const mcpServerUse = JSON.parse(message.text || "{}") as ClineAskUseMcpServer
+					const mcpActor =
+						message.agentDisplayName ??
+						message.agent_display_name ??
+						(message.agentId ? `@${message.agentId}` : "Coordinator")
 					return [
 						isMcpServerResponding ? (
 							<ProgressIndicator />
 						) : (
-							<span className="codicon codicon-server text-foreground mb-[-1.5px]" />
+							<span className="codicon codicon-server text-foreground mb-[-1.5px] text-[12px]" />
 						),
-						<span className="ph-no-capture font-bold text-foreground wrap-break-word">
-							Cline wants to {mcpServerUse.type === "use_mcp_tool" ? "use a tool" : "access a resource"} on the{" "}
-							<code className="break-all">{mcpServerUse.serverName}</code> MCP server:
+						<span className={`ph-no-capture wrap-break-word ${CHAT_HEADER_TITLE}`}>
+							{mcpActor} muốn {mcpServerUse.type === "use_mcp_tool" ? "dùng công cụ" : "truy cập tài nguyên"} trên
+							MCP server <code className="break-all">{mcpServerUse.serverName}</code>:
 						</span>,
 					]
 				case "api_req_started":
-					// API request rows no longer render the request payload/cost accordion.
-					// Thinking/reasoning is handled directly in the api_req_started renderer below.
 					return [null, null]
 				case "followup":
+					const followupActor =
+						message.agentDisplayName ??
+						message.agent_display_name ??
+						(message.agentId ? `@${message.agentId}` : "Coordinator")
 					return [
-						<span className="codicon codicon-question text-foreground mb-[-1.5px]" />,
-						<span className="font-bold text-foreground">Cline has a question:</span>,
+						<span className="codicon codicon-question text-foreground mb-[-1.5px] text-[12px]" />,
+						<span className={CHAT_HEADER_TITLE}>{followupActor} có câu hỏi:</span>,
 					]
 				default:
 					return [null, null]
@@ -541,14 +637,15 @@ export const ChatRowContent = memo(
 		if (conditionalRulesInfo) {
 			const names = conditionalRulesInfo.rules.map((r: { name: string }) => r.name).join(", ")
 			return (
-				<div className={HEADER_CLASSNAMES}>
-					<span style={{ fontWeight: "bold" }}>Conditional rules applied:</span>
+				<div className={CHAT_HEADER_ROW}>
+					<span className={CHAT_HEADER_TITLE}>Conditional rules applied:</span>
 					<span className="ph-no-capture wrap-break-word whitespace-pre-wrap">{names}</span>
 				</div>
 			)
 		}
 
 		if (tool) {
+			const actor = toolActorName(message)
 			const colorMap = {
 				red: "var(--vscode-errorForeground)",
 				yellow: "var(--vscode-editorWarning-foreground)",
@@ -556,7 +653,7 @@ export const ChatRowContent = memo(
 			}
 			const toolIcon = (name: string, color?: string, rotation?: number, title?: string) => (
 				<span
-					className={`codicon codicon-${name} ph-no-capture`}
+					className={`codicon codicon-${name} ph-no-capture text-[12px] leading-none`}
 					style={{
 						color: color ? colorMap[color as keyof typeof colorMap] || color : "var(--vscode-foreground)",
 						marginBottom: "-1.5px",
@@ -570,36 +667,20 @@ export const ChatRowContent = memo(
 				case "editedExistingFile":
 					const content = tool?.content || ""
 					const isApplyingPatch = content?.startsWith("%%bash") && !content.endsWith("*** End Patch\nEOF")
-					const actorName =
-						message.agentDisplayName ??
-						message.agent_display_name ??
-						(message.agentId ? `@${message.agentId}` : undefined)
 					const editToolTitle = isApplyingPatch
-						? actorName
-							? `${actorName} đang tạo patch sửa file này:`
-							: "Đang tạo patch sửa file này:"
-						: actorName
-							? `${actorName} muốn sửa file này:`
-							: "Yêu cầu sửa file này:"
+						? `${actor} đang tạo patch sửa file này:`
+						: `${actor} muốn sửa file này:`
 					const isPurposeLockDenied =
 						tool?.content?.includes("purpose_lock_denied") ||
 						tool?.diff?.includes("purpose_lock_denied") ||
 						Boolean(tool.path && tool.path.includes(".orvanta/org/agents") && tool.path.endsWith("profile.md"))
 					return (
 						<div>
-							<div className={HEADER_CLASSNAMES}>
-								<PencilIcon className="size-2" />
+							<div className={CHAT_HEADER_ROW}>
+								<PencilIcon {...CHAT_ROW_LUCIDE} className="shrink-0" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
-								{(message.agentId || message.agent_id) && (
-									<AgentBadge
-										agentId={message.agentId ?? message.agent_id}
-										displayName={message.agentDisplayName ?? message.agent_display_name}
-										role={message.agentRole ?? message.agent_role}
-										size="sm"
-									/>
-								)}
-								<span style={{ fontWeight: "bold" }}>{editToolTitle}</span>
+								<span className={CHAT_HEADER_TITLE}>{editToolTitle}</span>
 							</div>
 							{isPurposeLockDenied && (
 								<div className="rounded border border-rose-500/40 bg-rose-500/15 p-2.5 text-xs flex flex-col gap-1 my-2">
@@ -607,7 +688,7 @@ export const ChatRowContent = memo(
 										<span>🔒</span>
 										<span>Từ chối chỉnh sửa: File được bảo vệ bởi Purpose-Lock</span>
 									</div>
-									<div className="text-[11px] text-muted-foreground">
+									<div className={CHAT_HEADER_META}>
 										Tác nhân không được phép tự ý thay đổi file cấu hình/hồ sơ <code>{tool.path}</code>. Hành
 										động đã bị hệ thống bảo mật chặn lại.
 									</div>
@@ -615,9 +696,6 @@ export const ChatRowContent = memo(
 							)}
 							{backgroundEditEnabled && tool.path && (tool.diff || tool.content) ? (
 								<DiffEditRow
-									agentDisplayName={message.agentDisplayName ?? message.agent_display_name}
-									agentId={message.agentId ?? message.agent_id}
-									agentRole={message.agentRole ?? message.agent_role}
 									canOpenFile={!currentCloudTask}
 									isLoading={message.partial}
 									patch={tool.diff || tool.content!}
@@ -638,11 +716,11 @@ export const ChatRowContent = memo(
 				case "fileDeleted":
 					return (
 						<div>
-							<div className={HEADER_CLASSNAMES}>
-								<SquareMinusIcon className="size-2" />
+							<div className={CHAT_HEADER_ROW}>
+								<SquareMinusIcon {...CHAT_ROW_LUCIDE} className="shrink-0" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>Cline wants to delete this file:</span>
+								<span className={CHAT_HEADER_TITLE}>{actor} wants to delete this file:</span>
 							</div>
 							<CodeAccordian
 								// isLoading={message.partial}
@@ -656,17 +734,14 @@ export const ChatRowContent = memo(
 				case "newFileCreated":
 					return (
 						<div>
-							<div className={HEADER_CLASSNAMES}>
-								<FilePlus2Icon className="size-2" />
+							<div className={CHAT_HEADER_ROW}>
+								<FilePlus2Icon {...CHAT_ROW_LUCIDE} className="shrink-0" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
-								<span className="font-bold">Cline wants to create a new file:</span>
+								<span className={CHAT_HEADER_TITLE}>{actor} wants to create a new file:</span>
 							</div>
 							{backgroundEditEnabled && tool.path && tool.content ? (
 								<DiffEditRow
-									agentDisplayName={message.agentDisplayName ?? message.agent_display_name}
-									agentId={message.agentId ?? message.agent_id}
-									agentRole={message.agentRole ?? message.agent_role}
 									canOpenFile={!currentCloudTask}
 									patch={tool.content}
 									path={tool.path}
@@ -687,11 +762,15 @@ export const ChatRowContent = memo(
 					const isImage = isImageFile(tool.path || "")
 					return (
 						<div>
-							<div className={HEADER_CLASSNAMES}>
-								{isImage ? <ImageUpIcon className="size-2" /> : <FileCode2Icon className="size-2" />}
+							<div className={CHAT_HEADER_ROW}>
+								{isImage ? (
+									<ImageUpIcon {...CHAT_ROW_LUCIDE} className="shrink-0" />
+								) : (
+									<FileCode2Icon {...CHAT_ROW_LUCIDE} className="shrink-0" />
+								)}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
-								<span className="font-bold">Cline wants to read this file:</span>
+								<span className={CHAT_HEADER_TITLE}>{actor} wants to read this file:</span>
 							</div>
 							<div className="bg-code rounded-sm overflow-hidden border border-editor-group-border">
 								<div
@@ -718,7 +797,7 @@ export const ChatRowContent = memo(
 										) : null}
 									</span>
 									<div className="grow" />
-									{!isImage && <SquareArrowOutUpRightIcon className="size-2" />}
+									{!isImage && <SquareArrowOutUpRightIcon {...CHAT_ROW_LUCIDE} className="shrink-0" />}
 								</div>
 							</div>
 						</div>
@@ -726,14 +805,14 @@ export const ChatRowContent = memo(
 				case "listFilesTopLevel":
 					return (
 						<div>
-							<div className={HEADER_CLASSNAMES}>
+							<div className={CHAT_HEADER_ROW}>
 								{toolIcon("folder-opened")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>
+								<span className={CHAT_HEADER_TITLE}>
 									{message.type === "ask"
-										? "Cline wants to view the top level files in this directory:"
-										: "Cline viewed the top level files in this directory:"}
+										? `${actor} wants to view the top level files in this directory:`
+										: `${actor} viewed the top level files in this directory:`}
 								</span>
 							</div>
 							<CodeAccordian
@@ -748,14 +827,14 @@ export const ChatRowContent = memo(
 				case "listFilesRecursive":
 					return (
 						<div>
-							<div className={HEADER_CLASSNAMES}>
+							<div className={CHAT_HEADER_ROW}>
 								{toolIcon("folder-opened")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>
+								<span className={CHAT_HEADER_TITLE}>
 									{message.type === "ask"
-										? "Cline wants to recursively view all files in this directory:"
-										: "Cline recursively viewed all files in this directory:"}
+										? `${actor} wants to recursively view all files in this directory:`
+										: `${actor} recursively viewed all files in this directory:`}
 								</span>
 							</div>
 							<CodeAccordian
@@ -770,14 +849,14 @@ export const ChatRowContent = memo(
 				case "listCodeDefinitionNames":
 					return (
 						<div>
-							<div className={HEADER_CLASSNAMES}>
+							<div className={CHAT_HEADER_ROW}>
 								{toolIcon("file-code")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
-								<span style={{ fontWeight: "bold" }}>
+								<span className={CHAT_HEADER_TITLE}>
 									{message.type === "ask"
-										? "Cline wants to view source code definition names used in this directory:"
-										: "Cline viewed source code definition names used in this directory:"}
+										? `${actor} wants to view source code definition names used in this directory:`
+										: `${actor} viewed source code definition names used in this directory:`}
 								</span>
 							</div>
 							<CodeAccordian
@@ -791,12 +870,12 @@ export const ChatRowContent = memo(
 				case "searchFiles":
 					return (
 						<div>
-							<div className={HEADER_CLASSNAMES}>
+							<div className={CHAT_HEADER_ROW}>
 								{toolIcon("search")}
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
-								<span className="font-bold">
-									Cline wants to search this directory for <code className="break-all">{tool.regex}</code>:
+								<span className={CHAT_HEADER_TITLE}>
+									{actor} wants to search this directory for <code className="break-all">{tool.regex}</code>:
 								</span>
 							</div>
 							<SearchResultsDisplay
@@ -811,9 +890,9 @@ export const ChatRowContent = memo(
 				case "summarizeTask":
 					return (
 						<div>
-							<div className={HEADER_CLASSNAMES}>
-								<FoldVerticalIcon className="size-2" />
-								<span className="font-bold">Cline is condensing the conversation:</span>
+							<div className={CHAT_HEADER_ROW}>
+								<FoldVerticalIcon {...CHAT_ROW_LUCIDE} className="shrink-0" />
+								<span className={CHAT_HEADER_TITLE}>{actor} is condensing the conversation:</span>
 							</div>
 							<div className="bg-code overflow-hidden border border-editor-group-border rounded-[3px]">
 								<div
@@ -830,9 +909,9 @@ export const ChatRowContent = memo(
 									{isExpanded ? (
 										<div>
 											<div className="flex items-center mb-2">
-												<span className="font-bold mr-1">Summary:</span>
+												<span className={`${CHAT_HEADER_TITLE} mr-1`}>Summary:</span>
 												<div className="grow" />
-												<ChevronDownIcon className="my-0.5 shrink-0 size-4" />
+												<ChevronDownIcon {...CHAT_ROW_LUCIDE} className="my-0.5 shrink-0" />
 											</div>
 											<span className="ph-no-capture wrap-break-word whitespace-pre-wrap">
 												{tool.content}
@@ -843,7 +922,7 @@ export const ChatRowContent = memo(
 											<span className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis text-left flex-1 mr-2 [direction:rtl]">
 												{`${tool.content}\u200E`}
 											</span>
-											<ChevronRightIcon className="my-0.5 shrink-0 size-4" />
+											<ChevronRightIcon {...CHAT_ROW_LUCIDE} className="my-0.5 shrink-0" />
 										</div>
 									)}
 								</div>
@@ -853,14 +932,14 @@ export const ChatRowContent = memo(
 				case "webFetch":
 					return (
 						<div>
-							<div className={HEADER_CLASSNAMES}>
-								<Link2Icon className="size-2" />
+							<div className={CHAT_HEADER_ROW}>
+								<Link2Icon {...CHAT_ROW_LUCIDE} className="shrink-0" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This URL is external")}
-								<span className="font-bold">
+								<span className={CHAT_HEADER_TITLE}>
 									{message.type === "ask"
-										? "Cline wants to fetch content from this URL:"
-										: "Cline fetched content from this URL:"}
+										? `${actor} wants to fetch content from this URL:`
+										: `${actor} fetched content from this URL:`}
 								</span>
 							</div>
 							<div
@@ -882,14 +961,14 @@ export const ChatRowContent = memo(
 				case "webSearch":
 					return (
 						<div>
-							<div className={HEADER_CLASSNAMES}>
-								<SearchIcon className="size-2 rotate-90" />
+							<div className={CHAT_HEADER_ROW}>
+								<SearchIcon {...CHAT_ROW_LUCIDE} className="rotate-90 shrink-0" />
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This search is external")}
-								<span className="font-bold">
+								<span className={CHAT_HEADER_TITLE}>
 									{message.type === "ask"
-										? "Cline wants to search the web for:"
-										: "Cline searched the web for:"}
+										? `${actor} wants to search the web for:`
+										: `${actor} searched the web for:`}
 								</span>
 							</div>
 							<div className="bg-code border border-editor-group-border overflow-hidden rounded-xs select-text py-2.25 px-2.5">
@@ -900,25 +979,11 @@ export const ChatRowContent = memo(
 						</div>
 					)
 				case "useSkill":
-					const skillActor =
-						message.agentDisplayName ??
-						message.agent_display_name ??
-						(message.agentId ? `@${message.agentId}` : undefined)
 					return (
 						<div>
-							<div className={HEADER_CLASSNAMES}>
-								<LightbulbIcon className="size-2" />
-								{(message.agentId || message.agent_id) && (
-									<AgentBadge
-										agentId={message.agentId ?? message.agent_id}
-										displayName={message.agentDisplayName ?? message.agent_display_name}
-										role={message.agentRole ?? message.agent_role}
-										size="sm"
-									/>
-								)}
-								<span className="font-bold">
-									{skillActor ? `${skillActor} đã nạp kỹ năng:` : "Đã nạp kỹ năng:"}
-								</span>
+							<div className={CHAT_HEADER_ROW}>
+								<LightbulbIcon {...CHAT_ROW_LUCIDE} className="shrink-0" />
+								<span className={CHAT_HEADER_TITLE}>{actor} đã nạp kỹ năng:</span>
 							</div>
 							<div className="bg-code border border-editor-group-border overflow-hidden rounded-xs py-2.25 px-2.5">
 								<span className="ph-no-capture font-medium">{tool.path}</span>
@@ -926,13 +991,37 @@ export const ChatRowContent = memo(
 						</div>
 					)
 				case "team_run_task": {
-					return <TeamRunTaskCard message={message} tool={tool} type="assign" />
+					return (
+						<TeamRunTaskCard
+							message={message}
+							omitDomId={isStickyClone}
+							selectedAgentId={selectedAgentId}
+							tool={tool}
+							type="assign"
+						/>
+					)
 				}
 				case "orvanta_submit_handoff": {
-					return <TeamRunTaskCard message={message} tool={tool} type="handoff" />
+					return (
+						<TeamRunTaskCard
+							message={message}
+							omitDomId={isStickyClone}
+							selectedAgentId={selectedAgentId}
+							tool={tool}
+							type="handoff"
+						/>
+					)
 				}
 				case "team_send_message": {
-					return <TeamRunTaskCard message={message} tool={tool} type="message" />
+					return (
+						<TeamRunTaskCard
+							message={message}
+							omitDomId={isStickyClone}
+							selectedAgentId={selectedAgentId}
+							tool={tool}
+							type="message"
+						/>
+					)
 				}
 				case "orvanta_request_decision": {
 					let parsed: any = {}
@@ -1041,7 +1130,7 @@ export const ChatRowContent = memo(
 			const server = mcpServers.find((server) => server.name === useMcpServer.serverName)
 			return (
 				<div>
-					<div className={HEADER_CLASSNAMES}>
+					<div className={CHAT_HEADER_ROW}>
 						{icon}
 						{title}
 					</div>
@@ -1124,7 +1213,7 @@ export const ChatRowContent = memo(
 					case "mcp_notification":
 						return (
 							<div className="flex items-start gap-2 py-2.5 px-3 bg-quote rounded-sm text-base text-foreground opacity-90 mb-2">
-								<BellIcon className="mt-0.5 size-2 text-notification-foreground shrink-0" />
+								<BellIcon {...CHAT_ROW_LUCIDE} className="mt-0.5 shrink-0 text-notification-foreground" />
 								<div className="wrap-break-word flex-1">
 									<span className="font-medium">MCP Notification: </span>
 									<span className="ph-no-capture">{message.text}</span>
@@ -1246,7 +1335,7 @@ export const ChatRowContent = memo(
 							<CompletionOutputRow
 								handleQuoteClick={handleQuoteClick}
 								quoteButtonState={quoteButtonState}
-								showViewChanges={isLast && message.partial !== true && enableCheckpointsSetting}
+								showViewChanges={isLast && enableCheckpointsSetting}
 								text={text || ""}
 							/>
 						)
@@ -1258,7 +1347,7 @@ export const ChatRowContent = memo(
 						return (
 							<div className="flex flex-col bg-warning/20 p-2 rounded-xs border border-error">
 								<div className="flex items-center mb-1">
-									<TriangleAlertIcon className="mr-2 size-2 stroke-3 text-error" />
+									<TriangleAlertIcon {...CHAT_ROW_LUCIDE} className="mr-2 shrink-0 text-error" />
 									<span className="font-medium text-foreground">Shell Integration Unavailable</span>
 								</div>
 								<div className="text-foreground opacity-80">
@@ -1286,7 +1375,7 @@ export const ChatRowContent = memo(
 						return (
 							<div className="p-2 bg-link/10 border border-link/30 rounded-xs">
 								<div className="flex items-center mb-1">
-									<LightbulbIcon className="mr-1.5 size-2 text-link" />
+									<LightbulbIcon {...CHAT_ROW_LUCIDE} className="mr-1.5 shrink-0 text-link" />
 									<span className="font-medium text-foreground">Shell integration issues</span>
 								</div>
 								<div className="text-foreground opacity-90 mb-2">
@@ -1309,7 +1398,7 @@ export const ChatRowContent = memo(
 											console.error("Failed to enable background terminal:", error)
 										}
 									}}>
-									<SettingsIcon className="size-2" />
+									<SettingsIcon {...CHAT_ROW_LUCIDE} className="shrink-0" />
 									{isBackgroundModeEnabled
 										? "Background Terminal Enabled"
 										: "Enable Background Terminal (Recommended)"}
@@ -1324,7 +1413,7 @@ export const ChatRowContent = memo(
 						return (
 							<div>
 								{title && (
-									<div className={HEADER_CLASSNAMES}>
+									<div className={CHAT_HEADER_ROW}>
 										{icon}
 										{title}
 									</div>
@@ -1376,7 +1465,7 @@ export const ChatRowContent = memo(
 						return (
 							<div>
 								{title && (
-									<div className={HEADER_CLASSNAMES}>
+									<div className={CHAT_HEADER_ROW}>
 										{icon}
 										{title}
 									</div>
@@ -1411,9 +1500,9 @@ export const ChatRowContent = memo(
 					case "new_task":
 						return (
 							<div>
-								<div className={HEADER_CLASSNAMES}>
-									<FilePlus2Icon className="size-2" />
-									<span className="text-foreground font-bold">Cline wants to start a new task:</span>
+								<div className={CHAT_HEADER_ROW}>
+									<FilePlus2Icon {...CHAT_ROW_LUCIDE} className="shrink-0" />
+									<span className={CHAT_HEADER_TITLE}>Cline wants to start a new task:</span>
 								</div>
 								<NewTaskPreview context={message.text || ""} />
 							</div>
@@ -1421,9 +1510,9 @@ export const ChatRowContent = memo(
 					case "condense":
 						return (
 							<div>
-								<div className={HEADER_CLASSNAMES}>
-									<FilePlus2Icon className="size-2" />
-									<span className="text-foreground font-bold">Cline wants to condense your conversation:</span>
+								<div className={CHAT_HEADER_ROW}>
+									<FilePlus2Icon {...CHAT_ROW_LUCIDE} className="shrink-0" />
+									<span className={CHAT_HEADER_TITLE}>Cline wants to condense your conversation:</span>
 								</div>
 								<NewTaskPreview context={message.text || ""} />
 							</div>
@@ -1431,9 +1520,9 @@ export const ChatRowContent = memo(
 					case "report_bug":
 						return (
 							<div>
-								<div className={HEADER_CLASSNAMES}>
-									<FilePlus2Icon className="size-2" />
-									<span className="text-foreground font-bold">Cline wants to create a Github issue:</span>
+								<div className={CHAT_HEADER_ROW}>
+									<FilePlus2Icon {...CHAT_ROW_LUCIDE} className="shrink-0" />
+									<span className={CHAT_HEADER_TITLE}>Cline wants to create a Github issue:</span>
 								</div>
 								<ReportBugPreview data={message.text || ""} />
 							</div>

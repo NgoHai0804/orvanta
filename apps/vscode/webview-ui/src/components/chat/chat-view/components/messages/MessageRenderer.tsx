@@ -22,6 +22,7 @@ interface MessageRendererProps {
 	inputValue: string
 	messageHandlers: MessageHandlers
 	footerActive: boolean
+	selectedAgentId?: string
 }
 
 /**
@@ -41,6 +42,7 @@ const MessageRenderer: React.FC<MessageRendererProps> = ({
 	inputValue,
 	messageHandlers,
 	footerActive,
+	selectedAgentId,
 }) => {
 	const { mode } = useExtensionState()
 
@@ -113,6 +115,7 @@ const MessageRenderer: React.FC<MessageRendererProps> = ({
 				reasoningContent={reasoningData.reasoning}
 				responseStarted={reasoningData.responseStarted}
 				retryFailedRequest={messageHandlers.retryFailedRequest}
+				selectedAgentId={selectedAgentId}
 				sendMessageFromChatRow={messageHandlers.handleSendMessage}
 			/>
 		</div>
@@ -134,6 +137,7 @@ export const createMessageRenderer = (
 	inputValue: string,
 	messageHandlers: MessageHandlers,
 	footerActive: boolean,
+	selectedAgentId?: string,
 ) => {
 	return (index: number, messageOrGroup: ClineMessage | ClineMessage[]) => (
 		<MessageRenderer
@@ -149,6 +153,7 @@ export const createMessageRenderer = (
 			onLastRowContentChange={onLastRowContentChange}
 			onSetQuote={onSetQuote}
 			onToggleExpand={onToggleExpand}
+			selectedAgentId={selectedAgentId}
 		/>
 	)
 }

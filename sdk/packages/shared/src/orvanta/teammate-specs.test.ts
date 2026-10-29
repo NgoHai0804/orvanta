@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AgentProfile } from "./agent-profile";
 import type { RosterJson } from "./company-schema";
-import { buildTeammateSpecs } from "./teammate-specs";
+import { buildTeammateSpecs, TEAMMATE_CLOSEOUT_PROMPT } from "./teammate-specs";
 
 function makeFakeProfile(id: string, overrides: Partial<AgentProfile> = {}): AgentProfile {
 	return {
@@ -112,10 +112,11 @@ describe("buildTeammateSpecs", () => {
 		expect(ids).toEqual(["implementer", "reviewer"]);
 	});
 
-	it("maps instructions to rolePrompt", () => {
+	it("maps instructions to rolePrompt and appends the closeout rule", () => {
 		const specs = buildTeammateSpecs(mockRoster, profilesMap);
 		const impl = specs.find((s) => s.agentId === "implementer");
-		expect(impl?.rolePrompt).toBe("Write code and fix tests.");
+		expect(impl?.rolePrompt).toContain("Write code and fix tests.");
+		expect(impl?.rolePrompt).toContain(TEAMMATE_CLOSEOUT_PROMPT);
 	});
 
 	it("prefers profile modelId and maxIterations over roster values", () => {
@@ -152,11 +153,11 @@ describe("buildTeammateSpecs", () => {
 			implementer: makeFakeProfile("implementer", { instructions: "From record" }),
 		};
 		const specs1 = buildTeammateSpecs(mockRoster, record);
-		expect(specs1.find((s) => s.agentId === "implementer")?.rolePrompt).toBe("From record");
+		expect(specs1.find((s) => s.agentId === "implementer")?.rolePrompt).toContain("From record");
 
 		const fn = (id: string) => makeFakeProfile(id, { instructions: `From fn for ${id}` });
 		const specs2 = buildTeammateSpecs(mockRoster, fn);
-		expect(specs2.find((s) => s.agentId === "implementer")?.rolePrompt).toBe("From fn for implementer");
+		expect(specs2.find((s) => s.agentId === "implementer")?.rolePrompt).toContain("From fn for implementer");
 	});
 
 	it("injects agent memory into rolePrompt when memories option is provided", () => {

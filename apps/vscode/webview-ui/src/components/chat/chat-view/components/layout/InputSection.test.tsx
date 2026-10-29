@@ -331,7 +331,7 @@ describe("InputSection", () => {
 		expect(screen.getByRole("button", { name: "Send" })).toBeDisabled()
 	})
 
-	it("renders focus agent chip with ★ for coordinator", () => {
+	it("does not render duplicate focus chip for coordinator", () => {
 		render(
 			<InputSection
 				chatState={makeChatState()}
@@ -345,14 +345,9 @@ describe("InputSection", () => {
 			/>,
 		)
 
-		const chip = screen.getByTestId("composer-focus-chip")
-		expect(chip).toBeInTheDocument()
-		expect(chip).toHaveTextContent("Lead Bot")
-		expect(chip).toHaveTextContent("★")
-		expect(screen.queryByRole("button", { name: "Quay lại coordinator" })).not.toBeInTheDocument()
+		expect(screen.queryByTestId("composer-focus-chip")).not.toBeInTheDocument()
 	})
-
-	it("renders focus agent chip with reset button for teammate", () => {
+	it("does not render duplicate focus chip for teammate (deprecated)", () => {
 		const onReset = vi.fn()
 		render(
 			<InputSection
@@ -367,12 +362,7 @@ describe("InputSection", () => {
 			/>,
 		)
 
-		const chip = screen.getByTestId("composer-focus-chip")
-		expect(chip).toBeInTheDocument()
-		expect(chip).toHaveTextContent("Coder Bot")
-		const resetButton = screen.getByRole("button", { name: "Quay lại coordinator" })
-		expect(resetButton).toBeInTheDocument()
-		fireEvent.click(resetButton)
-		expect(onReset).toHaveBeenCalledTimes(1)
+		expect(screen.queryByTestId("composer-focus-chip")).toBeNull()
+		expect(screen.queryByRole("button", { name: "Quay lại coordinator" })).toBeNull()
 	})
 })

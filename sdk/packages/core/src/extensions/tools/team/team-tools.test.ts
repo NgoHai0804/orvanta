@@ -100,6 +100,23 @@ describe("createAgentTeamsTools schema surface", () => {
 		expect(schema?.required).toEqual(["kind", "summary"]);
 	});
 
+	it("ends a teammate run after they send a mailbox message, not the lead", () => {
+		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
+		const leadSend = createAgentTeamsTools({
+			runtime,
+			requesterId: "lead",
+			teammateConfigProvider: makeTeammateConfigProvider(),
+		}).find((tool) => tool.name === "team_send_message");
+		const teammateSend = createAgentTeamsTools({
+			runtime,
+			requesterId: "coder",
+			teammateConfigProvider: makeTeammateConfigProvider(),
+		}).find((tool) => tool.name === "team_send_message");
+
+		expect(leadSend?.lifecycle?.completesRun).not.toBe(true);
+		expect(teammateSend?.lifecycle).toEqual({ completesRun: true });
+	});
+
 	it("rejects extra fields for strict spawn schema", async () => {
 		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
 		const tools = createAgentTeamsTools({

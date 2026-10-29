@@ -43,7 +43,7 @@ export interface SdkInteractionCoordinatorOptions {
 	messages: SdkMessageCoordinator
 	getSessionId: () => string
 	postStateToWebview: () => Promise<void>
-	shouldAutoApproveTool?: (request: ToolApprovalRequest) => boolean
+	shouldAutoApproveTool?: (request: ToolApprovalRequest) => boolean | Promise<boolean>
 	recordApprovedToolMessage?: (toolCallId: string, messageTs: number) => void
 	recordDeniedToolApproval?: (toolCallId: string, toolName: string, reason: string) => void
 	/**
@@ -116,7 +116,8 @@ export class SdkInteractionCoordinator {
 	}
 
 	async handleRequestToolApproval(request: ToolApprovalRequest): Promise<{ approved: boolean; reason?: string }> {
-		if (request.policy.autoApprove === true || this.options.shouldAutoApproveTool?.(request) === true) {
+		const shouldAuto = await this.options.shouldAutoApproveTool?.(request)
+		if (request.policy.autoApprove === true || shouldAuto === true) {
 			Logger.log(`[SdkController] Auto-approving tool execution: tool=${request.toolName}`)
 			return { approved: true }
 		}

@@ -1,4 +1,4 @@
-import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import type { AgentAutoApproval, AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import type { McpHub } from "@/services/mcp/McpHub"
 
 /**
@@ -64,6 +64,31 @@ export function isToolAutoApproved(toolName: string, settings: AutoApprovalSetti
 		return !!settings.actions.useMcp
 	}
 
+	return false
+}
+
+/**
+ * Evaluate auto-approval settings configured specifically for an Agent.
+ */
+export function isAgentAutoApproved(toolName: string, autoApproval: AgentAutoApproval): boolean {
+	if (!autoApproval.enabled) {
+		return false
+	}
+	if (isReadTool(toolName)) {
+		return !!autoApproval.readFiles
+	}
+	if (isEditTool(toolName)) {
+		return !!autoApproval.editFiles
+	}
+	if (isCommandTool(toolName)) {
+		return !!autoApproval.executeCommands
+	}
+	if (isBrowserTool(toolName)) {
+		return !!autoApproval.useBrowser
+	}
+	if (isMcpToolName(toolName)) {
+		return !!autoApproval.useMcp
+	}
 	return false
 }
 

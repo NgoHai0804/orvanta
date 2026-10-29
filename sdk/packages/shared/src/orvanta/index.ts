@@ -89,7 +89,9 @@ export {
 	slugify,
 } from "./library";
 export {
+	appendTeammateCloseout,
 	buildTeammateSpecs,
+	TEAMMATE_CLOSEOUT_PROMPT,
 	type AgentProfileLookup,
 	type BuildTeammateSpecsOptions,
 } from "./teammate-specs";

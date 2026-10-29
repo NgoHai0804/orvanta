@@ -1,9 +1,10 @@
 import { ClineMessage, ClineSayTool } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
+import { ChevronDown, ChevronRight, SquareArrowOutUpRightIcon } from "lucide-react"
 import { memo, useCallback, useMemo, useState } from "react"
+import { CHAT_HEADER_TITLE_MUTED, CHAT_ROW_LUCIDE } from "@/components/chat/chatRowStyles"
 import { TypewriterText } from "@/components/chat/TypewriterText"
 import { cleanPathPrefix } from "@/components/common/CodeAccordian"
-import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
 import { getIconByToolName, getToolsNotInCurrentActivities, isLowStakesTool } from "../../utils/messageUtils"
@@ -110,6 +111,7 @@ const getCurrentActivities = (allMessages: ClineMessage[]): ClineMessage[] => {
  */
 export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: ToolGroupRendererProps) => {
 	const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>({})
+	const [isGroupExpanded, setIsGroupExpanded] = useState(false)
 
 	// Filter out tools in the "current activities" range (being shown in loading state)
 	const filteredMessages = useMemo(() => getToolsNotInCurrentActivities(messages, allMessages), [messages, allMessages])
@@ -155,7 +157,11 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 
 	const agentName = useMemo(() => {
 		for (const m of messages) {
-			const name = m.agentDisplayName || (m as any).agent_display_name || m.agentId || (m as any).agent_id
+			const name =
+				m.agentDisplayName ||
+				(m as { agent_display_name?: string }).agent_display_name ||
+				m.agentId ||
+				(m as { agent_id?: string }).agent_id
 			if (name) return name
 		}
 		return undefined
@@ -183,69 +189,97 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 
 	return (
 		<div className={cn("px-4 py-2 ml-1 text-description")}>
-			{/* Header */}
-			<div className="text-[13px] text-description font-semibold mb-1">{summary}:</div>
+			{/* Collapsible Header */}
+			<button
+				className={`flex items-center gap-1.5 ${CHAT_HEADER_TITLE_MUTED} mb-1 cursor-pointer hover:text-foreground transition-colors select-none text-left p-0 bg-transparent border-0`}
+				onClick={() => setIsGroupExpanded((prev) => !prev)}
+				type="button">
+				<span>{summary}:</span>
+				{isGroupExpanded ? (
+					<ChevronDown {...CHAT_ROW_LUCIDE} className="opacity-70 shrink-0" />
+				) : (
+					<ChevronRight {...CHAT_ROW_LUCIDE} className="opacity-70 shrink-0" />
+				)}
+			</button>
 
 			{/* Content - unified list of completed + active tools */}
-			<div className="min-w-0">
-				{allTools.map(({ tool, parsedTool, isActive, activityText }) => {
-					const info = getToolDisplayInfo(parsedTool)
-					if (!info) {
-						return null
-					}
+			{isGroupExpanded && (
+				<div className="min-w-0">
+					{allTools.map(({ tool, parsedTool, isActive, activityText }) => {
+						const info = getToolDisplayInfo(parsedTool)
+						if (!info) {
+							return null
+						}
 
-					const isExpandable = EXPANDABLE_TOOLS.has(parsedTool.tool)
-					const isItemExpanded = expandedItems[tool.ts] ?? false
-					const content = parsedTool.content || null
+						const isExpandable = EXPANDABLE_TOOLS.has(parsedTool.tool)
+						const isItemExpanded = expandedItems[tool.ts] ?? false
+						const content = parsedTool.content || null
 
-					// Active items render with "Reading..." TypewriterText (match completed item structure exactly)
-					if (isActive && activityText) {
+						// Active items render with "Reading..." TypewriterText
+						if (isActive && activityText) {
+							return (
+								<div className="w-full min-w-0 py-0.5" key={tool.ts}>
+									<div className="w-full flex items-center gap-2 text-[12.5px] text-description py-1 px-1.5 leading-tight">
+										<info.icon
+											{...CHAT_ROW_LUCIDE}
+											className="opacity-70 shrink-0 animate-pulse text-indigo-400"
+										/>
+										<span className="flex-1 min-w-0 truncate text-[12px] font-mono text-slate-400">
+											<TypewriterText speed={15} text={activityText} />
+										</span>
+									</div>
+								</div>
+							)
+						}
+
+						// Completed items render normally (clickable)
 						return (
-							<div className="min-w-0" key={tool.ts}>
-								{/* ACTIVE "READING..." ITEM STYLING - Modify vertical spacing here via py-0 and -my-0.5 */}
-								<Button
-									className="flex items-center gap-[3px] text-[13px] text-description py-[1px] min-w-0 max-w-full px-0 leading-tight -my-0.5"
-									disabled
-									size="icon"
-									variant="text">
-									<info.icon className="opacity-70 shrink-0 size-[12px]" />
-									<span className="flex-1 min-w-0 whitespace-nowrap overflow-hidden text-ellipsis text-left text-[13px]">
-										<TypewriterText speed={15} text={activityText} />
-									</span>{" "}
-								</Button>
+							<div className="w-full min-w-0 py-0.5" key={tool.ts}>
+								<button
+									className="w-full flex items-center justify-between gap-2 cursor-pointer text-[12.5px] text-description py-1 px-1.5 rounded hover:bg-slate-800/40 hover:text-foreground text-left transition-colors bg-transparent border-0 min-w-0 group"
+									onClick={() => {
+										if (isExpandable) {
+											handleItemToggle(tool.ts)
+										} else {
+											const target =
+												parsedTool.readLineStart != null
+													? `${info.path}:${parsedTool.readLineStart}`
+													: info.path
+											handleOpenFile(target)
+										}
+									}}
+									title={info.path}
+									type="button">
+									<div className="flex items-center gap-2 min-w-0 flex-1">
+										<info.icon {...CHAT_ROW_LUCIDE} className="opacity-70 shrink-0" />
+										<span className="truncate font-mono text-[12px] text-slate-300 group-hover:text-link">
+											{info.displayText || cleanPathPrefix(info.path)}
+										</span>
+										{parsedTool.readLineStart != null && (
+											<span className="text-[11px] text-slate-500 shrink-0 font-sans">
+												({parsedTool.readLineStart}
+												{parsedTool.readLineEnd != null ? `-${parsedTool.readLineEnd}` : "+"})
+											</span>
+										)}
+									</div>
+									{!isExpandable && (
+										<SquareArrowOutUpRightIcon
+											{...CHAT_ROW_LUCIDE}
+											className="text-slate-500 opacity-60 group-hover:opacity-100 shrink-0"
+										/>
+									)}
+								</button>
+								{/* Expanded content for folders/search/definitions - file lists only */}
+								{isExpandable && isItemExpanded && content && (
+									<pre className="m-1 ml-4 text-xs opacity-80 whitespace-pre-wrap wrap-break-word p-2 max-h-40 overflow-auto rounded bg-slate-900/60 border border-slate-800/80">
+										{content}
+									</pre>
+								)}
 							</div>
 						)
-					}
-
-					// Completed items render normally (clickable)
-					return (
-						<div className="min-w-0" key={tool.ts}>
-							<Button
-								className="flex items-center gap-[3px] cursor-pointer text-[13px] text-description py-[1px] hover:text-link min-w-0 max-w-full px-0 leading-tight -my-0.5"
-								onClick={() => (isExpandable ? handleItemToggle(tool.ts) : handleOpenFile(info.path))}
-								size="icon"
-								variant="text">
-								<info.icon className="opacity-70 shrink-0 size-[12px]" />
-								<span
-									className={cn(
-										"flex-1 min-w-0 whitespace-nowrap overflow-hidden text-ellipsis text-left [direction:rtl] text-[13px]",
-										{
-											"[direction:ltr]": !!info.displayText,
-										},
-									)}>
-									{(info.displayText || cleanPathPrefix(info.path)) + "\u200E"}
-								</span>
-							</Button>
-							{/* Expanded content for folders/search/definitions - file lists only */}
-							{isExpandable && isItemExpanded && content && (
-								<pre className="m-1 ml-4 text-xs opacity-80 whitespace-pre-wrap wrap-break-word p-2 max-h-40 overflow-auto rounded-xs">
-									{content}
-								</pre>
-							)}
-						</div>
-					)
-				})}
-			</div>
+					})}
+				</div>
+			)}
 		</div>
 	)
 })

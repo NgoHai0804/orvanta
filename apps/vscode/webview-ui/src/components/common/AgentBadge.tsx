@@ -18,6 +18,7 @@ export interface AgentBadgeProps {
 	agentId?: string
 	displayName?: string
 	role?: string
+	agentRole?: string
 	className?: string
 	showRole?: boolean
 	size?: "sm" | "md"
@@ -126,17 +127,18 @@ export const AgentBadge: React.FC<AgentBadgeProps> = ({
 	agentId,
 	displayName,
 	role,
+	agentRole,
 	className,
-	showRole = true,
+	showRole = false,
 	size = "sm",
 }) => {
-	const meta = getAgentBadgeMeta(role, agentId)
+	const effectiveRole = agentRole || role
+	const meta = getAgentBadgeMeta(effectiveRole, agentId)
 	const name = displayName || (agentId ? `@${agentId}` : "Agent")
 	const Icon = meta.icon
 
 	return (
 		<span
-			aria-label={`Tác nhân: ${meta.label} · ${name}`}
 			className={cn(
 				"inline-flex items-center gap-1 font-medium rounded-full border px-2 py-0.5 select-none shrink-0 transition-colors",
 				size === "sm" ? "text-[11px] leading-tight" : "text-xs py-1 px-2.5",
@@ -144,8 +146,9 @@ export const AgentBadge: React.FC<AgentBadgeProps> = ({
 				className,
 			)}
 			data-agent-id={agentId}
-			data-role={role}
-			data-testid="agent-badge">
+			data-role={effectiveRole}
+			data-testid="agent-badge"
+			title={`Tác nhân: ${meta.label} · ${name}`}>
 			<Icon className="shrink-0" data-testid="agent-badge-icon" size={size === "sm" ? 12 : 14} stroke={1.5} />
 			{showRole && <span className="font-semibold opacity-90">{meta.label}</span>}
 			{showRole && <span className="opacity-40">·</span>}

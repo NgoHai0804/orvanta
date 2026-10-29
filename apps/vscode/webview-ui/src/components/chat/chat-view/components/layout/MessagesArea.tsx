@@ -3,13 +3,12 @@ import type React from "react"
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { Virtuoso } from "react-virtuoso"
 import ChatRow from "@/components/chat/ChatRow"
-import { StickyUserMessage } from "@/components/chat/task-header/StickyUserMessage"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { cn } from "@/lib/utils"
 import { useThinkingLoaderRow } from "../../hooks/useThinkingLoaderRow"
 import type { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
 import { isPendingResponseUnconfirmed } from "../../utils/pendingResponse"
 import { createMessageRenderer } from "../messages/MessageRenderer"
+import { StickyAnchorHeader } from "./StickyAnchorHeader"
 
 // Sentinel ts for the synthetic "Thinking..." placeholder row. Not a real message; ignored when
 // deriving scroll triggers from the tail of the rendered list.
@@ -31,6 +30,7 @@ interface MessagesAreaProps {
 	scrollBehavior: ScrollBehavior
 	chatState: ChatState
 	messageHandlers: MessageHandlers
+	selectedAgentId?: string
 }
 
 /**
@@ -44,9 +44,24 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	scrollBehavior,
 	chatState,
 	messageHandlers,
+	selectedAgentId,
 }) => {
 	const { clineMessages, turnState } = useExtensionState()
 	const lastRawMessage = useMemo(() => clineMessages.at(-1), [clineMessages])
+
+	// Detect which agent is currently active/streaming to avoid showing thinking loaders in other agents' channels
+	const activeRunningAgentId = useMemo(() => {
+		for (let i = clineMessages.length - 1; i >= 0; i--) {
+			const id = clineMessages[i].agentId || (clineMessages[i] as { agent_id?: string }).agent_id
+			if (id) return id.toLowerCase()
+		}
+		return "coordinator"
+	}, [clineMessages])
+
+	const isCurrentAgentRunning = useMemo(() => {
+		if (!selectedAgentId || selectedAgentId === "team-feed") return true
+		return selectedAgentId.toLowerCase() === activeRunningAgentId
+	}, [selectedAgentId, activeRunningAgentId])
 
 	const {
 		virtuosoRef,
@@ -57,26 +72,28 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		disableAutoScrollRef,
 		handleRangeChanged,
 		scrolledPastUserMessage,
-		scrollToMessage,
+		stickyPushOffset,
 		scrollToBottomSmooth,
 		scrollToBottomAuto,
 		handleLastRowContentChange,
 	} = scrollBehavior
 
-	// Find the index of the scrolled past user message for scrolling
-	const scrolledPastUserMessageIndex = useMemo(() => {
-		if (!scrolledPastUserMessage) {
-			return -1
-		}
-		return clineMessages.findIndex((msg) => msg.ts === scrolledPastUserMessage.ts)
-	}, [clineMessages, scrolledPastUserMessage])
-
-	// Handler to scroll to the scrolled past user message
 	const handleScrollToUserMessage = useCallback(() => {
-		if (scrollToMessage && scrolledPastUserMessageIndex >= 0) {
-			scrollToMessage(scrolledPastUserMessageIndex)
+		if (!scrolledPastUserMessage) {
+			return
 		}
-	}, [scrollToMessage, scrolledPastUserMessageIndex])
+		const groupIndex = groupedMessages.findIndex((row) => {
+			const message = Array.isArray(row) ? row[0] : row
+			return message?.ts === scrolledPastUserMessage.ts
+		})
+		if (groupIndex >= 0) {
+			virtuosoRef.current?.scrollToIndex({
+				index: groupIndex,
+				align: "start",
+				behavior: "smooth",
+			})
+		}
+	}, [groupedMessages, scrolledPastUserMessage, virtuosoRef])
 
 	const { expandedRows, inputValue, setActiveQuote } = chatState
 	const lastVisibleRow = useMemo(() => groupedMessages.at(-1), [groupedMessages])
@@ -95,7 +112,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 
 	// Keep loader in the message flow (not footer). Show/hide logic (waiting heuristic,
 	// waiting -> reasoning handoff guard, and anti-flash debounce on turn end) lives in the hook.
-	const showThinkingLoaderRow = useThinkingLoaderRow({
+	const rawThinkingLoaderRow = useThinkingLoaderRow({
 		turnState,
 		lastRawMessage,
 		groupedMessages,
@@ -104,6 +121,8 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 		modifiedMessages,
 		forceShow: forcePendingResponseLoader,
 	})
+
+	const showThinkingLoaderRow = rawThinkingLoaderRow && isCurrentAgentRunning
 
 	// While the list has no visible rows yet (new task just submitted), the loader is rendered as
 	// a plain element instead of a Virtuoso item: a cold-mounting virtualized list takes several
@@ -137,6 +156,8 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	}, [displayedGroupedMessages])
 
 	useEffect(() => {
+		void displayedGroupedMessages.length
+		void lastTailTs
 		if (disableAutoScrollRef.current) {
 			return
 		}
@@ -177,6 +198,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 				inputValue,
 				messageHandlers,
 				false,
+				selectedAgentId,
 			),
 		[
 			displayedGroupedMessages,
@@ -188,6 +210,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 			setActiveQuote,
 			inputValue,
 			messageHandlers,
+			selectedAgentId,
 		],
 	)
 
@@ -201,18 +224,12 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 
 	return (
 		<div className="overflow-hidden flex flex-col h-full relative">
-			{/* Sticky User Message - positioned absolutely to avoid layout shifts */}
-			<div
-				className={cn(
-					"absolute top-0 left-0 right-0 z-10 pl-[15px] pr-[14px] bg-background",
-					scrolledPastUserMessage && "pb-2",
-				)}>
-				<StickyUserMessage
-					isVisible={!!scrolledPastUserMessage}
-					lastUserMessage={scrolledPastUserMessage}
-					onScrollToMessage={handleScrollToUserMessage}
-				/>
-			</div>
+			<StickyAnchorHeader
+				message={scrolledPastUserMessage}
+				onScrollToMessage={handleScrollToUserMessage}
+				pushOffset={stickyPushOffset}
+				selectedAgentId={selectedAgentId}
+			/>
 
 			<div className="grow flex relative" ref={scrollContainerRef}>
 				{/* Empty-list fast path: paint the loader immediately without waiting for the

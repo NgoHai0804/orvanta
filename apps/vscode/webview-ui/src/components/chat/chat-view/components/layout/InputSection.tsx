@@ -32,7 +32,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
 	shouldDisableFilesAndImages,
 	selectFilesAndImages,
 	focusAgent,
-	onResetFocusAgent,
+	onResetFocusAgent: _onResetFocusAgent,
 	contextTask,
 	contextDecision,
 	onClearContextTask,
@@ -96,9 +96,6 @@ export const InputSection: React.FC<InputSectionProps> = ({
 		if (contextDecision) {
 			prefix += `[CEO đang nói về decision ${contextDecision.id}: ${contextDecision.title}]\n`
 		}
-		if (focusAgent && focusAgent.role !== "lead" && focusAgent.id !== "coordinator") {
-			prefix += `[CEO to @${focusAgent.id} (${focusAgent.displayName}) via mailbox]: `
-		}
 		messageHandlers.handleSendMessage(`${prefix}${inputValue}`, selectedImages, selectedFiles)
 	}
 
@@ -121,9 +118,9 @@ export const InputSection: React.FC<InputSectionProps> = ({
 			)}
 			{contextTask && (
 				<div
-					aria-label={`Task: ${contextTask.title}`}
 					className="mx-3.5 mt-2 -mb-1 flex items-center gap-1.5 text-xs text-description"
-					data-testid="context-task-chip">
+					data-testid="context-task-chip"
+					title={`Task: ${contextTask.title}`}>
 					<span>Task:</span>
 					<span className="inline-flex items-center gap-1 rounded bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 font-medium text-[11px]">
 						<span>{contextTask.title}</span>
@@ -142,9 +139,9 @@ export const InputSection: React.FC<InputSectionProps> = ({
 			)}
 			{contextDecision && (
 				<div
-					aria-label={`Decision: ${contextDecision.title}`}
 					className="mx-3.5 mt-2 -mb-1 flex items-center gap-1.5 text-xs text-description"
-					data-testid="context-decision-chip">
+					data-testid="context-decision-chip"
+					title={`Decision: ${contextDecision.title}`}>
 					<span>Decision:</span>
 					<span className="inline-flex items-center gap-1 rounded bg-amber-500/20 text-amber-300 px-1.5 py-0.5 font-medium text-[11px]">
 						<span>{contextDecision.title}</span>
@@ -154,32 +151,6 @@ export const InputSection: React.FC<InputSectionProps> = ({
 								className="ml-0.5 cursor-pointer opacity-70 hover:opacity-100"
 								onClick={onClearContextDecision}
 								title="Bỏ context decision"
-								type="button">
-								✕
-							</button>
-						)}
-					</span>
-				</div>
-			)}
-			{focusAgent && (
-				<div
-					aria-label={`Nói với ${focusAgent.displayName}`}
-					className="mx-3.5 mt-2 -mb-1 flex items-center gap-1.5 text-xs text-description"
-					data-testid="composer-focus-chip">
-					<span>Nói với:</span>
-					<span className="inline-flex items-center gap-1 rounded bg-(--vscode-badge-background) text-(--vscode-badge-foreground) px-1.5 py-0.5 font-medium text-[11px]">
-						<span>{focusAgent.displayName}</span>
-						{(focusAgent.role === "lead" || focusAgent.id === "coordinator") && (
-							<span className="text-amber-400" title="Coordinator">
-								★
-							</span>
-						)}
-						{focusAgent.role !== "lead" && focusAgent.id !== "coordinator" && onResetFocusAgent && (
-							<button
-								aria-label="Quay lại coordinator"
-								className="ml-0.5 cursor-pointer opacity-70 hover:opacity-100"
-								onClick={onResetFocusAgent}
-								title="Quay lại coordinator"
 								type="button">
 								✕
 							</button>

@@ -549,6 +549,15 @@ export function createAgentTeamsTools(
 			inputSchema: zodToJsonSchema(TeamRunTaskInputSchema),
 			execute: async (input) => {
 				const validatedInput = validateWithZod(TeamRunTaskInputSchema, input);
+				const isLead =
+					options.runtime.getMemberRole(options.requesterId) === "lead" ||
+					options.requesterId === "coordinator" ||
+					options.requesterId === "lead";
+				if (!isLead) {
+					throw new Error(
+						`Chỉ Coordinator mới có quyền điều phối và giao việc (team_run_task). Teammate '${options.requesterId}' không được tự ý giao việc cho Agent khác; hãy hoàn thành nhiệm vụ và báo cáo kết quả về cho Coordinator.`,
+					);
+				}
 				if (validatedInput.runMode === "async") {
 					const run = options.runtime.startTeammateRun(
 						validatedInput.agentId,
@@ -681,11 +690,19 @@ export function createAgentTeamsTools(
 		}) as AgentTool,
 	);
 
+	const isLeadRequester =
+		options.requesterId === "coordinator" ||
+		options.requesterId === "lead" ||
+		options.runtime.getMemberRole?.(options.requesterId) === "lead";
+
 	tools.push(
 		createTool<TeamSendMessageInput, { id: string; toAgentId: string }>({
 			name: "team_send_message",
-			description: "Send a mailbox message to a specific teammate.",
+			description: isLeadRequester
+				? "Send a mailbox message to a specific teammate."
+				: "Send a mailbox message. To finish a task, send the full report to Coordinator in the message body. A successful send ends your turn — do not write more chat and do not call submit_and_exit.",
 			inputSchema: zodToJsonSchema(TeamSendMessageInputSchema),
+			lifecycle: isLeadRequester ? undefined : { completesRun: true },
 			execute: async (input) => {
 				const validatedInput = validateWithZod(
 					TeamSendMessageInputSchema,

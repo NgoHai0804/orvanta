@@ -5,7 +5,8 @@ import type React from "react"
 import { useMemo } from "react"
 import { cleanPathPrefix } from "../common/CodeAccordian"
 import { getIconByToolName } from "./chat-view"
-import { isApiReqAbsorbable, isLowStakesTool } from "./chat-view/utils/messageUtils"
+import { isLowStakesTool } from "./chat-view/utils/messageUtils"
+import { CHAT_HEADER_TITLE_MUTED, CHAT_ROW_LUCIDE } from "./chatRowStyles"
 import ErrorRow from "./ErrorRow"
 import { ThinkingRow } from "./ThinkingRow"
 import { TypewriterText } from "./TypewriterText"
@@ -109,24 +110,6 @@ const findCurrentApiReq = (messages: ClineMessage[]): { index: number; hasCost: 
 	return null
 }
 
-// Find the most recent completed api_req before the given index
-const findPrevCompletedApiReq = (messages: ClineMessage[], beforeIdx: number): number => {
-	for (let i = beforeIdx - 1; i >= 0; i--) {
-		const msg = messages[i]
-		if (msg.say === "api_req_started" && msg.text) {
-			try {
-				const info = JSON.parse(msg.text)
-				if (info.cost != null) {
-					return i
-				}
-			} catch {
-				// ignore parse errors
-			}
-		}
-	}
-	return -1
-}
-
 /**
  * Displays the current state of an active tool operation,
  */
@@ -135,7 +118,7 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 	apiReqStreamingFailedMessage,
 	cost,
 	reasoningContent,
-	responseStarted,
+	responseStarted: _responseStarted,
 	clineMessages,
 	mode: _mode,
 	handleToggle,
@@ -147,28 +130,8 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 	const hasError = !!(apiRequestFailedMessage || apiReqStreamingFailedMessage)
 	const hasCost = cost != null
 	const hasReasoning = !!reasoningContent
-	const hasCompletionResult = clineMessages.some(
-		(msg) =>
-			msg.ask === "completion_result" ||
-			msg.say === "completion_result" ||
-			msg.say === "plan_completion_result" ||
-			msg.ask === "plan_mode_respond",
-	)
 
 	const apiReqState: ApiReqState = hasError ? "error" : hasCost ? "final" : hasReasoning ? "thinking" : "pre"
-
-	// While reasoning is streaming, keep the Brain ThinkingBlock exactly as-is.
-	// Once response content starts (any text/tool/command), collapse into a compact
-	// "🧠 Thinking" row that can be expanded to show the reasoning only.
-	const showStreamingThinking = useMemo(
-		() => hasReasoning && !hasError && !cost && !responseStarted,
-		[hasReasoning, hasError, cost, responseStarted],
-	)
-
-	// Check if this api_req will be absorbed into a tool group (reasoning will disappear)
-	const willBeAbsorbed = useMemo(() => {
-		return isApiReqAbsorbable(message.ts, clineMessages)
-	}, [message.ts, clineMessages])
 
 	// Find all exploratory tool activities that are currently in flight.
 	// Tools come AFTER the api_req_started message, so we look from currentApiReq forward.
@@ -220,12 +183,12 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 	return (
 		<div>
 			{apiReqState === "pre" && shouldShowActivities && (
-				<div className="flex items-center text-description w-full text-sm">
+				<div className={`flex items-center w-full ${CHAT_HEADER_TITLE_MUTED}`}>
 					<div className="ml-1 flex-1 w-full h-full">
 						<div className="flex flex-col gap-0.5 w-full min-h-1">
 							{currentActivities.map((activity, _) => (
-								<div className="flex items-center gap-2 h-auto w-full overflow-hidden" key={activity.text}>
-									<activity.icon className="size-2 text-foreground shrink-0" />
+								<div className="flex items-center gap-1.5 h-auto w-full overflow-hidden" key={activity.text}>
+									<activity.icon {...CHAT_ROW_LUCIDE} className="text-foreground shrink-0" />
 									<TypewriterText speed={15} text={activity.text} />
 								</div>
 							))}
@@ -238,7 +201,8 @@ export const RequestStartRow: React.FC<RequestStartRowProps> = ({
 					// Still streaming - show "Thinking..." text with shimmer
 					<div className="ml-1 pl-0 mb-1 -mt-1.25 pt-1">
 						<div className="inline-flex justify-baseline gap-0.5 text-left select-none px-0 w-full">
-							<span className="animate-shimmer bg-linear-90 from-foreground to-description bg-[length:200%_100%] bg-clip-text text-transparent text-[13px] leading-none">
+							<span
+								className={`animate-shimmer bg-linear-90 from-foreground to-description bg-[length:200%_100%] bg-clip-text text-transparent ${CHAT_HEADER_TITLE_MUTED}`}>
 								Thinking...
 							</span>
 						</div>

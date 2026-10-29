@@ -50,20 +50,25 @@ export const CompletionOutputRow = memo(
 				return
 			}
 			let cancelled = false
-			CheckpointsServiceClient.checkpointLatestChangesCount(EmptyRequest.create({}))
-				.then((count) => {
-					if (!cancelled) {
-						setHasChanges((count.value ?? 0) > 0)
-					}
-				})
-				.catch((err) => {
-					console.error("Failed to check for latest changes:", err)
-					if (!cancelled) {
-						setHasChanges(false)
-					}
-				})
+			const checkChanges = () => {
+				CheckpointsServiceClient.checkpointLatestChangesCount(EmptyRequest.create({}))
+					.then((count) => {
+						if (!cancelled) {
+							setHasChanges((count.value ?? 0) > 0)
+						}
+					})
+					.catch((err) => {
+						console.error("Failed to check for latest changes:", err)
+						if (!cancelled) {
+							setHasChanges(false)
+						}
+					})
+			}
+			checkChanges()
+			const interval = setInterval(checkChanges, 3000)
 			return () => {
 				cancelled = true
+				clearInterval(interval)
 			}
 		}, [showViewChanges])
 

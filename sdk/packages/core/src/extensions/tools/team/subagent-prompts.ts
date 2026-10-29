@@ -1,11 +1,11 @@
-import { buildClineSystemPrompt } from "@cline/shared";
+import { appendTeammateCloseout, buildClineSystemPrompt } from "@cline/shared";
 import type { DelegatedAgentRuntimeConfig } from "./delegated-agent";
 
 export function buildTeammateSystemPrompt(
 	prompt: string,
 	config: DelegatedAgentRuntimeConfig,
 ): string {
-	const trimmedPrompt = prompt.trim();
+	const trimmedPrompt = appendTeammateCloseout(prompt);
 	if (config.providerId.toLowerCase() !== "cline") {
 		return trimmedPrompt;
 	}

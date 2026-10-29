@@ -38,7 +38,7 @@ describe("ThinkingRow", () => {
 		expect(onToggle).toHaveBeenCalledTimes(1)
 	})
 
-	it("renders AgentBadge and thinking status when agent metadata is provided", () => {
+	it("renders a thinking icon and status when agent metadata is provided", () => {
 		render(
 			<ThinkingRow
 				agentDisplayName="Dave"
@@ -52,9 +52,7 @@ describe("ThinkingRow", () => {
 			/>,
 		)
 
-		const badge = screen.getByTestId("agent-badge")
-		expect(badge).toBeInTheDocument()
-		expect(badge.textContent).toContain("Dave")
+		expect(screen.queryByTestId("agent-badge")).not.toBeInTheDocument()
 		expect(screen.getByText("đang suy nghĩ...")).toBeInTheDocument()
 	})
 })

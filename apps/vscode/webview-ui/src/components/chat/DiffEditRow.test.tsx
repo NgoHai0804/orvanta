@@ -18,7 +18,7 @@ describe("DiffEditRow", () => {
 		openFileRelativePath.mockClear()
 		render(<DiffEditRow patch={patch} path="src/app.ts" />)
 
-		fireEvent.click(screen.getByText("src/app.ts"))
+		fireEvent.click(screen.getByText("app.ts"))
 
 		expect(openFileRelativePath).toHaveBeenCalledWith({ value: "src/app.ts" })
 	})
@@ -29,28 +29,17 @@ describe("DiffEditRow", () => {
 
 		// The path is relative to the sandbox's /workspace; resolving it against the
 		// local workspace would open an unrelated file or fail.
-		fireEvent.click(screen.getByText("src/app.ts"))
+		fireEvent.click(screen.getByText("app.ts"))
 
 		expect(openFileRelativePath).not.toHaveBeenCalled()
 		expect(screen.queryByTitle("Open file in editor")).toBeNull()
 	})
 
-	it("renders AgentBadge and attribution text when agent metadata is provided", () => {
-		render(
-			<DiffEditRow
-				agentDisplayName="Dave"
-				agentId="implementer"
-				agentRole="implementer"
-				patch={patch}
-				path="src/auth.ts"
-			/>,
-		)
+	it("renders the file name without an agent badge", () => {
+		render(<DiffEditRow patch={patch} path="src/auth.ts" />)
 
-		// Check AgentBadge rendered
-		const badge = screen.getByTestId("agent-badge")
-		expect(badge).toBeInTheDocument()
-		expect(badge.textContent).toContain("Dave")
-		// Check attribution text contains "đang đề xuất sửa" and path
-		expect(screen.getByText(/đang đề xuất sửa.*src\/auth\.ts/)).toBeInTheDocument()
+		expect(screen.queryByTestId("agent-badge")).not.toBeInTheDocument()
+		expect(screen.getByText("auth.ts")).toBeInTheDocument()
+		expect(screen.queryByText(/đang đề xuất sửa/)).toBeNull()
 	})
 })
