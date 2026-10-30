@@ -1,0 +1,1 @@
+$ bun --production -F './sdk/packages/*' build && bun sdk/packages/core/build-plugin-runtime.mts

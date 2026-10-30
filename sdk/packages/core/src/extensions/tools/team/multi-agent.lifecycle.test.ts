@@ -93,6 +93,42 @@ function createAbortedResult(): AgentResult {
 }
 
 describe("AgentTeamsRuntime teammate lifecycle events", () => {
+	it("continues the canonical teammate conversation on subsequent routed runs", async () => {
+		const run = vi.fn(async () => createAbortedResult());
+		const continueRun = vi.fn(async () => createAbortedResult());
+		const events: TeamEvent[] = [];
+		mockNextSessionRuntime({ run, continue: continueRun });
+		const runtime = new AgentTeamsRuntime({ teamName: "test-team", onTeamEvent: (event) => events.push(event) });
+		spawnTestTeammate(runtime, "alice");
+
+		await runtime.routeToTeammate("alice", "first run");
+		await runtime.routeToTeammate("alice", "second run", {
+			continueConversation: false,
+		});
+
+		expect(run).toHaveBeenCalledTimes(1);
+		expect(continueRun).toHaveBeenCalledTimes(1);
+		expect(events.filter((event) => event.type === TeamMessageType.TaskStart)).toHaveLength(2);
+		expect(events.filter((event) => event.type === TeamMessageType.TaskEnd)).toHaveLength(2);
+	});
+
+	it("includes the durable run ID in teammate task lifecycle events", async () => {
+		const events: TeamEvent[] = [];
+		mockNextSessionRuntime({ run: vi.fn(async () => createAbortedResult()) });
+		const runtime = new AgentTeamsRuntime({ teamName: "test-team", onTeamEvent: (event) => events.push(event) });
+		spawnTestTeammate(runtime, "alice");
+
+		const run = runtime.startTeammateRun("alice", "do work");
+		await runtime.awaitRun(run.id, 1);
+
+		expect(events.filter((event) => event.type === TeamMessageType.TaskStart)).toEqual([
+			expect.objectContaining({ agentId: "alice", runId: run.id }),
+		]);
+		expect(events.filter((event) => event.type === TeamMessageType.TaskEnd)).toEqual([
+			expect.objectContaining({ agentId: "alice", runId: run.id }),
+		]);
+	});
+
 	it("spawns teammates with a 10 minute API timeout", () => {
 		// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
 		createSessionRuntimeMock.mockImplementationOnce(function () {

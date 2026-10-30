@@ -1,0 +1,4 @@
+$ bun run protos && bunx tsc --noEmit && bun run check-types:compat && cd webview-ui && bunx tsc --noEmit
+$ node scripts/build-proto.mjs
+$ biome format --config-path ./biome.jsonc src/shared/proto src/core/controller src/hosts/ webview-ui/src/services src/generated --write --no-errors-on-unmatched
+$ bunx tsc --project tsconfig.vscode-compat.json --noEmit

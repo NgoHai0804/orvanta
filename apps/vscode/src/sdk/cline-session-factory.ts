@@ -94,6 +94,8 @@ export interface SessionConfigInput {
 	cwd: string
 	/** Workspace root */
 	workspaceRoot?: string
+	/** Explicit Orvanta session identity; never inferred from the SDK task ID. */
+	orvantaSessionId?: string
 	/** Current mode (act/plan) */
 	mode?: Mode
 	/** Runtime identity when execution happens outside the extension host. */
@@ -1301,6 +1303,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		...(knownModels && Object.keys(knownModels).length > 0 ? { knownModels } : {}),
 		cwd,
 		workspaceRoot,
+		...(input.orvantaSessionId ? { orvantaSessionId: input.orvantaSessionId } : {}),
 		systemPrompt,
 		enableTools: true,
 		checkpoint: {
@@ -1395,6 +1398,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 export function buildStartSessionInput(config: CoreSessionConfig, input: SessionConfigInput): ClineCoreStartInput {
 	return {
 		config,
+		...(config.orvantaSessionId ? { sessionMetadata: { orvantaSessionId: config.orvantaSessionId } } : {}),
 		// Do NOT pass prompt here — start() should return immediately.
 		// The prompt is sent separately via core.send() after session creation.
 		prompt: undefined,

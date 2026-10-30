@@ -40,6 +40,7 @@ const SpawnAgentInputSchema = z.looseObject({
 
 export class TeamChildSessionManager {
 	private readonly teamTaskSessionsByAgent = new Map<string, string[]>();
+	private readonly teamTaskSessionsByRun = new Map<string, string>();
 	private readonly teamTaskLastHeartbeatBySession = new Map<string, number>();
 	private readonly teamTaskLastProgressLineBySession = new Map<
 		string,
@@ -277,6 +278,7 @@ export class TeamChildSessionManager {
 		rootSessionId: string,
 		agentId: string,
 		message: string,
+		runId?: string,
 	): Promise<void> {
 		const root = await this.adapter.getSession(rootSessionId);
 		if (!root) return;
@@ -298,6 +300,7 @@ export class TeamChildSessionManager {
 		});
 		await this.adapter.upsertSession(row);
 		this.manifestStore.initializeMessagesFile(row, messagesPath, startedAt);
+		if (runId) this.teamTaskSessionsByRun.set(`${rootSessionId}::${runId}`, sessionId);
 		const key = this.teamTaskQueueKey(rootSessionId, agentId);
 		const queue = this.teamTaskSessionsByAgent.get(key) ?? [];
 		queue.push(sessionId);
@@ -311,12 +314,22 @@ export class TeamChildSessionManager {
 		_summary?: string,
 		result?: AgentResult,
 		messages?: LlmsProviders.MessageWithMetadata[],
+		runId?: string,
 	): Promise<void> {
 		const key = this.teamTaskQueueKey(rootSessionId, agentId);
 		const queue = this.teamTaskSessionsByAgent.get(key);
-		if (!queue || queue.length === 0) return;
-		const sessionId = queue.shift();
-		if (queue.length === 0) this.teamTaskSessionsByAgent.delete(key);
+		const runKey = runId ? `${rootSessionId}::${runId}` : undefined;
+		const mappedSessionId = runKey ? this.teamTaskSessionsByRun.get(runKey) : undefined;
+		// An explicit run ID is authoritative. Falling back to the per-agent
+		// queue when that run is unknown could persist a concurrent run's result
+		// into the wrong child session.
+		const sessionId = runId ? mappedSessionId : queue?.shift();
+		if (runKey) this.teamTaskSessionsByRun.delete(runKey);
+		if (sessionId && runId && queue) {
+			const queueIndex = queue.indexOf(sessionId);
+			if (queueIndex >= 0) queue.splice(queueIndex, 1);
+		}
+		if (queue?.length === 0) this.teamTaskSessionsByAgent.delete(key);
 		if (!sessionId) return;
 		const teammateMessages = result?.messages ?? messages;
 		const persistedMessages = this.toPersistedMessages(

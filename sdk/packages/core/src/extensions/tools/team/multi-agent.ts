@@ -131,10 +131,11 @@ export interface TaskResult {
 type TeamTaskEndStatus = "completed" | "failed" | "cancelled";
 
 export type TeamEvent =
-	| { type: TeamMessageType.TaskStart; agentId: string; message: string }
+	| { type: TeamMessageType.TaskStart; agentId: string; message: string; runId?: string }
 	| {
 			type: TeamMessageType.TaskEnd;
 			agentId: string;
+		runId?: string;
 			status?: TeamTaskEndStatus;
 			result?: AgentResult;
 			error?: Error;
@@ -576,6 +577,7 @@ export function createWorkerReviewerTeam(configs: {
 
 interface TeamMemberState extends TeamMemberSnapshot {
 	agent?: SessionRuntime;
+	hasRun?: boolean;
 	runningCount: number;
 	abortRequested?: boolean;
 	abortReason?: string;
@@ -958,6 +960,7 @@ export class AgentTeamsRuntime {
 			description: config.role,
 			status: "idle",
 			agent,
+			hasRun: agent.getMessages().length > 0,
 			runningCount: 0,
 			lastMissionStep: 0,
 			lastMissionAt: Date.now(),
@@ -1110,7 +1113,7 @@ export class AgentTeamsRuntime {
 		member.abortReason = undefined;
 		member.runningCount++;
 		member.status = "running";
-		this.emitEvent({ type: TeamMessageType.TaskStart, agentId, message });
+		this.emitEvent({ type: TeamMessageType.TaskStart, agentId, message, runId: options?.runId });
 
 		try {
 			const unreadMail = this.listMailbox(agentId, {
@@ -1121,13 +1124,18 @@ export class AgentTeamsRuntime {
 				unreadMail.length > 0
 					? `${this.buildMailboxNotification(unreadMail)}\n\n${message}`
 					: message;
-			const result = options?.continueConversation
-				? await member.agent.continue(enrichedMessage)
-				: await member.agent.run(enrichedMessage);
+			// A teammate owns one canonical conversation for its entire lifetime.
+			// `run()` resets ConversationStore, so subsequent runs must append.
+			const result =
+				member.hasRun || options?.continueConversation
+					? await member.agent.continue(enrichedMessage)
+					: await member.agent.run(enrichedMessage);
+			member.hasRun = true;
 			const taskEndStatus = taskEndStatusFromResult(result);
 			this.emitEvent({
 				type: TeamMessageType.TaskEnd,
 				agentId,
+				runId: options?.runId,
 				status: taskEndStatus,
 				result,
 			});
@@ -1153,6 +1161,7 @@ export class AgentTeamsRuntime {
 			this.emitEvent({
 				type: TeamMessageType.TaskEnd,
 				agentId,
+				runId: options?.runId,
 				status: intentionalAbort ? "cancelled" : "failed",
 				error: err,
 				messages: member.agent.getMessages(),
@@ -1315,6 +1324,7 @@ export class AgentTeamsRuntime {
 				: run.message;
 			const result = await this.routeToTeammate(run.agentId, runMessage, {
 				taskId: run.taskId,
+				runId: run.id,
 				continueConversation: run.continueConversation,
 			});
 			if (this.runs.get(run.id)?.status !== "running") {
@@ -1333,7 +1343,9 @@ export class AgentTeamsRuntime {
 				throw new Error(result.text || "Teammate run failed");
 			}
 			run.status = "completed";
-			// Keep only the summary; the transcript lives in session storage.
+			// Keep only the summary in the durable team run record. Agent Teams
+			// SessionRuntime transcripts are currently memory-only; this result
+			// is not a substitute for SDK session transcript persistence.
 			run.result = toTeamRunResultRecord(result);
 			run.endedAt = new Date();
 			run.currentActivity = "completed";

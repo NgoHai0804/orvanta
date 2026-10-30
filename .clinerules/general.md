@@ -21,6 +21,15 @@ This file is the secret sauce for working effectively in this codebase. It captu
 - When adding new feature flags, see this PR as a reference https://github.com/cline/cline/pull/7566
 - Additional instructions about making requests: @.clinerules/network.md
 
+## Orvanta Teammate Transcript History
+
+- Orvanta session IDs, participant Agent IDs, Team run IDs, runtime Agent IDs, `ConversationStore` conversation IDs, and SDK session IDs are distinct identities. Never infer `sdkSessionId` from `runId`, `taskId`, or another ID. Legacy participants may have no transcript mapping; treat that as `not-linked` rather than falling back to the active task or another Agent's transcript.
+- `sdk/packages/shared/src/orvanta/session-history-store.ts` owns the participant mapping (`runtimeAgentId`, `conversationId`, optional `sdkSessionId`, and `runIds`). `runIds` associate multiple runs with one participant transcript; they do not partition or identify a transcript. Run→participant/session association must be recorded from durable Team run events and remain idempotent across replay/restart.
+- SDK transcript reads belong behind an extension-side adapter using the explicitly linked `SdkSessionHost.get()` and `readMessages()`/display projection APIs. Verify the SDK session workspace matches the selected Orvanta workspace before returning messages. Missing SDK rows and missing mappings are distinct outcomes; corrupt manifests/transcripts and storage failures should remain visible errors.
+- `readMessages(sessionId)` currently has no pagination and materializes the full canonical transcript. An offset cursor can paginate a bounded display projection but does not reduce the underlying read. Cap the transcript before shipping, report truncation, and document the memory/read cost; do not claim store-native pagination. Use SDK display projection for UI rows, while lifecycle events and their timestamps come from durable TeamStore data.
+- Before implementing this flow, trace the full seam: teammate provisioning/runtime ownership in `multi-agent.ts`, durable run-event persistence in TeamStore/writer, participant manifest updates, and the extension's session-host access. Do not bolt on a reader alone: if Agent Teams does not create a persistent SDK session, mapping and querying it cannot make a transcript durable. Add tests for multiple Agents and runs, legacy/unlinked mappings, interruptions, missing/corrupt rows, workspace mismatch, and strict no-fallback behavior.
+- SDK packages resolve through compiled `dist/`; after changing shared/core source, run `bun run build:sdk` before dependent app tests/typechecks, and restart any long-running processes. VS Code Vitest has an explicit include list: add new suite paths to `apps/vscode/vitest.config.ts` when needed; a successful Vitest command reporting “No test files found” is not a test pass.
+
 ## Searching the Codebase — Avoiding Build Output
 
 Several directories contain build output or generated code that produces

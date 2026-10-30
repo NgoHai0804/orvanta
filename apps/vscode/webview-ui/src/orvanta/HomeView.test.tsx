@@ -64,6 +64,7 @@ describe("HomeView", () => {
 			agents: [],
 		}
 		render(<HomeView {...defaultProps} company={company} />)
+		expect(screen.getByText("Folder này chưa có cấu hình Orvanta.")).toBeInTheDocument()
 		expect(screen.getByText("Lập công ty cho folder này")).toBeInTheDocument()
 		expect(screen.getByPlaceholderText("Tên công ty")).toBeInTheDocument()
 		expect(screen.getByRole("button", { name: "Lập công ty" })).toBeInTheDocument()

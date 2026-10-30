@@ -530,7 +530,10 @@ export {
 } from "./storage/chat-workspace-paths";
 export * from "./tasks";
 export type { AgentRole } from "./agent";
-export * from "./orvanta";
+// The Node Orvanta barrel includes workspace/history stores that depend on
+// node:async_hooks and node:fs. Keep the browser entry limited to isomorphic
+// schemas, templates, and helpers so importing shared in a webview is safe.
+export * from "./orvanta/browser";
 export * from "./team";
 export { createTool } from "./tools/create";
 export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";

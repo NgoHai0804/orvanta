@@ -72,6 +72,18 @@ export interface ReconcileSpawnedTaskInput {
 	targetRole?: OrvantaParticipantRole;
 	lastMessagePreview?: string;
 }
+
+export interface RecordTeamRunTranscriptLinkInput {
+	workspaceRoot: string;
+	sessionId: string;
+	participant: Pick<OrvantaSessionParticipant, "agentNumericId" | "agentSlugAtJoin" | "displayNameAtJoin" | "roleAtJoin" | "taskId">;
+	runId: string;
+	transcript: {
+		runtimeAgentId?: string;
+		conversationId?: string;
+		sdkSessionId?: string;
+	};
+}
 export interface ParticipantDisplayIdentity {
 	agentNumericId: number;
 	currentSlug: string;
@@ -220,6 +232,24 @@ export async function bindTaskToSession(
 			isNewSession,
 			participant,
 		};
+	});
+}
+
+/**
+ * Idempotently associates a durable Team run with its explicitly identified
+ * Orvanta participant. This records identifiers only; it never reads or copies
+ * transcript messages and never infers the SDK session ID from the run ID.
+ */
+export async function recordTeamRunTranscriptLink(
+	input: RecordTeamRunTranscriptLinkInput,
+): Promise<OrvantaSessionManifest> {
+	validateSessionId(input.sessionId);
+	if (!/^[a-zA-Z0-9_-]{1,64}$/.test(input.runId)) {
+		throw new Error("runId must be 1-64 alphanumeric characters, dashes or underscores");
+	}
+	return upsertParticipant(input.workspaceRoot, input.sessionId, {
+		...input.participant,
+		transcript: { ...input.transcript, runIds: [input.runId] },
 	});
 }
 

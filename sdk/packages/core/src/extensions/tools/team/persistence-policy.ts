@@ -82,8 +82,9 @@ function isRetryScheduledProgress(event: TeamEvent): boolean {
 
 /**
  * Compact form of an `AgentResult` kept on team run records. Contains exactly
- * the fields consumed by run summaries; the full transcript (messages, tool
- * calls) already lives in the teammate's session storage.
+ * the fields consumed by run summaries. Agent Teams teammates currently run as
+ * in-memory `SessionRuntime` instances and do not write their transcript to SDK
+ * session storage; this summary must not be treated as a persisted transcript.
  */
 export interface TeamRunResultRecord {
 	text: string;

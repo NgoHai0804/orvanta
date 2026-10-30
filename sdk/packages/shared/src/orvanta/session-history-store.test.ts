@@ -229,6 +229,64 @@ describe("Session History Store CRUD Operations", () => {
 		}
 	});
 
+	it("keeps Agent, runtime, conversation, SDK session, task, and run IDs distinct across runs", async () => {
+		const workspaceRoot = await createTempWorkspace();
+		try {
+			await createSession(workspaceRoot, {
+				sessionId: "orv-session-01",
+				companyId: "comp-history",
+				title: "Agent transcript identity",
+			});
+
+			const firstRun = await upsertParticipant(workspaceRoot, "orv-session-01", {
+				agentNumericId: 7,
+				agentSlugAtJoin: "reviewer",
+				displayNameAtJoin: "Reviewer",
+				roleAtJoin: "teammate",
+				taskId: "orv-task-01",
+				transcript: {
+					runtimeAgentId: "agent_runtime_abc",
+					conversationId: "conv_1700000000_xyz",
+					sdkSessionId: "sdk-session-abc",
+					runIds: ["run_00001"],
+				},
+			});
+
+			expect(firstRun.participants[0]).toMatchObject({
+				agentSlugAtJoin: "reviewer",
+				taskId: "orv-task-01",
+				transcript: {
+					runtimeAgentId: "agent_runtime_abc",
+					conversationId: "conv_1700000000_xyz",
+					sdkSessionId: "sdk-session-abc",
+					runIds: ["run_00001"],
+				},
+			});
+
+			const secondRun = await upsertParticipant(workspaceRoot, "orv-session-01", {
+				agentNumericId: 7,
+				agentSlugAtJoin: "reviewer",
+				displayNameAtJoin: "Reviewer",
+				roleAtJoin: "teammate",
+				taskId: "orv-task-01",
+				transcript: { runIds: ["run_00002", "run_00001"] },
+			});
+
+			expect(secondRun.participants[0].transcript).toEqual({
+				runtimeAgentId: "agent_runtime_abc",
+				conversationId: "conv_1700000000_xyz",
+				sdkSessionId: "sdk-session-abc",
+				runIds: ["run_00001", "run_00002"],
+			});
+
+			const reloaded = await getSession(workspaceRoot, "orv-session-01");
+			expect(reloaded.participants[0].transcript?.sdkSessionId).toBe("sdk-session-abc");
+			expect(reloaded.participants[0].transcript?.runIds).toEqual(["run_00001", "run_00002"]);
+		} finally {
+			await rm(workspaceRoot, { recursive: true, force: true });
+		}
+	});
+
 	it("renames, updates, and deletes sessions", async () => {
 		const workspaceRoot = await createTempWorkspace();
 		try {

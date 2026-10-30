@@ -94,8 +94,11 @@ export type TeamRunStatus =
  * Consuming packages narrow this via their own type assertions.
  */
 export interface TeamRunRecord {
+	/** The runId (for example `run_00001`); not an agent or session ID. */
 	id: string;
+	/** Stable roster slug for the teammate (for example `reviewer`), distinct from runtimeAgentId. */
 	agentId: string;
+	/** Orvanta task binding, when supplied; distinct from the SDK session ID. */
 	taskId?: string;
 	status: TeamRunStatus;
 	message: string;
@@ -103,6 +106,7 @@ export interface TeamRunRecord {
 	retryCount: number;
 	maxRetries: number;
 	nextAttemptAt?: Date;
+	/** Whether this run continues the teammate's current conversation. */
 	continueConversation?: boolean;
 	startedAt: Date;
 	endedAt?: Date;
@@ -207,6 +211,8 @@ export interface ReviewTeamOutcomeFragmentInput {
 
 export interface RouteToTeammateOptions {
 	taskId?: string;
+	/** Durable Team run association; never a session or participant ID. */
+	runId?: string;
 	fromAgentId?: string;
 	continueConversation?: boolean;
 }

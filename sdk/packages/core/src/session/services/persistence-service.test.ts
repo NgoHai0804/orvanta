@@ -431,6 +431,13 @@ describe("UnifiedSessionPersistenceService", () => {
 				rootSessionId,
 				"java-haiku-agent",
 				"Write a haiku about Java",
+				"run_00001",
+			);
+			await service.onTeamTaskStart(
+				rootSessionId,
+				"java-haiku-agent",
+				"Write another haiku about Java",
+				"run_00002",
 			);
 			await service.onTeamTaskEnd(
 				rootSessionId,
@@ -473,13 +480,24 @@ describe("UnifiedSessionPersistenceService", () => {
 					endedAt: new Date("2026-04-10T19:00:02.000Z"),
 					durationMs: 1000,
 				},
+				undefined,
+				"run_00001",
 			);
 
 			const childSessions = await service.listSessions(10);
-			const teammateSessionId = childSessions.find((row) =>
+			const teammateTaskSessions = childSessions.filter((row) =>
 				row.sessionId.includes("__teamtask__java-haiku-agent__"),
+			);
+			const teammateSessionId = teammateTaskSessions.find((row) =>
+				row.prompt?.includes("Write a haiku about Java"),
+			)?.sessionId;
+			const secondRunSessionId = teammateTaskSessions.find((row) =>
+				row.prompt?.includes("Write another haiku about Java"),
 			)?.sessionId;
 			expect(teammateSessionId).toBeTruthy();
+			expect(secondRunSessionId).toBeTruthy();
+			expect(teammateTaskSessions).toHaveLength(2);
+			expect(childSessions.find((item) => item.sessionId === secondRunSessionId)?.status).toBe("running");
 			const row = childSessions.find(
 				(item) => item.sessionId === teammateSessionId,
 			);

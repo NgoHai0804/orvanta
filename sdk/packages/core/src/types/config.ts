@@ -264,6 +264,9 @@ export interface CoreSessionConfig
 	 * transcript/tool/hook context.
 	 */
 	sessionId?: string;
+	/** Explicit Orvanta session identity for durable Team run association. This is
+	 * separate from the SDK sessionId and must never be inferred from it. */
+	orvantaSessionId?: string;
 	workspaceRoot?: string;
 	systemPrompt: string;
 	teamName?: string;

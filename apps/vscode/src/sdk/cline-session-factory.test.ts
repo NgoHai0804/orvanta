@@ -204,6 +204,14 @@ describe("buildStartSessionInput", () => {
 		expect(result.userFiles).toBeUndefined()
 	})
 
+	it("round-trips the explicit Orvanta session identity as session metadata", () => {
+		const config = { ...makeBaseConfig(), orvantaSessionId: "orv-session-1" }
+
+		const result = buildStartSessionInput(config, { cwd: "/tmp/workspace" })
+
+		expect(result.sessionMetadata).toEqual({ orvantaSessionId: "orv-session-1" })
+	})
+
 	it("includes images and files when provided", () => {
 		const config = makeBaseConfig()
 		const input = {

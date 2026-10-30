@@ -72,7 +72,7 @@
 				"saoudrizwan.cline-nightly", // Avoid conflicts with installed Cline Nightly
 				"--disable-extension",
 				"oven.bun-vscode", // Avoid port 63343 conflict with installed Bun extension
-				"${workspaceFolder}/apps/vscode"
+				"${input:clineWorkspaceFolder}"
 			],
 			"outFiles": [
 				"${workspaceFolder}/apps/vscode/dist/**/*.js"
@@ -82,6 +82,7 @@
 			"env": {
 				"IS_DEV": "true",
 				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}/apps/vscode",
+				"USE_BUNDLED_WEBVIEW": "true",
 				"CLINE_ENVIRONMENT": "local",
 				"CLINE_DIR": "${userHome}/.cline_local"
 			}
@@ -314,6 +315,12 @@
 		}
 	],
 	"inputs": [
+		{
+			"id": "clineWorkspaceFolder",
+			"type": "promptString",
+			"description": "Absolute path of the workspace to open in the Extension Development Host (e.g. D:\\repo)",
+			"default": "${workspaceFolder}"
+		},
 		{
 			"id": "cliPrompt",
 			"type": "promptString",

@@ -155,6 +155,10 @@ export abstract class WebviewProvider {
 	 * rendered within the webview panel
 	 */
 	protected async getHMRHtmlContent(): Promise<string> {
+		if (process.env.USE_BUNDLED_WEBVIEW === "true") {
+			return this.getHtmlContent()
+		}
+
 		const localPort = await this.getDevServerPort()
 		const localServerUrl = `127.0.0.1:${localPort}`
 

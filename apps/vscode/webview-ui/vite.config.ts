@@ -115,6 +115,7 @@ export default defineConfig({
 	server: {
 		host: "127.0.0.1",
 		port: 25463,
+		strictPort: true,
 		fs: {
 			allow: [resolve(__dirname), resolve(__dirname, "../src/shared")],
 		},

@@ -649,6 +649,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 
 			? new TeamPersistenceWriter({
 					teamKey: teamStoreKey,
+					...(config.orvantaSessionId
+						? { orvantaSessionId: config.orvantaSessionId }
+						: {}),
 					store: teamStore,
 					source: () => teamRuntime,
 					teammates: () => Array.from(teammateSpecs.values()),

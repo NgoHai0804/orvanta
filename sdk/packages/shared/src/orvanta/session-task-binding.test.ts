@@ -15,6 +15,7 @@ import {
 	markTaskUnavailable,
 	reconcileSpawnedTask,
 	recordTaskTurnEvent,
+	recordTeamRunTranscriptLink,
 } from "./index";
 
 async function createTempWorkspace(): Promise<string> {
@@ -22,6 +23,49 @@ async function createTempWorkspace(): Promise<string> {
 }
 
 describe("Task ↔ Session ↔ Agent Binding", () => {
+	it("records durable run links idempotently without substituting run ID for SDK session ID", async () => {
+		const workspaceRoot = await createTempWorkspace();
+		try {
+			await bindTaskToSession({
+				workspaceRoot,
+				companyId: "comp-run-link",
+				sessionId: "sess-run-link",
+				taskId: "task-reviewer",
+				agentNumericId: 7,
+				agentSlug: "reviewer",
+				displayName: "Reviewer",
+				role: "teammate",
+			});
+			const input = {
+				workspaceRoot,
+				sessionId: "sess-run-link",
+				runId: "run_00001",
+				participant: {
+					agentNumericId: 7,
+					agentSlugAtJoin: "reviewer",
+					displayNameAtJoin: "Reviewer",
+					roleAtJoin: "teammate" as const,
+					taskId: "task-reviewer",
+				},
+				transcript: {
+					runtimeAgentId: "agent_runtime_7",
+					conversationId: "conv_7",
+					sdkSessionId: "sdk-reviewer-session",
+				},
+			};
+			await recordTeamRunTranscriptLink(input);
+			const replayed = await recordTeamRunTranscriptLink(input);
+			expect(replayed.participants[0]?.transcript).toEqual({
+				runtimeAgentId: "agent_runtime_7",
+				conversationId: "conv_7",
+				sdkSessionId: "sdk-reviewer-session",
+				runIds: ["run_00001"],
+			});
+		} finally {
+			await rm(workspaceRoot, { recursive: true, force: true });
+		}
+	});
+
 	it("binds task to a session and records only the participating agent without roster fallback", async () => {
 		const workspaceRoot = await createTempWorkspace();
 		try {

@@ -377,8 +377,9 @@ export class UnifiedSessionPersistenceService {
 		rootSessionId: string,
 		agentId: string,
 		message: string,
+		runId?: string,
 	): Promise<void> {
-		return this.teamChildren.onTeamTaskStart(rootSessionId, agentId, message);
+		return this.teamChildren.onTeamTaskStart(rootSessionId, agentId, message, runId);
 	}
 
 	onTeamTaskEnd(
@@ -388,6 +389,7 @@ export class UnifiedSessionPersistenceService {
 		summary?: string,
 		result?: AgentResult,
 		messages?: LlmsProviders.MessageWithMetadata[],
+		runId?: string,
 	): Promise<void> {
 		return this.teamChildren.onTeamTaskEnd(
 			rootSessionId,
@@ -396,6 +398,7 @@ export class UnifiedSessionPersistenceService {
 			summary,
 			result,
 			messages,
+			runId,
 		);
 	}
 

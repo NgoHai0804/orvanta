@@ -27,6 +27,7 @@ describe("dispatchTeamEventToBackend", () => {
 			"[done] aborted",
 			undefined,
 			[],
+			undefined,
 		);
 	});
 });

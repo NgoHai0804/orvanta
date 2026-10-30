@@ -94,6 +94,7 @@ export async function dispatchTeamEventToBackend(
 				rootSessionId,
 				event.agentId,
 				event.message,
+				event.runId,
 			);
 			break;
 		case "task_end": {
@@ -113,6 +114,7 @@ export async function dispatchTeamEventToBackend(
 					"[done] aborted",
 					event.result,
 					event.result?.messages ?? event.messages,
+					event.runId,
 				);
 			} else if (status === "failed") {
 				const message =
@@ -125,6 +127,7 @@ export async function dispatchTeamEventToBackend(
 					`[error] ${message}`,
 					event.result,
 					event.result?.messages ?? event.messages,
+					event.runId,
 				);
 			} else {
 				await invokeOptional(
@@ -135,6 +138,7 @@ export async function dispatchTeamEventToBackend(
 					`[done] ${event.result?.finishReason ?? "completed"}`,
 					event.result,
 					event.result?.messages,
+					event.runId,
 				);
 			}
 			break;

@@ -792,6 +792,15 @@ export class LocalRuntimeHost implements RuntimeHost {
 			},
 		);
 		if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;
+		// Preserve an explicitly supplied Orvanta identity across the SDK
+		// session-metadata boundary. Never substitute this SDK session's ID.
+		const orvantaSessionId = initialSessionMetadata.orvantaSessionId;
+		if (
+			bootstrap.config.orvantaSessionId === undefined &&
+			typeof orvantaSessionId === "string"
+		) {
+			bootstrap.config.orvantaSessionId = orvantaSessionId;
+		}
 		let runtime: Awaited<ReturnType<typeof this.runtimeBuilder.build>>;
 		try {
 			runtime = await this.runtimeBuilder.build({

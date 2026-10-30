@@ -701,7 +701,9 @@ export interface AgentConfig {
 	 * The host-owned lifecycle id for this task/session. Core uses it for
 	 * persistence, event routing, abort/stop operations, and approval delivery.
 	 * This is intentionally separate from `conversationId`, which identifies the
-	 * model transcript managed by the agent runtime.
+	 * model transcript managed by the agent runtime. Supplying this field to a
+	 * directly constructed `SessionRuntime` does not create a host session row or
+	 * persist its messages; persistence requires a `RuntimeHost` session lifecycle.
 	 */
 	sessionId?: string;
 	// -------------------------------------------------------------------------

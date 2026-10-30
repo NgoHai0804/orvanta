@@ -1,0 +1,172 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "npm: protos",
+			"type": "shell",
+			"command": "bun run protos",
+			"problemMatcher": [],
+			"isBackground": false,
+			"presentation": {
+				"reveal": "always"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}",
+				"env": {
+					"IS_DEV": "true"
+				}
+			}
+		},
+		{
+			"label": "watch",
+			"dependsOn": [
+				"npm: protos",
+				"npm: build:webview",
+				"npm: dev:webview",
+				"npm: watch:tsc",
+				"npm: watch:esbuild"
+			],
+			"presentation": {
+				"reveal": "always"
+			},
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		},
+		{
+			"type": "shell",
+			"command": "bun run build",
+			"group": "build",
+			"problemMatcher": [],
+			"isBackground": false,
+			"label": "npm: build:webview",
+			"dependsOn": [
+				"npm: protos"
+			],
+			"presentation": {
+				"group": "watch",
+				"reveal": "always"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}/webview-ui",
+				"env": {
+					"IS_DEV": "true"
+				}
+			}
+		},
+		{
+			"type": "shell",
+			"command": "bun run dev:webview",
+			"group": "build",
+			"problemMatcher": [
+				{
+					"pattern": [
+						{
+							"regexp": "^(?!)((?:.*))$",
+							"file": 1,
+							"kind": "file",
+							"message": 1
+						}
+					],
+					"background": {
+						"activeOnStart": true,
+						"beginsPattern": "^Building webview for|^\\s*VITE",
+						"endsPattern": "^.*Local:\\s+http://127\\.0\\.0\\.1:[0-9]+/"
+					}
+				}
+			],
+			"isBackground": true,
+			"label": "npm: dev:webview",
+			"dependsOn": [
+				"npm: protos"
+			],
+			"presentation": {
+				"group": "watch",
+				"reveal": "always"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}",
+				"env": {
+					"IS_DEV": "true"
+				}
+			}
+		},
+		{
+			"type": "shell",
+			"command": "bun run watch:esbuild",
+			"group": "build",
+			"problemMatcher": {
+				"pattern": [
+					{
+						"regexp": "^✘ \\[ERROR\\] (.*)$",
+						"message": 1
+					},
+					{
+						"regexp": "^\\s+(.*):(\\d+):(\\d+):$",
+						"file": 1,
+						"line": 2,
+						"column": 3
+					}
+				],
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": "^\\[watch\\] build started$",
+					"endsPattern": "^\\[watch\\] build finished$"
+				}
+			},
+			"isBackground": true,
+			"label": "npm: watch:esbuild",
+			"dependsOn": [
+				"npm: protos",
+				"build-sdk:debug"
+			],
+			"presentation": {
+				"group": "watch",
+				"reveal": "always"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}",
+				"env": {
+					"IS_DEV": "true"
+				}
+			}
+		},
+		{
+			"type": "shell",
+			"command": "bun run watch:tsc",
+			"group": "build",
+			"problemMatcher": "$tsc-watch",
+			"isBackground": true,
+			"label": "npm: watch:tsc",
+			"dependsOn": [
+				"npm: protos"
+			],
+			"presentation": {
+				"group": "watch",
+				"reveal": "always"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "build-sdk:debug",
+			"type": "shell",
+			"command": "bun run build:sdk",
+			"problemMatcher": [
+				"$tsc"
+			],
+			"presentation": {
+				"group": "watch",
+				"reveal": "always"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}/../..",
+				"env": {
+					"CLINE_SOURCEMAPS": "1"
+				}
+			}
+		}
+	]
+}

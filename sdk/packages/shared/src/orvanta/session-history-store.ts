@@ -66,6 +66,20 @@ export const OrvantaUsageSchema = z.object({
 });
 export type OrvantaUsage = z.infer<typeof OrvantaUsageSchema>;
 
+/** Stable SDK transcript identity for one Orvanta participant. This is metadata only;
+ * the transcript itself remains canonical in SDK session storage. */
+export const OrvantaAgentTranscriptIdentitySchema = z.object({
+	/** Runtime SessionRuntime ID; never an SDK session ID. */
+	runtimeAgentId: z.string().min(1).optional(),
+	/** ConversationStore transcript ID; not itself a persisted session ID. */
+	conversationId: z.string().min(1).optional(),
+	/** SDK host session ID used by readMessages/readDisplayMessages. */
+	sdkSessionId: z.string().regex(SAFE_ID_REGEX).optional(),
+	/** Run IDs associated with this participant transcript; one transcript may span many runs. */
+	runIds: z.array(z.string().regex(SAFE_ID_REGEX)).default([]),
+});
+export type OrvantaAgentTranscriptIdentity = z.infer<typeof OrvantaAgentTranscriptIdentitySchema>;
+
 export const OrvantaSessionAggregateUsageSchema = z.object({
 	tokensIn: z.number().nonnegative(),
 	tokensOut: z.number().nonnegative(),
@@ -80,6 +94,8 @@ export const OrvantaSessionParticipantSchema = z.object({
 	displayNameAtJoin: z.string().min(1),
 	roleAtJoin: OrvantaParticipantRoleSchema,
 	taskId: z.string().regex(SAFE_ID_REGEX, "taskId must be 1-64 alphanumeric characters, dashes or underscores"),
+	/** Separate SDK/runtime IDs. Optional for legacy history without a linked transcript. */
+	transcript: OrvantaAgentTranscriptIdentitySchema.optional(),
 	joinedAt: z.string().datetime(),
 	lastActiveAt: z.string().datetime(),
 	status: OrvantaParticipantStatusSchema.default("active"),
@@ -678,6 +694,8 @@ export interface UpsertParticipantInput {
 	displayNameAtJoin: string;
 	roleAtJoin: OrvantaParticipantRole;
 	taskId: string;
+	/** Stable Agent/runtime/session mapping; runIds are merged idempotently with existing links. */
+	transcript?: Partial<OrvantaAgentTranscriptIdentity>;
 	joinedAt?: unknown;
 	lastActiveAt?: unknown;
 	status?: OrvantaParticipantStatus;
@@ -724,15 +742,28 @@ export async function upsertParticipant(
 			);
 		}
 
+		const existingParticipant = existingIndex >= 0 ? manifest.participants[existingIndex] : undefined
+		const transcript = participantInput.transcript
+			? OrvantaAgentTranscriptIdentitySchema.parse({
+					...existingParticipant?.transcript,
+					...participantInput.transcript,
+					runIds: Array.from(new Set([
+						...(existingParticipant?.transcript?.runIds ?? []),
+						...(participantInput.transcript.runIds ?? []),
+					])),
+				})
+			: existingParticipant?.transcript
+
 		const updatedParticipant: OrvantaSessionParticipant = {
 			agentNumericId: participantInput.agentNumericId,
 			agentSlugAtJoin: participantInput.agentSlugAtJoin,
 			displayNameAtJoin: participantInput.displayNameAtJoin,
 			roleAtJoin: participantInput.roleAtJoin,
 			taskId: participantInput.taskId,
-			joinedAt: existingIndex >= 0 ? manifest.participants[existingIndex].joinedAt : joinedAt,
+			...(transcript ? { transcript } : {}),
+			joinedAt: existingParticipant?.joinedAt ?? joinedAt,
 			lastActiveAt,
-			status: participantInput.status ?? (existingIndex >= 0 ? manifest.participants[existingIndex].status : "active"),
+			status: participantInput.status ?? existingParticipant?.status ?? "active",
 			lastMessagePreview: sanitizedPreview,
 			usage: participantInput.usage,
 		};

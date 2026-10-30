@@ -9,6 +9,7 @@ import {
 	toPersistableTeamEvent,
 } from "../../extensions/tools/team/persistence-policy";
 import type { TeamPersistenceBatch } from "../../types/storage";
+import { validateSessionId } from "@cline/shared";
 
 /** Default batch window for coalescing durable team writes. */
 export const TEAM_PERSIST_BATCH_MS = 300;
@@ -37,6 +38,8 @@ export interface TeamPersistenceSink {
 
 export interface TeamPersistenceWriterOptions {
 	teamKey: string;
+	/** Explicit Orvanta session ID. SDK session/run IDs are never substituted. */
+	orvantaSessionId?: string;
 	store: TeamPersistenceSink;
 	source: () => TeamPersistenceSource | undefined;
 	teammates: () => TeamTeammateSpec[];
@@ -57,9 +60,9 @@ export interface TeamPersistenceWriterOptions {
  */
 export class TeamPersistenceWriter {
 	private readonly opts: Required<
-		Omit<TeamPersistenceWriterOptions, "onError">
+		Omit<TeamPersistenceWriterOptions, "onError" | "orvantaSessionId">
 	> &
-		Pick<TeamPersistenceWriterOptions, "onError">;
+		Pick<TeamPersistenceWriterOptions, "onError" | "orvantaSessionId">;
 	private pendingEvents: Array<{ type: string; payload: unknown }> = [];
 	private teammatesDirty = false;
 	private timer: ReturnType<typeof setTimeout> | undefined;
@@ -67,6 +70,9 @@ export class TeamPersistenceWriter {
 	private disposed = false;
 
 	constructor(options: TeamPersistenceWriterOptions) {
+		if (options.orvantaSessionId !== undefined) {
+			validateSessionId(options.orvantaSessionId);
+		}
 		this.opts = {
 			batchMs: TEAM_PERSIST_BATCH_MS,
 			telemetryFlushMs: TEAM_TELEMETRY_FLUSH_MS,
@@ -85,9 +91,13 @@ export class TeamPersistenceWriter {
 			}
 			return;
 		}
+		const payload = toPersistableTeamEvent(event);
 		this.pendingEvents.push({
 			type: event.type,
-			payload: toPersistableTeamEvent(event),
+			payload:
+				this.opts.orvantaSessionId && payload && typeof payload === "object"
+					? { ...payload, orvantaSessionId: this.opts.orvantaSessionId }
+					: payload,
 		});
 		if (shouldFlushTeamEventImmediately(event)) {
 			this.flush();

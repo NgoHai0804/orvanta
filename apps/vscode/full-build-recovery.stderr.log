@@ -1,0 +1,11 @@
+$ bun run check-types && bun run lint && bun esbuild.mjs
+$ bun run protos && bunx tsc --noEmit && bun run check-types:compat && cd webview-ui && bunx tsc --noEmit
+$ node scripts/build-proto.mjs
+$ biome format --config-path ./biome.jsonc src/shared/proto src/core/controller src/hosts/ webview-ui/src/services src/generated --write --no-errors-on-unmatched
+$ bunx tsc --project tsconfig.vscode-compat.json --noEmit
+$ biome lint --config-path ./biome.jsonc --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error && bun run lint:proto
+$ bash ./scripts/proto-lint.sh
+<3>WSL (11 - Relay) ERROR: CreateProcessCommon:640: execvpe(/bin/bash) failed: No such file or directory
+error: script "lint:proto" exited with code 1
+error: script "lint" exited with code 1
+error: script "compile" exited with code 1

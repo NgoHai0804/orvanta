@@ -116,6 +116,50 @@ describe("TeamPersistenceWriter", () => {
 		expect(batches).toHaveLength(1);
 	});
 
+	it("persists only an explicitly configured Orvanta session ID on durable events", () => {
+		const { writer, batches } = setup();
+		writer.dispose();
+		const linked = new TeamPersistenceWriter({
+			teamKey: "team",
+			orvantaSessionId: "orv-session-1",
+			store: { persistBatch: (_key, batch) => batches.push(batch) },
+			source: () => setup().source,
+			teammates: () => [],
+		});
+		linked.onEvent({
+			type: TeamMessageType.RunCompleted,
+			run: { ...run, status: "completed" },
+		});
+
+		expect(batches.at(-1)?.events[0]?.payload).toMatchObject({
+			type: TeamMessageType.RunCompleted,
+			orvantaSessionId: "orv-session-1",
+		});
+	});
+
+	it("does not infer an Orvanta session ID when none is configured", () => {
+		const { writer, batches } = setup();
+		writer.onEvent({
+			type: TeamMessageType.RunCompleted,
+			run: { ...run, status: "completed" },
+		});
+
+		expect(batches[0]?.events[0]?.payload).not.toHaveProperty("orvantaSessionId");
+	});
+
+	it("rejects an invalid explicit Orvanta session ID", () => {
+		expect(
+			() =>
+				new TeamPersistenceWriter({
+					teamKey: "team",
+					orvantaSessionId: "../other-session",
+					store: { persistBatch: vi.fn() },
+					source: () => undefined,
+					teammates: () => [],
+				}),
+		).toThrow();
+	});
+
 	it("persists liveness at most once per telemetry window", () => {
 		const clock = { t: 0 };
 		const { writer, batches, markPending } = setup(clock);

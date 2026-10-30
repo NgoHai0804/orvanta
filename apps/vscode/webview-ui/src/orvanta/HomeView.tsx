@@ -186,7 +186,7 @@ const HomeView = ({
 	const noFolder = errors.includes("no_folder")
 	if (company.status === "missing" && noFolder) {
 		return (
-			<div className="flex flex-col items-center justify-center gap-2 p-6 text-sm text-center">
+			<div className="flex h-full min-h-0 flex-1 flex-col items-center justify-center gap-2 p-6 text-sm text-center">
 				<IconFolderOff className="text-muted-foreground mb-1" size={28} stroke={1.5} />
 				<h2 className="text-base font-semibold">Orvanta</h2>
 				<p className="text-xs opacity-80 max-w-xs">Mở một folder workspace để lập công ty.</p>
@@ -665,7 +665,10 @@ const HomeView = ({
 	}
 
 	return (
-		<>
+		<div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+			{company.status === "missing" && (
+				<p className="shrink-0 px-3 pt-3 text-xs text-muted-foreground">Folder này chưa có cấu hình Orvanta.</p>
+			)}
 			<CreateCompanyForm
 				creating={creating}
 				error={createError}
@@ -685,7 +688,7 @@ const HomeView = ({
 					}}
 				/>
 			)}
-		</>
+		</div>
 	)
 }
 

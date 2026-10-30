@@ -141,7 +141,7 @@ export const TeamRunTaskInputSchema = z.object({
 		"Execution mode: 'sync' blocks until the teammate finishes and returns the result (default if omitted); 'async' queues the run and returns a runId immediately — use team_await_runs to collect results later.",
 	),
 	continueConversation: nullableOptional(z.boolean()).describe(
-		"If true, continue the teammate conversation; otherwise start fresh",
+		"Legacy hint for conversation continuation. A teammate always retains its canonical conversation across runs; this cannot reset transcript history",
 	),
 });
 

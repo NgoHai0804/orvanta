@@ -1,0 +1,84 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Run Extension (Bundled Webview - Chắc Chắn Hiện UI)",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--disable-workspace-trust",
+				"--disable-extension",
+				"saoudrizwan.claude-dev",
+				"--disable-extension",
+				"saoudrizwan.cline-nightly",
+				"--disable-extension",
+				"oven.bun-vscode",
+				"${workspaceFolder}"
+			],
+			"outFiles": [
+				"${workspaceFolder}/dist/**/*.js"
+			],
+			"envFile": "${workspaceFolder}/.env",
+			"env": {
+				"IS_DEV": "true",
+				"USE_BUNDLED_WEBVIEW": "true",
+				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}",
+				"CLINE_ENVIRONMENT": "local",
+				"CLINE_DIR": "${userHome}/.cline_local"
+			}
+		},
+		{
+			"name": "Run Extension (Live HMR Webview)",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--disable-workspace-trust",
+				"--disable-extension",
+				"saoudrizwan.claude-dev",
+				"--disable-extension",
+				"saoudrizwan.cline-nightly",
+				"--disable-extension",
+				"oven.bun-vscode",
+				"${workspaceFolder}"
+			],
+			"outFiles": [
+				"${workspaceFolder}/dist/**/*.js"
+			],
+			"preLaunchTask": "${defaultBuildTask}",
+			"envFile": "${workspaceFolder}/.env",
+			"env": {
+				"IS_DEV": "true",
+				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}",
+				"CLINE_ENVIRONMENT": "local",
+				"CLINE_DIR": "${userHome}/.cline_local"
+			}
+		},
+		{
+			"name": "Run Extension (production)",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--disable-workspace-trust",
+				"--disable-extension",
+				"saoudrizwan.claude-dev",
+				"--disable-extension",
+				"saoudrizwan.cline-nightly",
+				"--disable-extension",
+				"oven.bun-vscode",
+				"${workspaceFolder}"
+			],
+			"outFiles": [
+				"${workspaceFolder}/dist/**/*.js"
+			],
+			"envFile": "${workspaceFolder}/.env",
+			"env": {
+				"IS_DEV": "true",
+				"DEV_WORKSPACE_FOLDER": "${workspaceFolder}",
+				"CLINE_ENVIRONMENT": "production"
+			}
+		}
+	]
+}
