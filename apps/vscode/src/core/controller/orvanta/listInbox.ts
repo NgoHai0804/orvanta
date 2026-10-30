@@ -1,8 +1,8 @@
 import { type DecisionItem, type HistoryInboxEntry, loadHistoryInbox, loadPendingInbox } from "@cline/shared"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OrvantaDecisionItem, OrvantaHistoryEntry, OrvantaInboxResponse } from "@shared/proto/cline/orvanta"
+import { HostProvider } from "@/hosts/host-provider"
 import { globalInboxBadgeTracker } from "@/orvanta/inbox-badge-tracker"
-import { resolveOrvantaWorkspaceRoot } from "@/orvanta/resolve-workspace"
 import type { Controller } from ".."
 
 export function toProtoDecisionItem(item: DecisionItem): OrvantaDecisionItem {
@@ -37,8 +37,9 @@ export function toProtoHistoryEntry(entry: HistoryInboxEntry): OrvantaHistoryEnt
 }
 
 export async function listInbox(_controller: Controller, _request: EmptyRequest): Promise<OrvantaInboxResponse> {
-	const root = await resolveOrvantaWorkspaceRoot()
-	if (!root) {
+	const { paths } = await HostProvider.workspace.getWorkspacePaths({})
+	const roots = [...new Set(paths.filter((workspacePath) => workspacePath.trim().length > 0))]
+	if (roots.length === 0) {
 		globalInboxBadgeTracker.setBadge(0)
 		return OrvantaInboxResponse.create({
 			pending: [],
@@ -48,10 +49,16 @@ export async function listInbox(_controller: Controller, _request: EmptyRequest)
 		})
 	}
 
-	const [pendingInbox, history] = await Promise.all([loadPendingInbox(root), loadHistoryInbox(root)])
-
-	const pendingItems = pendingInbox.items.filter((i) => i.status === "pending")
-	const deferredItems = pendingInbox.items.filter((i) => i.status === "deferred")
+	const inboxes = await Promise.all(
+		roots.map(async (root) => ({
+			pending: await loadPendingInbox(root),
+			history: await loadHistoryInbox(root),
+		})),
+	)
+	const allPending = inboxes.flatMap(({ pending }) => pending.items)
+	const pendingItems = allPending.filter((item) => item.status === "pending")
+	const deferredItems = allPending.filter((item) => item.status === "deferred")
+	const history = inboxes.flatMap(({ history: entries }) => entries)
 
 	globalInboxBadgeTracker.setBadge(pendingItems.length)
 
