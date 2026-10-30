@@ -65,7 +65,7 @@
 		},
 		{
 			"type": "shell",
-			"command": "bun run build:webview",
+			"command": "cd webview-ui && bun run build",
 			"group": "build",
 			"problemMatcher": [],
 			"isBackground": false,
@@ -86,7 +86,7 @@
 		},
 		{
 			"type": "shell",
-			"command": "bun run build:webview:test",
+			"command": "cd webview-ui && bun run build",
 			"group": "build",
 			"problemMatcher": [],
 			"isBackground": false,

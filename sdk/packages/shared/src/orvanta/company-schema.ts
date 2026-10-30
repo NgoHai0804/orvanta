@@ -4,6 +4,7 @@ import {
 	COORDINATOR_PROFILE_FILE,
 	MAX_COMPANY_NAME_LENGTH,
 	MIN_PURPOSE_LENGTH,
+	ROSTER_SCHEMA_VERSION,
 	SCHEMA_VERSION,
 } from "./paths";
 
@@ -37,6 +38,8 @@ export type CompanyJson = z.infer<typeof CompanyJsonSchema>;
 
 export const RosterAgentSchema = z.object({
 	id: z.string().min(1),
+	agentNumericId: z.number().int().positive().safe(),
+	legacySlugs: z.array(z.string().min(1)).default([]),
 	displayName: z.string().min(1),
 	role: z.enum(["lead", "teammate"]),
 	status: z.enum([
@@ -55,11 +58,128 @@ export const RosterAgentSchema = z.object({
 });
 export type RosterAgent = z.infer<typeof RosterAgentSchema>;
 
+export const RetiredAgentIdentitySchema = z.object({
+	agentNumericId: z.number().int().positive().safe(),
+	id: z.string().min(1),
+	displayName: z.string().min(1),
+	legacySlugs: z.array(z.string().min(1)).default([]),
+	retiredAt: z.string().datetime(),
+});
+export type RetiredAgentIdentity = z.infer<typeof RetiredAgentIdentitySchema>;
+
+export const OrvantaAgentIdentitySchema = z.object({
+	agentNumericId: z.number().int().positive().safe(),
+	agentSlug: z.string().min(1),
+	displayName: z.string().min(1),
+	status: z.enum(["active", "retired"]),
+});
+export type OrvantaAgentIdentity = z.infer<typeof OrvantaAgentIdentitySchema>;
+
 export const RosterJsonSchema = z.object({
-	schemaVersion: z.literal(SCHEMA_VERSION),
+	schemaVersion: z.literal(ROSTER_SCHEMA_VERSION),
+	nextAgentNumericId: z.number().int().positive().safe(),
 	agents: z.array(RosterAgentSchema),
+	retiredAgents: z.array(RetiredAgentIdentitySchema).default([]),
+}).superRefine((roster, context) => {
+	const numericIds = new Set<number>();
+	const activeSlugs = new Set<string>();
+	for (const [index, agent] of roster.agents.entries()) {
+		if (numericIds.has(agent.agentNumericId)) {
+			context.addIssue({ code: "custom", path: ["agents", index, "agentNumericId"], message: "Agent numeric ID must be unique" });
+		}
+		numericIds.add(agent.agentNumericId);
+		if (activeSlugs.has(agent.id)) {
+			context.addIssue({ code: "custom", path: ["agents", index, "id"], message: "Active agent slug must be unique" });
+		}
+		activeSlugs.add(agent.id);
+	}
+	for (const [index, agent] of roster.agents.entries()) {
+		for (const slug of agent.legacySlugs) {
+			if (activeSlugs.has(slug)) {
+				context.addIssue({ code: "custom", path: ["agents", index, "legacySlugs"], message: "Legacy alias cannot collide with an active slug" });
+			}
+		}
+	}
+	for (const [index, agent] of roster.retiredAgents.entries()) {
+		if (numericIds.has(agent.agentNumericId)) {
+			context.addIssue({ code: "custom", path: ["retiredAgents", index, "agentNumericId"], message: "Agent numeric ID must never be reused" });
+		}
+		numericIds.add(agent.agentNumericId);
+		if (agent.id !== "" && activeSlugs.has(agent.id)) {
+			context.addIssue({ code: "custom", path: ["retiredAgents", index, "id"], message: "Retired slug cannot be reused" });
+		}
+		if (agent.legacySlugs.some((slug) => activeSlugs.has(slug))) {
+			context.addIssue({ code: "custom", path: ["retiredAgents", index, "legacySlugs"], message: "Retired alias cannot be reused" });
+		}
+	}
+	if (numericIds.size > 0 && roster.nextAgentNumericId <= Math.max(...numericIds)) {
+		context.addIssue({ code: "custom", path: ["nextAgentNumericId"], message: "nextAgentNumericId must exceed all allocated IDs" });
+	}
 });
 export type RosterJson = z.infer<typeof RosterJsonSchema>;
+
+export function upgradeLegacyRoster(input: unknown, retiredAgents: RetiredAgentIdentity[] = []): RosterJson {
+	const legacy = z.object({ schemaVersion: z.literal(SCHEMA_VERSION), agents: z.array(z.object({ id: z.string().min(1) }).passthrough()) }).parse(input);
+	const legacyIds = [...new Set(legacy.agents.map((agent) => agent.id))];
+	const reservedSlugs = new Set(retiredAgents.flatMap((agent) => [agent.id, ...agent.legacySlugs]));
+	if (legacyIds.some((id) => reservedSlugs.has(id))) throw new Error("Legacy roster slug collides with a retired agent identity");
+	const sortedIds = legacyIds.sort((a, b) => {
+		if (a === COORDINATOR_AGENT_ID) return -1;
+		if (b === COORDINATOR_AGENT_ID) return 1;
+		return a < b ? -1 : a > b ? 1 : 0;
+	});
+	const numericIdBySlug = new Map(sortedIds.map((id, index) => [id, index + 1]));
+	const agents = legacy.agents.map((agent) => ({
+		...agent,
+		agentNumericId: numericIdBySlug.get(agent.id)!,
+		legacySlugs: [],
+	}));
+	return RosterJsonSchema.parse({
+		schemaVersion: ROSTER_SCHEMA_VERSION,
+		nextAgentNumericId: Math.max(sortedIds.length + 1, ...retiredAgents.map((agent) => agent.agentNumericId + 1)),
+		agents,
+		retiredAgents,
+	});
+}
+
+export function parseRoster(input: unknown, retiredAgents: RetiredAgentIdentity[] = []): RosterJson {
+	const current = RosterJsonSchema.safeParse(input);
+	if (!current.success && retiredAgents.length > 0) return upgradeLegacyRoster(input, retiredAgents);
+	return current.success ? current.data : upgradeLegacyRoster(input);
+}
+
+export type LegacyAgentSlugResolution =
+	| { status: "resolved"; agentNumericId: number }
+	| { status: "unknown" }
+	| { status: "ambiguous"; agentNumericIds: number[] };
+
+export function resolveLegacyAgentSlug(roster: RosterJson, legacySlug: string): LegacyAgentSlugResolution {
+	const matches = [
+		...roster.agents.filter((agent) => agent.id === legacySlug || agent.legacySlugs.includes(legacySlug)),
+		...roster.retiredAgents.filter((agent) => agent.id === legacySlug || agent.legacySlugs.includes(legacySlug)),
+	];
+	const ids = [...new Set(matches.map((agent) => agent.agentNumericId))];
+	if (ids.length === 0) return { status: "unknown" };
+	if (ids.length > 1) return { status: "ambiguous", agentNumericIds: ids.sort((a, b) => a - b) };
+	return { status: "resolved", agentNumericId: ids[0]! };
+}
+
+export function getRosterIdentities(roster: RosterJson): OrvantaAgentIdentity[] {
+	return [
+		...roster.agents.map((agent) => ({
+			agentNumericId: agent.agentNumericId,
+			agentSlug: agent.id,
+			displayName: agent.displayName,
+			status: "active" as const,
+		})),
+		...roster.retiredAgents.map((agent) => ({
+			agentNumericId: agent.agentNumericId,
+			agentSlug: agent.id,
+			displayName: agent.displayName,
+			status: "retired" as const,
+		})),
+	];
+}
 
 export type CompanyLoad =
 	| { status: "missing" }
@@ -95,10 +215,13 @@ export function slugifyTeamName(name: string): string {
 
 export function defaultCoordinatorRoster(nowIso: string): RosterJson {
 	return {
-		schemaVersion: SCHEMA_VERSION,
+		schemaVersion: ROSTER_SCHEMA_VERSION,
+		nextAgentNumericId: 2,
 		agents: [
 			{
 				id: COORDINATOR_AGENT_ID,
+				agentNumericId: 1,
+				legacySlugs: [],
 				displayName: "Coordinator",
 				role: "lead",
 				status: "idle",
@@ -110,6 +233,7 @@ export function defaultCoordinatorRoster(nowIso: string): RosterJson {
 				maxIterations: 40,
 			},
 		],
+		retiredAgents: [],
 	};
 }
 
@@ -129,11 +253,14 @@ export function validateLoadedCompany(input: {
 	if (!purpose) {
 		errors.push("thiếu purpose.md");
 	}
-	const rosterResult = RosterJsonSchema.safeParse(input.roster);
-	if (!rosterResult.success) {
+	let roster: RosterJson | undefined;
+	try {
+		roster = parseRoster(input.roster);
+	} catch {
 		errors.push("org/roster.json không hợp lệ");
-	} else {
-		const leads = rosterResult.data.agents.filter((a) => a.role === "lead");
+	}
+	if (roster) {
+		const leads = roster.agents.filter((a) => a.role === "lead");
 		if (leads.length !== 1) {
 			errors.push("roster phải có đúng một lead");
 		}
@@ -141,17 +268,17 @@ export function validateLoadedCompany(input: {
 			companyResult.success
 				? companyResult.data.coordinatorAgentId
 				: COORDINATOR_AGENT_ID;
-		if (!rosterResult.data.agents.some((a) => a.id === coordinatorId)) {
+		if (!roster.agents.some((a) => a.id === coordinatorId)) {
 			errors.push("thiếu coordinator trên roster");
 		}
 	}
-	if (errors.length > 0 || !companyResult.success || !rosterResult.success) {
+	if (errors.length > 0 || !companyResult.success || !roster) {
 		return { ok: false, errors };
 	}
 	return {
 		ok: true,
 		company: companyResult.data,
 		purpose,
-		roster: rosterResult.data,
+		roster,
 	};
 }

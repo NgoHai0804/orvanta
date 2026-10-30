@@ -50,6 +50,7 @@ export const AgentProfileFrontmatterSchema = z.object({
 		message:
 			"Id agent phải bắt đầu bằng chữ thường a-z, 2-32 ký tự, chỉ chứa a-z, 0-9, gạch dưới hoặc gạch nối",
 	}),
+	agentNumericId: z.number().int().positive().safe().optional(),
 	displayName: z.string().trim().min(1).max(48),
 	description: z.string().max(200).default(""),
 	role: AgentRoleSchema,
@@ -287,6 +288,7 @@ export function parseAgentProfile(
 
 	const parsedFrontmatter = AgentProfileFrontmatterSchema.parse({
 		id: data.id,
+		agentNumericId: toNullableNumber(data.agentNumericId) ?? undefined,
 		displayName: data.displayName,
 		description: typeof data.description === "string" ? data.description : "",
 		role: data.role,
@@ -362,6 +364,9 @@ export function serializeAgentProfile(
 
 	const lines: string[] = ["---"];
 	lines.push(`id: ${valid.id}`);
+	if (valid.agentNumericId !== undefined) {
+		lines.push(`agentNumericId: ${valid.agentNumericId}`);
+	}
 	lines.push(`displayName: ${valid.displayName}`);
 	lines.push(
 		valid.description

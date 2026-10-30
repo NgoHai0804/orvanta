@@ -164,4 +164,82 @@ describe("useChatTabs", () => {
 		expect(result.current.activeTab.taskId).toBe("task-coord-1")
 		expect(TaskServiceClient.showTaskWithId).toHaveBeenCalledWith(expect.objectContaining({ value: "task-coord-1" }))
 	})
+
+	it("handles sessionId round-trip and openSessionInTab", async () => {
+		const { result } = renderHook(() => useChatTabs())
+
+		await act(async () => {
+			await result.current.openSessionInTab(
+				"sess-ui-001",
+				"Multi Agent Session",
+				[
+					{ agentSlug: "coordinator", taskId: "task-c-1", agentNumericId: 1 },
+					{ agentSlug: "implementer", taskId: "task-i-2", agentNumericId: 2 },
+				],
+				"implementer",
+			)
+		})
+
+		expect(result.current.activeTab.sessionId).toBe("sess-ui-001")
+		expect(result.current.activeTab.activeAgentId).toBe("implementer")
+		expect(result.current.activeTab.taskId).toBe("task-i-2")
+		expect(result.current.activeTab.agentTasks.coordinator).toBe("task-c-1")
+		expect(result.current.activeTab.agentTasks.implementer).toBe("task-i-2")
+		expect(TaskServiceClient.showTaskWithId).toHaveBeenCalledWith(expect.objectContaining({ value: "task-i-2" }))
+	})
+
+	it("safely decodes valid and corrupted localStorage without crashing", () => {
+		// Corrupted JSON in localStorage
+		localStorage.setItem("orvanta_console_tabs_state_v1", "{ corrupt json: ")
+		const { result: r1 } = renderHook(() => useChatTabs())
+		expect(r1.current.tabs).toHaveLength(1)
+		expect(r1.current.tabs[0].title).toBe(DEFAULT_TAB_TITLE)
+
+		// Legacy storage format with valid data
+		localStorage.clear()
+		localStorage.setItem(
+			"orvanta_console_tabs_state",
+			JSON.stringify({
+				tabs: [
+					{
+						id: "tab-legacy-1",
+						title: "Legacy Tab",
+						activeAgentId: "coordinator",
+						taskId: "task-leg-1",
+					},
+				],
+				activeTabId: "tab-legacy-1",
+			}),
+		)
+
+		const { result: r2 } = renderHook(() => useChatTabs())
+		expect(r2.current.tabs).toHaveLength(1)
+		expect(r2.current.tabs[0].title).toBe("Legacy Tab")
+		expect(r2.current.tabs[0].agentTasks.coordinator).toBe("task-leg-1")
+		expect(r2.current.tabs[0].taskId).toBe("task-leg-1")
+	})
+
+	it("manages drafts in independent storage and cleans up on closeTab", async () => {
+		const { result } = renderHook(() => useChatTabs())
+		const tabId = result.current.activeTabId
+
+		await act(async () => {
+			result.current.setDraftInput(tabId, "Working on a new feature draft...")
+		})
+
+		expect(result.current.activeTab.draftInput).toBe("Working on a new feature draft...")
+
+		// Verify draft is stored in independent storage
+		const draftsRaw = localStorage.getItem("orvanta_console_drafts_v1")
+		expect(draftsRaw).toBeTruthy()
+		expect(draftsRaw).toContain("Working on a new feature draft...")
+
+		// When tab is closed, drafts should be cleaned up
+		await act(async () => {
+			await result.current.closeTab(tabId)
+		})
+
+		const draftsAfterClose = JSON.parse(localStorage.getItem("orvanta_console_drafts_v1") || "{}")
+		expect(draftsAfterClose[tabId]).toBeUndefined()
+	})
 })

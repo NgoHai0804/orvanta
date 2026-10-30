@@ -52,6 +52,12 @@ export async function prepareTaskResumeStartInput(
 	config.sessionId = taskId
 
 	const isLegacyTask = await deps.taskHistory.isLegacyTask(taskId)
+	if (isLegacyTask && deps.taskHistory.isCutoverActive?.()) {
+		throw new Error(
+			`Cannot resume legacy pre-v0.1.1 task '${taskId}'. Pre-v0.1.1 tasks are preserved on disk but isolated from the v0.1.1 runtime.`,
+		)
+	}
+
 	const tempManager = await deps.createTempSessionHost()
 	let persistedInitialMessages: unknown[] | undefined
 	try {

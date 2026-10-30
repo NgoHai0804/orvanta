@@ -27,10 +27,15 @@ describe("toCompanyResponse", () => {
 		},
 		purpose: "Do great work",
 		roster: {
-			schemaVersion: 1,
+			schemaVersion: 2,
+			nextAgentNumericId: 4,
+			retiredAgents: [],
+
 			agents: [
 				{
 					id: "coordinator",
+					agentNumericId: 1,
+					legacySlugs: [],
 					displayName: "Coordinator",
 					role: "lead",
 					status: "idle",
@@ -43,6 +48,8 @@ describe("toCompanyResponse", () => {
 				},
 				{
 					id: "implementer",
+					agentNumericId: 2,
+					legacySlugs: [],
 					displayName: "Implementer",
 					role: "teammate",
 					status: "idle",
@@ -55,6 +62,8 @@ describe("toCompanyResponse", () => {
 				},
 				{
 					id: "stopped-agent",
+					agentNumericId: 3,
+					legacySlugs: [],
 					displayName: "Stopped Agent",
 					role: "teammate",
 					status: "stopped",

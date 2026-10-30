@@ -9,6 +9,7 @@ export const COORDINATOR_PROFILE_FILE = "org/agents/coordinator/profile.md";
 export const COORDINATOR_MEMORY_FILE =
 	"org/agents/coordinator/workspace/memory.md";
 export const SCHEMA_VERSION = 1;
+export const ROSTER_SCHEMA_VERSION = 2;
 export const VERSION_FILE_CONTENTS = "1\n";
 export const MIN_PURPOSE_LENGTH = 20;
 export const MAX_COMPANY_NAME_LENGTH = 64;
@@ -23,6 +24,11 @@ export const ARTIFACTS_RESEARCH_DIR = "artifacts/research";
 export const ARTIFACTS_REVIEWS_DIR = "artifacts/reviews";
 export const ARTIFACTS_BUILD_DIR = "artifacts/build";
 export const HISTORY_DIRNAME = "history";
+export const HISTORY_SCHEMA_VERSION = 1;
 export const HISTORY_SESSIONS_FILE = "history/sessions.json";
 export const HISTORY_TASKS_DIR = "history/tasks";
+export const HISTORY_INDEX_FILE = "history/index.json";
+export const HISTORY_SESSIONS_DIR = "history/sessions";
+export const HISTORY_SESSION_FILENAME = "session.json";
+export const HISTORY_LOCK_FILE = "history/history.lock";
 

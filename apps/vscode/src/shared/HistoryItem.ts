@@ -38,6 +38,10 @@ export type HistoryItem = {
 	/** Map of agentId -> taskId for multi-agent conversations within this session */
 	agentTasks?: Record<string, string>
 
+	/** Orvanta v1 session binding */
+	sessionId?: string
+	agentNumericId?: number
+
 	/** "cloud" for Cline Cloud sessions; absent/"local" for tasks run in this workspace. */
 	executionTarget?: "local" | "cloud"
 	cloudStatus?: CloudSessionStatus

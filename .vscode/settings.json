@@ -39,7 +39,11 @@
 		"scroller",
 		"Scroller",
 		"msvc",
-		"evals"
+		"evals",
+		"cutover",
+		"Cutover",
+		"Favorited",
+		"ENOSPC"
 	],
 	// Protobuf settings
 	"protoc": {

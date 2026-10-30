@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
 	type AgentProfile,
@@ -15,6 +15,7 @@ import {
 	CreateCompanyInputSchema,
 	DEFAULT_COMPANY_POLICIES,
 	defaultCoordinatorRoster,
+	parseRoster,
 	RosterJsonSchema,
 	type RosterJson,
 	slugifyTeamName,
@@ -29,6 +30,7 @@ import {
 	PURPOSE_FILE,
 	ROSTER_FILE,
 	SCHEMA_VERSION,
+	ROSTER_SCHEMA_VERSION,
 	VERSION_FILE,
 	VERSION_FILE_CONTENTS,
 	WORKSPACE_DIRNAME,
@@ -48,6 +50,18 @@ export class CannotDeleteCoordinatorError extends Error {
 		super(`Không thể xóa coordinator '${agentId}' của công ty`);
 		this.name = "CannotDeleteCoordinatorError";
 	}
+}
+
+export class CompanyNameMismatchError extends Error {
+	constructor(expected: string, actual: string) {
+		super(`Tên công ty xác nhận không khớp: nhập '${actual}', cần '${expected}'`);
+		this.name = "CompanyNameMismatchError";
+	}
+}
+
+export interface AgentDetail {
+	profile: AgentProfile;
+	memory: string;
 }
 
 export async function pathExists(target: string): Promise<boolean> {
@@ -90,7 +104,79 @@ async function readTextIfPresent(filePath: string): Promise<string | undefined> 
 	}
 }
 
-export async function loadCompany(workspaceRoot: string): Promise<CompanyLoad> {
+const workspaceMutationTails = new Map<string, Promise<void>>();
+
+async function withWorkspaceMutation<T>(workspaceRoot: string, operation: () => Promise<T>): Promise<T> {
+	const key = join(workspaceRoot, WORKSPACE_DIRNAME);
+	if (!(await pathExists(key))) await mkdir(key, { recursive: true });
+	await mkdir(join(key, "org"), { recursive: true });
+	const previous = workspaceMutationTails.get(key) ?? Promise.resolve();
+	let release!: () => void;
+	const tail = new Promise<void>((resolve) => { release = resolve; });
+	const queued = previous.then(() => tail);
+	workspaceMutationTails.set(key, queued);
+	await previous;
+	const lockPath = join(key, "org", "roster.json.lock");
+	let lockHandle: Awaited<ReturnType<typeof open>> | undefined;
+	let lockToken: string | undefined;
+	const lockDeadline = Date.now() + 15_000;
+	try {
+		while (!lockHandle) {
+			try {
+				lockHandle = await open(lockPath, "wx");
+				lockToken = crypto.randomUUID();
+				await lockHandle.writeFile(JSON.stringify({ pid: process.pid, createdAt: Date.now(), token: lockToken }));
+			} catch (error) {
+				if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+				try {
+					const lockStat = await stat(lockPath);
+					const lock = JSON.parse(await readFile(lockPath, "utf8")) as { pid?: number };
+					let ownerAlive = false;
+					if (Number.isSafeInteger(lock.pid) && lock.pid! > 0) {
+						try { process.kill(lock.pid!, 0); ownerAlive = true; }
+						catch (processError) { ownerAlive = (processError as NodeJS.ErrnoException).code === "EPERM"; }
+					}
+					if (!ownerAlive && Date.now() - lockStat.mtimeMs > 1_000) await rm(lockPath, { force: true });
+				} catch {
+					// Wait if a lock file is incomplete; never steal a lock on parse failure.
+				}
+				if (Date.now() >= lockDeadline) throw new Error("Timed out waiting for Orvanta roster writer lock");
+				await new Promise((resolve) => setTimeout(resolve, 20));
+			}
+		}
+		return await operation();
+	} finally {
+		if (lockHandle) {
+			await lockHandle.close().catch(() => undefined);
+			try {
+				const currentLock = JSON.parse(await readFile(lockPath, "utf8")) as { token?: string };
+				if (currentLock.token === lockToken) await rm(lockPath, { force: true });
+			} catch { /* Lock already removed or replaced by recovery. */ }
+		}
+		release();
+		if (workspaceMutationTails.get(key) === queued) workspaceMutationTails.delete(key);
+	}
+}
+
+async function saveRoster(workspaceRoot: string, roster: RosterJson): Promise<void> {
+	const root = join(workspaceRoot, WORKSPACE_DIRNAME);
+	const rosterPath = join(root, ROSTER_FILE);
+	const tmpRosterPath = join(root, "org", `roster.json.tmp-${crypto.randomUUID()}`);
+	await writeFile(tmpRosterPath, `${JSON.stringify(roster, null, "\t")}\n`, "utf8");
+	try {
+		await rename(tmpRosterPath, rosterPath);
+	} catch (error) {
+		await rm(tmpRosterPath, { force: true }).catch(() => undefined);
+		throw error;
+	}
+}
+
+async function loadRosterForMutation(workspaceRoot: string): Promise<RosterJson> {
+	const raw = await readJsonIfPresent(join(workspaceRoot, WORKSPACE_DIRNAME, ROSTER_FILE));
+	return parseRoster(raw);
+}
+
+async function loadCompanyReadOnly(workspaceRoot: string): Promise<CompanyLoad> {
 	const root = join(workspaceRoot, WORKSPACE_DIRNAME);
 	if (!(await pathExists(root))) {
 		return { status: "missing" };
@@ -102,12 +188,27 @@ export async function loadCompany(workspaceRoot: string): Promise<CompanyLoad> {
 	if (!validated.ok) {
 		return { status: "broken", errors: validated.errors };
 	}
+	if (validated.roster.schemaVersion !== ROSTER_SCHEMA_VERSION) {
+		return { status: "broken", errors: ["org/roster.json có phiên bản schema không được hỗ trợ"] };
+	}
 	return {
 		status: "ready",
 		company: validated.company,
 		purpose: validated.purpose,
 		roster: validated.roster,
 	};
+}
+
+export async function loadCompany(workspaceRoot: string): Promise<CompanyLoad> {
+	const initial = await loadCompanyReadOnly(workspaceRoot);
+	if (initial.status === "missing") return initial;
+	return withWorkspaceMutation(workspaceRoot, async () => {
+		const load = await loadCompanyReadOnly(workspaceRoot);
+		if (load.status !== "ready") return load;
+		const raw = await readJsonIfPresent(join(workspaceRoot, WORKSPACE_DIRNAME, ROSTER_FILE));
+		if (!RosterJsonSchema.safeParse(raw).success) await saveRoster(workspaceRoot, load.roster);
+		return loadCompanyReadOnly(workspaceRoot);
+	});
 }
 
 export const BRAND_GUIDELINES_TEMPLATE = `# Brand Guidelines
@@ -193,7 +294,16 @@ export async function createCompany(
 		throw error;
 	}
 
-	return loadCompany(workspaceRoot);
+	return loadCompanyReadOnly(workspaceRoot);
+}
+
+export async function deleteCompany(workspaceRoot: string, confirmedName: string): Promise<void> {
+	const load = await loadCompany(workspaceRoot);
+	if (load.status !== "ready") throw new Error("Không có công ty hợp lệ để xóa");
+	if (load.company.name.trim() !== confirmedName.trim()) {
+		throw new CompanyNameMismatchError(load.company.name, confirmedName);
+	}
+	await rm(join(workspaceRoot, WORKSPACE_DIRNAME), { recursive: true, force: true });
 }
 
 export async function listAgentProfiles(
@@ -206,6 +316,8 @@ export async function listAgentProfiles(
 	}
 	const entries = await readdir(agentsDir, { withFileTypes: true });
 	const profiles: AgentProfile[] = [];
+	const company = await loadCompany(workspaceRoot);
+	const identityBySlug = new Map(company.status === "ready" ? company.roster.agents.map((agent) => [agent.id, agent.agentNumericId]) : []);
 	for (const entry of entries) {
 		if (entry.isDirectory()) {
 			const profilePath = join(agentsDir, entry.name, "profile.md");
@@ -216,7 +328,7 @@ export async function listAgentProfiles(
 						content,
 						`org/agents/${entry.name}/profile.md`,
 					);
-					profiles.push(profile);
+					profiles.push({ ...profile, agentNumericId: identityBySlug.get(profile.id) ?? profile.agentNumericId });
 				} catch {
 					// Ignore invalid profile
 				}
@@ -247,7 +359,10 @@ export async function getAgentProfile(
 		return undefined;
 	}
 	const content = await readFile(filePath, "utf8");
-	return parseAgentProfile(content, `org/agents/${agentId}/profile.md`);
+	const profile = parseAgentProfile(content, `org/agents/${agentId}/profile.md`);
+	const roster = await loadRosterForMutation(workspaceRoot);
+	const identity = roster.agents.find((agent) => agent.id === agentId);
+	return identity ? { ...profile, agentNumericId: identity.agentNumericId } : profile;
 }
 
 export async function getAgentMemory(
@@ -312,6 +427,9 @@ export async function initCompanyKnowledge(
 
 export interface UpsertAgentInput {
 	id: string;
+	previousId?: string;
+	agentNumericId?: number;
+	filePath?: string;
 	displayName?: string;
 	description?: string;
 	role?: "lead" | "teammate";
@@ -350,9 +468,43 @@ export async function upsertAgent(
 	workspaceRoot: string,
 	input: UpsertAgentInput,
 ): Promise<AgentProfile> {
-	const load = await loadCompany(workspaceRoot);
+	return withWorkspaceMutation(workspaceRoot, () => upsertAgentLocked(workspaceRoot, input));
+}
+
+async function upsertAgentLocked(
+	workspaceRoot: string,
+	input: UpsertAgentInput,
+): Promise<AgentProfile> {
+	const load = await loadCompanyReadOnly(workspaceRoot);
 	if (load.status !== "ready") {
 		throw new Error("Công ty chưa sẵn sàng trong workspace này");
+	}
+
+	const root = join(workspaceRoot, WORKSPACE_DIRNAME);
+	const currentRoster = await loadRosterForMutation(workspaceRoot);
+	const existing = currentRoster.agents.find((agent) => agent.id === input.id);
+	if (!existing && (
+		currentRoster.agents.some((agent) => agent.id === input.id || agent.legacySlugs.includes(input.id)) ||
+		currentRoster.retiredAgents.some((agent) => agent.id === input.id || agent.legacySlugs.includes(input.id))
+	)) {
+		throw new Error(`Agent slug '${input.id}' already exists or is retired`);
+	}
+
+	const filePathId = input.filePath?.match(/^org\/agents\/([a-z][a-z0-9_-]{1,31})\/profile\.md$/)?.[1];
+	const oldId = input.previousId ?? (filePathId !== input.id ? filePathId : undefined);
+	const renameSource = oldId ? currentRoster.agents.find((agent) => agent.id === oldId) : undefined;
+	const aliasSource = oldId && !renameSource ? currentRoster.agents.find((agent) => agent.legacySlugs.includes(oldId)) : undefined;
+	if (oldId && !renameSource && !aliasSource) throw new Error(`Agent '${oldId}' does not exist`);
+	if (aliasSource && existing && aliasSource.agentNumericId !== existing.agentNumericId) throw new Error(`Agent slug '${input.id}' already exists`);
+	if (aliasSource && !existing && aliasSource.id !== input.id) throw new Error(`Agent rename slug '${input.id}' does not match its current identity`);
+	if (existing && renameSource && existing.agentNumericId !== renameSource.agentNumericId) throw new Error(`Agent slug '${input.id}' already exists`);
+	if (renameSource && currentRoster.agents.some((agent) => agent.id === input.id && agent.agentNumericId !== renameSource.agentNumericId)) {
+		throw new Error(`Agent slug '${input.id}' already exists`);
+	}
+	const identity = existing ?? renameSource ?? aliasSource;
+	const assignedId = identity?.agentNumericId ?? currentRoster.nextAgentNumericId;
+	if (!Number.isSafeInteger(assignedId) || assignedId <= 0 || assignedId >= Number.MAX_SAFE_INTEGER) {
+		throw new Error("Agent numeric ID registry is exhausted or invalid");
 	}
 
 	const description =
@@ -371,6 +523,7 @@ export async function upsertAgent(
 
 	const profile = AgentProfileSchema.parse({
 		...normalizedInput,
+		agentNumericId: assignedId,
 		filePath: `org/agents/${input.id}/profile.md`,
 	});
 
@@ -383,35 +536,59 @@ export async function upsertAgent(
 		throw new Error("Coordinator bắt buộc phải có role lead.");
 	}
 
-	const root = join(workspaceRoot, WORKSPACE_DIRNAME);
 	const agentDir = join(root, "org", "agents", profile.id);
 	const workspaceDir = join(agentDir, "workspace");
-	await mkdir(workspaceDir, { recursive: true });
-
-	await writeAgentProfile(agentDir, profile);
-
-	const memoryPath = join(workspaceDir, "memory.md");
-	if (!(await pathExists(memoryPath))) {
-		await writeFile(memoryPath, "", "utf8");
+	const previousAgentDir = identity ? join(root, "org", "agents", identity.id) : undefined;
+	const finalAgentDir = agentDir;
+	const stageAgentDir = `${agentDir}.tmp-${crypto.randomUUID()}`;
+	await mkdir(stageAgentDir, { recursive: true });
+	const stageWorkspaceDir = join(stageAgentDir, "workspace");
+	await mkdir(stageWorkspaceDir, { recursive: true });
+	const oldProfile = identity ? await readTextIfPresent(join(previousAgentDir!, "profile.md")) : undefined;
+	const oldMemory = identity ? await readTextIfPresent(join(previousAgentDir!, "workspace", "memory.md")) : undefined;
+	const childProfiles = new Map<string, { path: string; original: string; updated: AgentProfile }>();
+	if (identity && identity.id !== profile.id) {
+		for (const child of currentRoster.agents.filter((agent) => agent.reportsTo === identity.id && agent.agentNumericId !== identity.agentNumericId)) {
+			const childProfilePath = join(root, "org", "agents", child.id, "profile.md");
+			const childText = await readTextIfPresent(childProfilePath);
+			if (childText !== undefined) {
+				const childProfile = parseAgentProfile(childText, `org/agents/${child.id}/profile.md`);
+				childProfiles.set(child.id, { path: childProfilePath, original: childText, updated: { ...childProfile, reportsTo: profile.id } });
+			}
+		}
 	}
-
-	const rosterPath = join(root, ROSTER_FILE);
-	const rawRoster = await readJsonIfPresent(rosterPath);
-	const parsedRoster = RosterJsonSchema.safeParse(rawRoster);
-	const currentRoster: RosterJson = parsedRoster.success
-		? parsedRoster.data
-		: { schemaVersion: SCHEMA_VERSION, agents: [] };
-
-	const existingIndex = currentRoster.agents.findIndex(
-		(a) => a.id === profile.id,
-	);
+	try {
+		if (identity && previousAgentDir !== finalAgentDir && await pathExists(join(previousAgentDir!, "workspace"))) {
+			await cp(join(previousAgentDir!, "workspace"), stageWorkspaceDir, { recursive: true, force: true });
+		}
+		for (const [childId, child] of childProfiles) await writeAgentProfile(join(root, "org", "agents", childId), child.updated);
+		await writeAgentProfile(stageAgentDir, profile);
+		await writeFile(join(stageWorkspaceDir, "memory.md"), oldMemory ?? "", "utf8");
+		if (identity && previousAgentDir !== finalAgentDir) {
+			await rm(finalAgentDir, { recursive: true, force: true });
+			await rename(stageAgentDir, finalAgentDir);
+		} else {
+			await rm(stageAgentDir, { recursive: true, force: true });
+			await mkdir(workspaceDir, { recursive: true });
+			await writeAgentProfile(agentDir, profile);
+			if (!(await pathExists(join(workspaceDir, "memory.md")))) await writeFile(join(workspaceDir, "memory.md"), "", "utf8");
+		}
+	} catch (error) {
+		await rm(stageAgentDir, { recursive: true, force: true }).catch(() => undefined);
+		throw error;
+	}
 	const now = new Date().toISOString();
 	const agentFile = `org/agents/${profile.id}/profile.md`;
 
-	if (existingIndex >= 0) {
-		const existing = currentRoster.agents[existingIndex];
-		currentRoster.agents[existingIndex] = {
-			...existing,
+	if (identity) {
+		const index = currentRoster.agents.findIndex((agent) => agent.agentNumericId === identity.agentNumericId);
+		const renamed = profile.id !== identity.id;
+		const legacySlugs = renamed ? [...new Set([...identity.legacySlugs, identity.id])] : identity.legacySlugs;
+		currentRoster.agents[index] = {
+			...identity,
+			id: profile.id,
+			agentNumericId: identity.agentNumericId,
+			legacySlugs,
 			displayName: profile.displayName,
 			role: profile.role,
 			reportsTo: profile.reportsTo ?? existing?.reportsTo ?? null,
@@ -419,9 +596,17 @@ export async function upsertAgent(
 			maxIterations: profile.maxIterations,
 			agentFile,
 		};
+		if (renamed) {
+			currentRoster.agents = currentRoster.agents.map((agent) => ({
+				...agent,
+				reportsTo: agent.reportsTo === identity.id ? profile.id : agent.reportsTo,
+			}));
+		}
 	} else {
 		currentRoster.agents.push({
 			id: profile.id,
+			agentNumericId: assignedId,
+			legacySlugs: [],
 			displayName: profile.displayName,
 			role: profile.role,
 			reportsTo: profile.reportsTo ?? null,
@@ -432,26 +617,57 @@ export async function upsertAgent(
 			modelId: profile.modelId,
 			maxIterations: profile.maxIterations,
 		});
+		currentRoster.nextAgentNumericId = assignedId + 1;
 	}
-
-	const tmpRosterPath = join(root, "org", "roster.json.tmp");
-	await writeFile(
-		tmpRosterPath,
-		`${JSON.stringify(currentRoster, null, "\t")}\n`,
-		"utf8",
-	);
-	await rename(tmpRosterPath, rosterPath);
+	currentRoster.schemaVersion = ROSTER_SCHEMA_VERSION;
+	const previousRosterText = await readTextIfPresent(join(root, ROSTER_FILE));
+	try {
+		for (const [childId, child] of childProfiles) {
+			await writeAgentProfile(join(root, "org", "agents", childId), child.updated);
+		}
+		await saveRoster(workspaceRoot, RosterJsonSchema.parse(currentRoster));
+		if (identity && previousAgentDir !== finalAgentDir) await rm(previousAgentDir!, { recursive: true, force: true });
+	} catch (error) {
+		if (previousRosterText !== undefined) {
+			const rollbackPath = join(root, "org", `roster.rollback-${crypto.randomUUID()}.tmp`);
+			await writeFile(rollbackPath, previousRosterText, "utf8").catch(() => undefined);
+			await rename(rollbackPath, join(root, ROSTER_FILE)).catch(() => undefined);
+		}
+		for (const child of childProfiles.values()) await writeFile(child.path, child.original, "utf8").catch(() => undefined);
+		if (identity && previousAgentDir !== finalAgentDir && oldProfile !== undefined) {
+			if (await pathExists(previousAgentDir!)) {
+				await rm(finalAgentDir, { recursive: true, force: true }).catch(() => undefined);
+			} else if (await pathExists(finalAgentDir)) {
+				await rename(finalAgentDir, previousAgentDir!).catch(async () => {
+					await mkdir(join(previousAgentDir!, "workspace"), { recursive: true });
+					await writeFile(join(previousAgentDir!, "profile.md"), oldProfile, "utf8").catch(() => undefined);
+					await writeFile(join(previousAgentDir!, "workspace", "memory.md"), oldMemory ?? "", "utf8").catch(() => undefined);
+				});
+			}
+		}
+		throw error;
+	}
 
 	return profile;
 }
 
 export const upsertAgentProfile = upsertAgent;
 
+export async function getAgent(workspaceRoot: string, agentId: string): Promise<AgentDetail | undefined> {
+	const profile = await getAgentProfile(workspaceRoot, agentId);
+	if (!profile) return undefined;
+	return { profile, memory: await getAgentMemory(workspaceRoot, agentId) };
+}
+
 export async function removeAgent(
 	workspaceRoot: string,
 	agentId: string,
 ): Promise<CompanyLoad> {
-	const load = await loadCompany(workspaceRoot);
+	return withWorkspaceMutation(workspaceRoot, () => removeAgentLocked(workspaceRoot, agentId));
+}
+
+async function removeAgentLocked(workspaceRoot: string, agentId: string): Promise<CompanyLoad> {
+	const load = await loadCompanyReadOnly(workspaceRoot);
 	if (load.status !== "ready") {
 		throw new Error("Công ty chưa sẵn sàng trong workspace này");
 	}
@@ -463,27 +679,21 @@ export async function removeAgent(
 	}
 
 	const root = join(workspaceRoot, WORKSPACE_DIRNAME);
-	const agentDir = join(root, "org", "agents", agentId);
-	await rm(agentDir, { recursive: true, force: true });
+	const currentRoster = await loadRosterForMutation(workspaceRoot);
+	const retiring = currentRoster.agents.find((agent) => agent.id === agentId);
+	if (!retiring) return load;
+	currentRoster.agents = currentRoster.agents.filter((agent) => agent.id !== agentId);
+	currentRoster.retiredAgents.push({
+		agentNumericId: retiring.agentNumericId,
+		id: retiring.id,
+		displayName: retiring.displayName,
+		legacySlugs: retiring.legacySlugs,
+		retiredAt: new Date().toISOString(),
+	});
+	await saveRoster(workspaceRoot, RosterJsonSchema.parse(currentRoster));
+	await rm(join(root, "org", "agents", agentId), { recursive: true, force: true });
 
-	const rosterPath = join(root, ROSTER_FILE);
-	const rawRoster = await readJsonIfPresent(rosterPath);
-	const parsedRoster = RosterJsonSchema.safeParse(rawRoster);
-	if (parsedRoster.success) {
-		const currentRoster = parsedRoster.data;
-		currentRoster.agents = currentRoster.agents.filter(
-			(a) => a.id !== agentId,
-		);
-		const tmpRosterPath = join(root, "org", "roster.json.tmp");
-		await writeFile(
-			tmpRosterPath,
-			`${JSON.stringify(currentRoster, null, "\t")}\n`,
-			"utf8",
-		);
-		await rename(tmpRosterPath, rosterPath);
-	}
-
-	return loadCompany(workspaceRoot);
+	return loadCompanyReadOnly(workspaceRoot);
 }
 
 

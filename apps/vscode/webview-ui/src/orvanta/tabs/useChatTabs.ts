@@ -1,7 +1,17 @@
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { TaskServiceClient } from "@/services/grpc-client"
-import { type ChatTab, type ChatTabsState, CONSOLE_TABS_STORAGE_KEY, DEFAULT_TAB_TITLE, MAX_TABS_COUNT } from "./types"
+import {
+	type ChatTab,
+	type ChatTabsState,
+	CONSOLE_DRAFTS_STORAGE_KEY,
+	CONSOLE_TABS_STORAGE_KEY,
+	CONSOLE_TABS_STORAGE_KEY_V1,
+	DEFAULT_TAB_TITLE,
+	getTabActiveTaskId,
+	MAX_DRAFT_LENGTH,
+	MAX_TABS_COUNT,
+} from "./types"
 
 export interface UseChatTabsOptions {
 	initialFocusAgentId?: string
@@ -22,34 +32,115 @@ function createDefaultTab(agentId = "team-feed"): ChatTab {
 	}
 }
 
+/**
+ * Tải drafts độc lập từ localStorage với giới hạn an toàn.
+ */
+function loadPersistedDrafts(): Record<string, Record<string, string>> {
+	if (typeof window === "undefined" || !window.localStorage) {
+		return {}
+	}
+	try {
+		const raw = localStorage.getItem(CONSOLE_DRAFTS_STORAGE_KEY)
+		if (raw) {
+			const parsed = JSON.parse(raw)
+			if (parsed && typeof parsed === "object") {
+				return parsed
+			}
+		}
+	} catch {
+		// Ignore corrupted drafts storage
+	}
+	return {}
+}
+
+/**
+ * Lưu drafts độc lập vào localStorage với kiểm tra dung lượng.
+ */
+function savePersistedDrafts(draftsByTab: Record<string, Record<string, string>>) {
+	if (typeof window === "undefined" || !window.localStorage) {
+		return
+	}
+	try {
+		const sanitized: Record<string, Record<string, string>> = {}
+		for (const [tabId, drafts] of Object.entries(draftsByTab)) {
+			if (drafts && typeof drafts === "object") {
+				sanitized[tabId] = {}
+				for (const [ag, text] of Object.entries(drafts)) {
+					if (typeof text === "string" && text.length > 0) {
+						sanitized[tabId][ag] = text.slice(0, MAX_DRAFT_LENGTH)
+					}
+				}
+			}
+		}
+		localStorage.setItem(CONSOLE_DRAFTS_STORAGE_KEY, JSON.stringify(sanitized))
+	} catch {
+		// Ignore storage quota errors
+	}
+}
+
+/**
+ * Decoder an toàn cho localStorage: hỗ trợ cả V1 mới và legacy,
+ * chống crash khi key hỏng, cô lập task pre-v0.1.1.
+ */
 function loadInitialTabsState(defaultAgentId = "team-feed"): ChatTabsState {
 	if (typeof window === "undefined" || !window.localStorage) {
 		const defaultTab = createDefaultTab(defaultAgentId)
 		return { tabs: [defaultTab], activeTabId: defaultTab.id, isHistoryOpen: false }
 	}
 
+	const allDrafts = loadPersistedDrafts()
+
 	try {
-		const raw = localStorage.getItem(CONSOLE_TABS_STORAGE_KEY)
+		// 1. Thử đọc storage V1 trước
+		const rawV1 = localStorage.getItem(CONSOLE_TABS_STORAGE_KEY_V1)
+		const rawLegacy = !rawV1 ? localStorage.getItem(CONSOLE_TABS_STORAGE_KEY) : null
+		const raw = rawV1 || rawLegacy
+
 		if (raw) {
 			const parsed = JSON.parse(raw)
 			if (Array.isArray(parsed.tabs) && parsed.tabs.length > 0) {
 				const normalizedTabs: ChatTab[] = parsed.tabs.map((t: any) => {
-					const activeAgentId = t.activeAgentId || defaultAgentId
-					const agentTasks =
-						t.agentTasks && typeof t.agentTasks === "object"
-							? t.agentTasks
-							: t.taskId
-								? { [activeAgentId]: t.taskId }
-								: {}
+					const activeAgentId =
+						typeof t.activeAgentId === "string" && t.activeAgentId.trim() ? t.activeAgentId : defaultAgentId
+					const agentTasks: Record<string, string> = {}
+
+					if (t.agentTasks && typeof t.agentTasks === "object") {
+						for (const [k, v] of Object.entries(t.agentTasks)) {
+							if (typeof k === "string" && typeof v === "string" && v.trim()) {
+								agentTasks[k] = v.trim()
+							}
+						}
+					} else if (typeof t.taskId === "string" && t.taskId.trim()) {
+						agentTasks[activeAgentId] = t.taskId.trim()
+					}
+
+					const tabId = typeof t.id === "string" ? t.id : `tab_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+					const tabDrafts =
+						allDrafts[tabId] || (t.agentDrafts && typeof t.agentDrafts === "object" ? t.agentDrafts : {})
+					const activeTaskId = agentTasks[activeAgentId]
+
 					return {
-						...t,
+						id: tabId,
+						sessionId: typeof t.sessionId === "string" ? t.sessionId : undefined,
+						title: typeof t.title === "string" && t.title.trim() ? t.title.trim() : DEFAULT_TAB_TITLE,
 						activeAgentId,
+						activeAgentNumericId: typeof t.activeAgentNumericId === "number" ? t.activeAgentNumericId : undefined,
 						agentTasks,
-						agentDrafts: t.agentDrafts || {},
-						agentIds: t.agentIds || Object.keys(agentTasks),
-						taskId: agentTasks[activeAgentId] || t.taskId,
+						agentDrafts: tabDrafts,
+						agentIds:
+							Array.isArray(t.agentIds) && t.agentIds.length > 0
+								? t.agentIds
+								: Object.keys(agentTasks).length > 0
+									? Object.keys(agentTasks)
+									: [activeAgentId],
+						createdAt: typeof t.createdAt === "number" ? t.createdAt : Date.now(),
+						lastActiveAt: typeof t.lastActiveAt === "number" ? t.lastActiveAt : Date.now(),
+						isRunning: Boolean(t.isRunning),
+						taskId: activeTaskId,
+						draftInput: tabDrafts[activeAgentId] || "",
 					}
 				})
+
 				const activeTabId = normalizedTabs.find((t) => t.id === parsed.activeTabId)?.id || normalizedTabs[0].id
 				return { tabs: normalizedTabs, activeTabId, isHistoryOpen: false }
 			}
@@ -71,7 +162,31 @@ export function useChatTabs(options?: UseChatTabsOptions) {
 
 	useEffect(() => {
 		try {
-			localStorage.setItem(CONSOLE_TABS_STORAGE_KEY, JSON.stringify({ tabs: state.tabs, activeTabId: state.activeTabId }))
+			// Lưu tabs vào V1 storage
+			const tabsToPersist = state.tabs.map((t) => ({
+				id: t.id,
+				sessionId: t.sessionId,
+				title: t.title,
+				activeAgentId: t.activeAgentId,
+				activeAgentNumericId: t.activeAgentNumericId,
+				agentTasks: t.agentTasks,
+				agentIds: t.agentIds,
+				createdAt: t.createdAt,
+				lastActiveAt: t.lastActiveAt,
+				isRunning: t.isRunning,
+			}))
+			const payload = JSON.stringify({ tabs: tabsToPersist, activeTabId: state.activeTabId })
+			localStorage.setItem(CONSOLE_TABS_STORAGE_KEY_V1, payload)
+			localStorage.setItem(CONSOLE_TABS_STORAGE_KEY, payload)
+
+			// Lưu drafts riêng biệt
+			const draftsByTab: Record<string, Record<string, string>> = {}
+			for (const t of state.tabs) {
+				if (t.agentDrafts && Object.keys(t.agentDrafts).length > 0) {
+					draftsByTab[t.id] = t.agentDrafts
+				}
+			}
+			savePersistedDrafts(draftsByTab)
 		} catch (e) {
 			console.error("Failed to save console tabs to localStorage:", e)
 		}
@@ -103,13 +218,13 @@ export function useChatTabs(options?: UseChatTabsOptions) {
 			if (targetTab.activeAgentId && options?.onActiveAgentChange) {
 				options.onActiveAgentChange(targetTab.activeAgentId)
 			}
-			await switchTaskBackend(targetTab.taskId)
+			await switchTaskBackend(getTabActiveTaskId(targetTab))
 		},
 		[state.tabs, options, switchTaskBackend],
 	)
 
 	const switchAgentInActiveTab = useCallback(
-		async (newAgentId: string) => {
+		async (newAgentId: string, numericId?: number) => {
 			const currentTab = state.tabs.find((t) => t.id === state.activeTabId)
 			if (!currentTab) return
 			const taskId = currentTab.agentTasks?.[newAgentId]
@@ -121,6 +236,7 @@ export function useChatTabs(options?: UseChatTabsOptions) {
 					return {
 						...t,
 						activeAgentId: newAgentId,
+						activeAgentNumericId: numericId ?? t.activeAgentNumericId,
 						taskId,
 						draftInput: t.agentDrafts?.[newAgentId] ?? "",
 						lastActiveAt: Date.now(),
@@ -136,7 +252,7 @@ export function useChatTabs(options?: UseChatTabsOptions) {
 		[state.tabs, state.activeTabId, options, switchTaskBackend],
 	)
 
-	const bindTaskToActiveAgent = useCallback((taskId: string, title?: string) => {
+	const bindTaskToActiveAgent = useCallback((taskId: string, title?: string, sessionId?: string) => {
 		setState((prev) => {
 			const current = prev.tabs.find((t) => t.id === prev.activeTabId)
 			if (!current) return prev
@@ -152,6 +268,7 @@ export function useChatTabs(options?: UseChatTabsOptions) {
 					t.id === prev.activeTabId
 						? {
 								...t,
+								sessionId: sessionId || t.sessionId,
 								taskId,
 								title: newTitle,
 								agentTasks: updatedAgentTasks,
@@ -196,6 +313,17 @@ export function useChatTabs(options?: UseChatTabsOptions) {
 				event.stopPropagation()
 			}
 
+			// Dọn dẹp drafts đã lưu cho tab này
+			try {
+				const drafts = loadPersistedDrafts()
+				if (drafts[tabId]) {
+					delete drafts[tabId]
+					savePersistedDrafts(drafts)
+				}
+			} catch {
+				// Best effort draft cleanup
+			}
+
 			setState((prev) => {
 				const tabIndex = prev.tabs.findIndex((t) => t.id === tabId)
 				if (tabIndex === -1) return prev
@@ -213,7 +341,7 @@ export function useChatTabs(options?: UseChatTabsOptions) {
 					const neighborIndex = tabIndex > 0 ? tabIndex - 1 : 0
 					const nextTab = remaining[neighborIndex]
 					nextActiveId = nextTab.id
-					const nextAgentTask = nextTab.agentTasks?.[nextTab.activeAgentId] || nextTab.taskId
+					const nextAgentTask = getTabActiveTaskId(nextTab)
 					void switchTaskBackend(nextAgentTask)
 					if (nextTab.activeAgentId && options?.onActiveAgentChange) {
 						options.onActiveAgentChange(nextTab.activeAgentId)
@@ -227,12 +355,21 @@ export function useChatTabs(options?: UseChatTabsOptions) {
 	)
 
 	const openTaskInTab = useCallback(
-		async (taskId: string, title?: string, agentId?: string, sessionAgentTasks?: Record<string, string>) => {
+		async (
+			taskId: string,
+			title?: string,
+			agentId?: string,
+			sessionAgentTasks?: Record<string, string>,
+			sessionId?: string,
+		) => {
 			const initialAgent = agentId || "coordinator"
 			const agentTasksMap = sessionAgentTasks || { [initialAgent]: taskId }
 
 			const existing = state.tabs.find(
-				(t) => t.taskId === taskId || (t.agentTasks && Object.values(t.agentTasks).includes(taskId)),
+				(t) =>
+					(sessionId && t.sessionId === sessionId) ||
+					t.taskId === taskId ||
+					(t.agentTasks && Object.values(t.agentTasks).includes(taskId)),
 			)
 			if (existing) {
 				await selectTab(existing.id)
@@ -249,6 +386,7 @@ export function useChatTabs(options?: UseChatTabsOptions) {
 			) {
 				const updatedTab: ChatTab = {
 					...currentActive,
+					sessionId: sessionId || currentActive.sessionId,
 					taskId,
 					title: title || currentActive.title,
 					activeAgentId: initialAgent,
@@ -273,6 +411,7 @@ export function useChatTabs(options?: UseChatTabsOptions) {
 			const now = Date.now()
 			const newTab: ChatTab = {
 				id: `tab_${now}_${Math.random().toString(36).slice(2, 7)}`,
+				sessionId,
 				taskId,
 				title: title || DEFAULT_TAB_TITLE,
 				activeAgentId: initialAgent,
@@ -297,6 +436,28 @@ export function useChatTabs(options?: UseChatTabsOptions) {
 		[state.tabs, options, selectTab, switchTaskBackend],
 	)
 
+	const openSessionInTab = useCallback(
+		async (
+			sessionId: string,
+			title: string,
+			participants: Array<{ agentSlug: string; taskId?: string; agentNumericId?: number }>,
+			preferredAgentSlug?: string,
+		) => {
+			const agentTasksMap: Record<string, string> = {}
+			for (const p of participants) {
+				if (p.taskId) {
+					agentTasksMap[p.agentSlug] = p.taskId
+				}
+			}
+
+			const initialAgent = preferredAgentSlug || participants[0]?.agentSlug || "coordinator"
+			const initialTaskId = agentTasksMap[initialAgent] || Object.values(agentTasksMap)[0]
+
+			await openTaskInTab(initialTaskId || "", title, initialAgent, agentTasksMap, sessionId)
+		},
+		[openTaskInTab],
+	)
+
 	const updateActiveTab = useCallback((updates: Partial<ChatTab>) => {
 		setState((prev) => ({
 			...prev,
@@ -304,7 +465,7 @@ export function useChatTabs(options?: UseChatTabsOptions) {
 		}))
 	}, [])
 
-	const updateActiveTabTask = useCallback((taskId: string, title?: string) => {
+	const updateActiveTabTask = useCallback((taskId: string, title?: string, sessionId?: string) => {
 		setState((prev) => ({
 			...prev,
 			tabs: prev.tabs.map((t) => {
@@ -313,6 +474,7 @@ export function useChatTabs(options?: UseChatTabsOptions) {
 				const updatedTasks = { ...(t.agentTasks || {}), [agentId]: taskId }
 				return {
 					...t,
+					sessionId: sessionId || t.sessionId,
 					taskId,
 					title: title || t.title,
 					agentTasks: updatedTasks,
@@ -328,8 +490,9 @@ export function useChatTabs(options?: UseChatTabsOptions) {
 			tabs: prev.tabs.map((t) => {
 				if (t.id !== tabId) return t
 				const currentAgent = t.activeAgentId || "coordinator"
-				const updatedDrafts = { ...(t.agentDrafts || {}), [currentAgent]: draftInput }
-				return { ...t, draftInput, agentDrafts: updatedDrafts }
+				const truncatedDraft = draftInput.slice(0, MAX_DRAFT_LENGTH)
+				const updatedDrafts = { ...(t.agentDrafts || {}), [currentAgent]: truncatedDraft }
+				return { ...t, draftInput: truncatedDraft, agentDrafts: updatedDrafts }
 			}),
 		}))
 	}, [])
@@ -395,6 +558,7 @@ export function useChatTabs(options?: UseChatTabsOptions) {
 		updateActiveTabTask,
 		setDraftInput,
 		openTaskInTab,
+		openSessionInTab,
 		updateActiveTab,
 		handleTaskDeleted,
 		toggleHistory,

@@ -285,6 +285,14 @@ Testing.
 		expect(serialized).not.toContain('modelId: "null"');
 	});
 
+	it("serializes and parses the optional authoritative numeric identity", () => {
+		const original = parseAgentProfile(IMPLEMENTER_PROFILE_TEMPLATE);
+		const withIdentity = { ...original, agentNumericId: 37 };
+		const serialized = serializeAgentProfile(withIdentity);
+		expect(serialized).toContain("agentNumericId: 37");
+		expect(parseAgentProfile(serialized).agentNumericId).toBe(37);
+	});
+
 	it("prepends mandatory denyWrite paths if user omits them", () => {
 		const original = parseAgentProfile(IMPLEMENTER_PROFILE_TEMPLATE);
 		const customized = {

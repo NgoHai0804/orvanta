@@ -39,6 +39,8 @@ message OrvantaRosterAgent {
   string role = 3;
   string status = 4;
   optional string reports_to = 5;
+  optional int64 agent_numeric_id = 6;
+  repeated string legacy_slugs = 8;
 }
 
 message OrvantaCompanyResponse {
@@ -72,6 +74,7 @@ message OrvantaAgentProfile {
   optional double temperature = 7;
   string instructions = 8;
   string file_path = 9;
+  optional int64 agent_numeric_id = 22;
   OrvantaAgentTools tools = 10;
   OrvantaAgentScopePaths scope_paths = 11;
   optional string reports_to = 12;

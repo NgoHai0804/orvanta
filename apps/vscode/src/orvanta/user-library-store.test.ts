@@ -4,7 +4,7 @@ import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { slugify, WORKSPACE_DIRNAME } from "@cline/shared"
 import { NeedsReplaceError, SlugAlreadyExistsError, UserLibraryStore, userOrvantaRoot } from "./user-library-store"
-import { createCompany, pathExists, upsertAgent } from "./workspace-store"
+import { createCompany, pathExists, removeAgent, upsertAgent } from "./workspace-store"
 
 const PURPOSE = "Xây công ty AI theo từng repo, giữ agent đúng mục tiêu."
 
@@ -176,5 +176,37 @@ describe("UserLibraryStore", () => {
 		const afterRemove = await store.remove("to-delete")
 		expect(afterRemove.length).toBe(0)
 		expect(await pathExists(join(fakeRoot, "companies", "to-delete"))).toBe(false)
+	})
+
+	it("preserves ROSTER_SCHEMA_VERSION, nextAgentNumericId, and retiredAgents across library save & load", async () => {
+		const wsSrc = await tempDir("ws-src-")
+		const wsDest = await tempDir("ws-dest-")
+		const fakeRoot = await tempDir("lib-")
+		const store = new UserLibraryStore(fakeRoot)
+
+		await createCompany(wsSrc, { name: "Template Co", purpose: PURPOSE })
+		const reviewer = await upsertAgent(wsSrc, { id: "reviewer", role: "teammate", instructions: "Review." })
+		expect(reviewer.agentNumericId).toBe(2)
+
+		// Retire reviewer (enters retiredAgents with ID 2)
+		await removeAgent(wsSrc, "reviewer")
+
+		// Hire implementer (gets ID 3)
+		const implementer = await upsertAgent(wsSrc, { id: "implementer", role: "teammate", instructions: "Code." })
+		expect(implementer.agentNumericId).toBe(3)
+
+		// Save company to library
+		await store.save(wsSrc, { name: "Template Co", slug: "template-co" })
+
+		// Load template into wsDest
+		const loaded = await store.load(wsDest, "template-co")
+		expect(loaded.status).toBe("ready")
+		if (loaded.status === "ready") {
+			expect(loaded.roster.schemaVersion).toBe(2)
+			expect(loaded.roster.nextAgentNumericId).toBe(4)
+			expect(loaded.roster.agents.find((a) => a.id === "coordinator")?.agentNumericId).toBe(1)
+			expect(loaded.roster.agents.find((a) => a.id === "implementer")?.agentNumericId).toBe(3)
+			expect(loaded.roster.retiredAgents.find((a) => a.id === "reviewer")?.agentNumericId).toBe(2)
+		}
 	})
 })

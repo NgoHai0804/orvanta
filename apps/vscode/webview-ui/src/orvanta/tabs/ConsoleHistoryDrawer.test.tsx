@@ -143,4 +143,98 @@ describe("ConsoleHistoryDrawer", () => {
 		fireEvent.click(screen.getByLabelText("Đóng lịch sử"))
 		expect(handleClose).toHaveBeenCalledTimes(1)
 	})
+
+	it("filters out legacy pre-v0.1.1 tasks and only lists v0.1.1 history", () => {
+		const mixedTasks = [
+			...mockTasks,
+			{
+				id: "legacy-task-999",
+				ts: Date.now() - 50000,
+				task: "Legacy Pre-v0.1.1 Task",
+				isLegacy: true,
+			},
+		]
+		render(
+			<ExtensionStateContext.Provider value={{ taskHistory: mixedTasks } as any}>
+				<ConsoleHistoryDrawer isOpen={true} onClose={vi.fn()} onSelectTask={vi.fn()} />
+			</ExtensionStateContext.Provider>,
+		)
+
+		expect(screen.getByText("Fix layout bug in Chrome tab bar")).toBeInTheDocument()
+		expect(screen.queryByText("Legacy Pre-v0.1.1 Task")).not.toBeInTheDocument()
+	})
+
+	it("closes on Escape key press", () => {
+		const handleClose = vi.fn()
+		renderWithContext(<ConsoleHistoryDrawer isOpen={true} onClose={handleClose} onSelectTask={vi.fn()} />)
+
+		fireEvent.keyDown(window, { key: "Escape" })
+		expect(handleClose).toHaveBeenCalledTimes(1)
+	})
+
+	it("shows rename indicator when an agent has been renamed in current roster", () => {
+		const taskWithRenamedAgent = [
+			{
+				id: "task-renamed",
+				ts: Date.now() - 1000,
+				task: "Task with renamed agent",
+				agents: [
+					{
+						id: "old-slug",
+						displayName: "Old Agent Name",
+						agentNumericId: 2, // In mock company, agent id "implementer" has numeric ID or matching role
+					},
+				],
+			},
+		]
+		render(
+			<ExtensionStateContext.Provider value={{ taskHistory: taskWithRenamedAgent } as any}>
+				<ConsoleHistoryDrawer
+					companyAgents={[
+						{ id: "implementer", displayName: "Frontend Developer", role: "teammate", agentNumericId: 2 },
+					]}
+					isOpen={true}
+					onClose={vi.fn()}
+					onSelectTask={vi.fn()}
+				/>
+			</ExtensionStateContext.Provider>,
+		)
+
+		expect(screen.getByText(/@old-slug/)).toBeInTheDocument()
+		expect(screen.getByText("(đổi tên)")).toBeInTheDocument()
+	})
+
+	it("handles unavailable tasks without silently falling back to another agent", () => {
+		const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {})
+		const handleSelect = vi.fn()
+		const taskWithUnavailable = [
+			{
+				id: "task-missing",
+				ts: Date.now() - 1000,
+				task: "Task with unavailable participant",
+				agents: [
+					{
+						id: "missing-agent",
+						displayName: "Missing Agent",
+						status: "unknown" as const,
+					},
+				],
+			},
+		]
+		render(
+			<ExtensionStateContext.Provider value={{ taskHistory: taskWithUnavailable } as any}>
+				<ConsoleHistoryDrawer isOpen={true} onClose={vi.fn()} onSelectTask={handleSelect} />
+			</ExtensionStateContext.Provider>,
+		)
+
+		expect(screen.getByText(/@missing-agent/)).toBeInTheDocument()
+		expect(screen.getByText("(thiếu)")).toBeInTheDocument()
+
+		// Clicking unavailable badge warns and does NOT call onSelectTask
+		const badge = screen.getByText(/@missing-agent/).closest("button")!
+		fireEvent.click(badge)
+		expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining("không còn khả dụng"))
+		expect(handleSelect).not.toHaveBeenCalled()
+		alertSpy.mockRestore()
+	})
 })

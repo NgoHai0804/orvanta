@@ -3,14 +3,15 @@ import path from "node:path"
 import type { ClineCoreListHistoryOptions, SessionHistoryRecord } from "@cline/core"
 import type { MessageWithMetadata as SdkMessage } from "@cline/llms"
 import {
+	bindTaskToSession,
 	deleteWorkspaceSession,
 	formatDisplayUserInput,
+	getActiveTaskBinding,
 	loadWorkspaceTaskMessages,
-	type OrvantaSessionAgentInfo,
 	parseUserInputMode,
+	recordTaskTurnEvent,
 	saveWorkspaceSession,
 	saveWorkspaceTaskMessages,
-	saveWorkspaceTaskMetadata,
 } from "@cline/shared"
 import { resolveSessionDataDir } from "@cline/shared/storage"
 import type { ClineMessage } from "@shared/ExtensionMessage"
@@ -59,6 +60,12 @@ export interface SdkTaskHistoryOptions {
 	 * (identified by their `ses-…` ids) so History is the one place for every task.
 	 */
 	cloud?: CloudHistorySource
+	/**
+	 * Cutover flag for v0.1.1: isolates legacy pre-v0.1.1 tasks completely.
+	 * When true (default), legacy tasks are excluded from listing, cannot be opened/resumed,
+	 * and no legacy files are modified or migrated.
+	 */
+	enableLegacyCutover?: boolean
 }
 
 export interface CloudHistorySource {
@@ -122,6 +129,8 @@ export function historyItemToSessionMetadata(item: HistoryItem, fallbackModelId?
 		cacheReads: item.cacheReads ?? 0,
 		modelId: item.modelId ?? fallbackModelId ?? "",
 		legacyTask: item.isLegacy ?? false,
+		sessionId: item.sessionId,
+		agentNumericId: item.agentNumericId,
 	}
 }
 
@@ -225,6 +234,8 @@ export function sessionHistoryRecordToHistoryItem(item: SessionHistoryRecord): H
 		cwdOnTaskInitialization: item.cwd ?? item.workspaceRoot,
 		isLegacy:
 			metadataBoolean(metadata, "legacyTask") === true || metadataBoolean(metadata, "migratedFromLegacyTask") === true,
+		sessionId: metadataString(metadata, "sessionId"),
+		agentNumericId: metadataNumber(metadata, "agentNumericId"),
 		...(metadataString(metadata, "executionTarget") === "cloud"
 			? {
 					executionTarget: "cloud" as const,
@@ -256,6 +267,9 @@ export class SdkTaskHistory {
 	private readonly metadataHistoryCacheTtlMs = 10_000
 
 	constructor(private readonly options: SdkTaskHistoryOptions) {}
+	isCutoverActive(): boolean {
+		return this.options.enableLegacyCutover === true || process.env.ORVANTA_CUTOVER === "1"
+	}
 
 	private getLegacyDataDirs(): (string | undefined)[] {
 		const dirs: (string | undefined)[] = [undefined]
@@ -466,9 +480,11 @@ export class SdkTaskHistory {
 		)
 		const visibleSdkHistory = sdkHistory.filter((item) => item.isSubagent !== true)
 		const sdkIds = new Set(visibleSdkHistory.map((item) => item.sessionId))
-		const legacyHistory = this.readAllLegacyTaskHistory()
-			.filter(({ item }) => item.task && !sdkIds.has(item.id))
-			.map(({ item }) => historyItemToSessionHistoryRecord(item))
+		const legacyHistory = this.isCutoverActive()
+			? []
+			: this.readAllLegacyTaskHistory()
+					.filter(({ item }) => item.task && !sdkIds.has(item.id))
+					.map(({ item }) => historyItemToSessionHistoryRecord(item))
 		// An SDK record with legacy metadata is a legacy task that was resumed,
 		// i.e. migrated (historyItemToSessionMetadata stamps legacyTask on resume).
 		const migratedSdkTaskCount = visibleSdkHistory.filter(
@@ -569,6 +585,9 @@ export class SdkTaskHistory {
 			}
 		}
 		if (!sdkRecord && legacyTask) {
+			if (this.isCutoverActive()) {
+				return []
+			}
 			return readUiMessages(taskId, legacyTask.dataDir)
 		}
 		if (!sdkRecord && !legacyTask) {
@@ -750,21 +769,56 @@ export class SdkTaskHistory {
 		const cwd = item.cwdOnTaskInitialization
 		if (cwd) {
 			try {
-				let sessionAgents: OrvantaSessionAgentInfo[] = []
-				try {
-					const load = await loadCompany(cwd)
-					if (load.status === "ready") {
-						sessionAgents = load.roster.agents.map((ra) => ({
-							id: ra.id,
-							displayName: ra.displayName || ra.id,
-							role: ra.role,
-							model: ra.modelId || undefined,
-						}))
+				const load = await loadCompany(cwd)
+				if (load.status === "ready" && !item.isLegacy) {
+					const activeBinding = getActiveTaskBinding(item.id)
+					if (activeBinding) {
+						await recordTaskTurnEvent({
+							workspaceRoot: cwd,
+							taskId: item.id,
+							sessionId: activeBinding.sessionId,
+							agentNumericId: activeBinding.agentNumericId,
+							usage: {
+								tokensIn: item.tokensIn ?? 0,
+								tokensOut: item.tokensOut ?? 0,
+								totalCost: item.totalCost ?? 0,
+							},
+							lastMessagePreview: item.task,
+						})
+					} else {
+						// Resolve single participating agent without whole-roster fallback
+						const candidate = item.agents?.[0]
+						const candidateSlug = candidate?.id || "coordinator"
+						const candidateRole =
+							candidate?.role === "lead" ? "lead" : candidateSlug === "coordinator" ? "lead" : "teammate"
+						const matchingRosterAgent = load.roster.agents.find((a) => a.id === candidateSlug)
+						const agentNumericId =
+							candidate && "agentNumericId" in candidate && typeof (candidate as any).agentNumericId === "number"
+								? (candidate as any).agentNumericId
+								: (matchingRosterAgent?.agentNumericId ?? 1)
+						const displayName = candidate?.displayName || matchingRosterAgent?.displayName || candidateSlug
+
+						await bindTaskToSession({
+							workspaceRoot: cwd,
+							companyId: load.company.id,
+							sessionId: item.sessionId,
+							taskId: item.id,
+							agentNumericId,
+							agentSlug: candidateSlug,
+							displayName,
+							role: candidateRole,
+							prompt: item.task,
+							usage: {
+								tokensIn: item.tokensIn ?? 0,
+								tokensOut: item.tokensOut ?? 0,
+								totalCost: item.totalCost ?? 0,
+							},
+							lastMessagePreview: item.task,
+						})
 					}
-				} catch {
-					// Fallback if company fails to load
 				}
 
+				// Also update legacy format without whole roster fallback
 				await saveWorkspaceSession(cwd, {
 					id: item.id,
 					title: item.task,
@@ -774,23 +828,13 @@ export class SdkTaskHistory {
 					tokensOut: item.tokensOut,
 					totalCost: item.totalCost,
 					isFavorited: item.isFavorited,
-					agents:
-						item.agents?.map((agent) => ({
-							...agent,
-							role: agent.role === "lead" ? "lead" : "teammate",
-						})) || (sessionAgents.length > 0 ? sessionAgents : undefined),
-					agentIds: item.agentIds || (sessionAgents.length > 0 ? sessionAgents.map((a) => a.id) : undefined),
+					agents: item.agents?.map((agent) => ({
+						...agent,
+						role: agent.role === "lead" ? "lead" : "teammate",
+					})),
+					agentIds: item.agentIds,
 					agentTasks: item.agentTasks,
 				})
-
-				if (sessionAgents.length > 0) {
-					await saveWorkspaceTaskMetadata(cwd, item.id, {
-						taskId: item.id,
-						title: item.task,
-						agents: sessionAgents,
-						savedAt: Date.now(),
-					})
-				}
 			} catch {
 				// Non-blocking: workspace might not have .orvanta directory or permission
 			}
@@ -820,7 +864,7 @@ export class SdkTaskHistory {
 			}
 			Logger.warn(`[SdkTaskHistory] SDK session missing while deleting legacy task: ${sessionId}`, error)
 		}
-		if (legacyTask) {
+		if (legacyTask && !this.isCutoverActive()) {
 			deleteLegacyTask(sessionId, legacyTask.dataDir)
 		}
 		if (cwd) {
@@ -850,6 +894,10 @@ export class SdkTaskHistory {
 		})
 		if (sdkHistoryItem) {
 			return sdkHistoryItem
+		}
+
+		if (this.isCutoverActive()) {
+			return undefined
 		}
 
 		const legacyItem = this.findLegacyTask(taskId)?.item

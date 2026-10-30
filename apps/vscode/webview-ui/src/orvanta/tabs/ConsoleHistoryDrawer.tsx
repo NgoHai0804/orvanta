@@ -52,8 +52,21 @@ export const ConsoleHistoryDrawer: React.FC<ConsoleHistoryDrawerProps> = ({
 	const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 	const [deletedIds, setDeletedIds] = useState<Set<string>>(() => new Set())
 
+	// Đóng drawer khi nhấn Escape
+	React.useEffect(() => {
+		if (!isOpen) return
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.key === "Escape") {
+				onClose()
+			}
+		}
+		window.addEventListener("keydown", handleKeyDown)
+		return () => window.removeEventListener("keydown", handleKeyDown)
+	}, [isOpen, onClose])
+
 	const filteredTasks = useMemo(() => {
-		const list = (taskHistory || []).filter((item) => !deletedIds.has(item.id))
+		// Chỉ lấy các task v0.1.1, loại bỏ triệt để các task legacy
+		const list = (taskHistory || []).filter((item) => !item.isLegacy && !deletedIds.has(item.id))
 		const query = searchQuery.trim().toLowerCase()
 
 		if (!query) {
@@ -63,19 +76,21 @@ export const ConsoleHistoryDrawer: React.FC<ConsoleHistoryDrawerProps> = ({
 		return list.filter((item) => {
 			const textMatch = item.task?.toLowerCase().includes(query)
 			const idMatch = item.id?.toLowerCase().includes(query)
-			const agentMatch = item.agents?.some(
-				(a) =>
-					a.id.toLowerCase().includes(query) ||
-					a.displayName?.toLowerCase().includes(query) ||
-					a.role?.toLowerCase().includes(query),
-			)
+			const sessionMatch = (item as any).sessionId?.toLowerCase().includes(query)
+			const agentMatch = item.agents?.some((a) => {
+				const idMatch = a.id?.toLowerCase().includes(query)
+				const nameMatch = a.displayName?.toLowerCase().includes(query)
+				const roleMatch = a.role?.toLowerCase().includes(query)
+				const numMatch = (a as any).agentNumericId ? String((a as any).agentNumericId).includes(query) : false
+				return idMatch || nameMatch || roleMatch || numMatch
+			})
 			const promptAgentsMatch = companyAgents.some(
 				(ca) =>
 					(ca.id.toLowerCase().includes(query) || (ca.displayName?.toLowerCase().includes(query) ?? false)) &&
 					item.task?.toLowerCase().includes(ca.id.toLowerCase()),
 			)
 
-			return textMatch || idMatch || agentMatch || promptAgentsMatch
+			return textMatch || idMatch || sessionMatch || agentMatch || promptAgentsMatch
 		})
 	}, [taskHistory, searchQuery, deletedIds, companyAgents])
 
@@ -94,8 +109,11 @@ export const ConsoleHistoryDrawer: React.FC<ConsoleHistoryDrawerProps> = ({
 
 	return (
 		<div
+			aria-label="Lịch sử cuộc trò chuyện"
+			aria-modal="true"
 			className="fixed inset-y-0 right-0 z-50 w-full sm:w-[360px] max-w-full flex flex-col bg-[var(--vscode-sideBar-background)] border-l border-[var(--vscode-sideBar-border,rgba(255,255,255,0.08))] shadow-2xl animate-in slide-in-from-right duration-200"
-			data-testid="console-history-drawer">
+			data-testid="console-history-drawer"
+			role="dialog">
 			{/* Drawer Header */}
 			<div className="flex items-center justify-between p-3 border-b border-[var(--vscode-sideBar-border,rgba(255,255,255,0.08))] bg-[var(--vscode-sideBarSectionHeader-background,rgba(255,255,255,0.02))]">
 				<div className="flex flex-col">
@@ -221,21 +239,62 @@ export const ConsoleHistoryDrawer: React.FC<ConsoleHistoryDrawerProps> = ({
 								{/* Agent Badges: Click agent badge to jump directly to that agent's conversation */}
 								{taskAgents.length > 0 && (
 									<div className="flex items-center gap-1 flex-wrap mt-0.5">
-										{taskAgents.map((ag) => (
-											<button
-												className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-[var(--vscode-badge-background)] text-[var(--vscode-badge-foreground)] hover:bg-[var(--vscode-button-background,#007fd4)] hover:text-white transition-colors cursor-pointer"
-												key={ag.id}
-												onClick={(e) => {
-													e.stopPropagation()
-													const agentTaskId = task.agentTasks?.[ag.id] || task.id
-													onSelectTask(agentTaskId, displayTitle, ag.id, task.agentTasks)
-												}}
-												title={`Xem trao đổi với ${ag.displayName || ag.id}`}
-												type="button">
-												<IconRobot className="shrink-0 opacity-80" size={10} />
-												<span>@{ag.id}</span>
-											</button>
-										))}
+										{taskAgents.map((ag) => {
+											const currentRosterAgent = companyAgents.find(
+												(ca) =>
+													((ca as any).agentNumericId &&
+														(ca as any).agentNumericId === (ag as any).agentNumericId) ||
+													ca.id === ag.id,
+											)
+											const isRenamed =
+												currentRosterAgent &&
+												(currentRosterAgent.id !== ag.id ||
+													(currentRosterAgent.displayName &&
+														currentRosterAgent.displayName !== ag.displayName))
+											const isUnavailable = (ag as any).status === "unknown"
+
+											return (
+												<button
+													className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium transition-colors ${
+														isUnavailable
+															? "bg-amber-500/10 text-amber-400 border border-amber-500/20 cursor-not-allowed opacity-75"
+															: "bg-[var(--vscode-badge-background)] text-[var(--vscode-badge-foreground)] hover:bg-[var(--vscode-button-background,#007fd4)] hover:text-white cursor-pointer"
+													}`}
+													key={ag.id}
+													onClick={(e) => {
+														e.stopPropagation()
+														if (isUnavailable) {
+															alert(
+																`Cuộc trò chuyện với ${ag.displayName || ag.id} không còn khả dụng trên đĩa.`,
+															)
+															return
+														}
+														const agentTaskId = task.agentTasks?.[ag.id] || task.id
+														onSelectTask(agentTaskId, displayTitle, ag.id, task.agentTasks)
+													}}
+													title={
+														isUnavailable
+															? `Cuộc trò chuyện với ${ag.displayName || ag.id} không còn khả dụng`
+															: isRenamed
+																? `Hiện tại: @${currentRosterAgent?.id} (Tên lịch sử: ${ag.displayName || ag.id})`
+																: `Xem trao đổi với ${ag.displayName || ag.id}`
+													}
+													type="button">
+													<IconRobot className="shrink-0 opacity-80" size={10} />
+													<span>@{ag.id}</span>
+													{isRenamed && (
+														<span
+															className="opacity-75 text-[8px] text-cyan-400 ml-0.5"
+															title={`Hiện tại: @${currentRosterAgent?.id} (Tên lịch sử: ${ag.displayName || ag.id})`}>
+															(đổi tên)
+														</span>
+													)}
+													{isUnavailable && (
+														<span className="text-[8px] text-amber-400 ml-0.5">(thiếu)</span>
+													)}
+												</button>
+											)
+										})}
 									</div>
 								)}
 

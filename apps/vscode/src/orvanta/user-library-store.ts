@@ -14,6 +14,7 @@ import {
 	LibraryMetaSchema,
 	PURPOSE_FILE,
 	ROSTER_FILE,
+	ROSTER_SCHEMA_VERSION,
 	type RosterJson,
 	SCHEMA_VERSION,
 	slugify,
@@ -215,8 +216,10 @@ export class UserLibraryStore {
 				}))
 
 			const snapshotRoster: RosterJson = {
-				schemaVersion: SCHEMA_VERSION,
+				schemaVersion: ROSTER_SCHEMA_VERSION,
+				nextAgentNumericId: load.roster.nextAgentNumericId,
 				agents: activeAgents,
+				retiredAgents: load.roster.retiredAgents,
 			}
 			await mkdir(join(tmpDir, "org"), { recursive: true })
 			await writeFile(join(tmpDir, ROSTER_FILE), `${JSON.stringify(snapshotRoster, null, "\t")}\n`, "utf8")
@@ -330,8 +333,10 @@ export class UserLibraryStore {
 				status: "idle" as const,
 			}))
 			const newRoster: RosterJson = {
-				schemaVersion: SCHEMA_VERSION,
+				schemaVersion: ROSTER_SCHEMA_VERSION,
+				nextAgentNumericId: validated.roster.nextAgentNumericId,
 				agents: idleAgents,
+				retiredAgents: validated.roster.retiredAgents,
 			}
 			await mkdir(join(tmp, "org"), { recursive: true })
 			await writeFile(join(tmp, ROSTER_FILE), `${JSON.stringify(newRoster, null, "\t")}\n`, "utf8")

@@ -1,22 +1,32 @@
 export interface ChatTab {
-	/** Định danh duy nhất của tab trên Webview UI (uuid hoặc timestamp string) */
+	/** Định danh duy nhất của tab trên Webview UI (uuid hoặc timestamp string) - UI-only ID */
 	id: string
 
-	/** Tiêu đề hiển thị trên thanh tab (thường lấy theo yêu cầu đầu tiên của CEO) */
+	/** Backend sessionId nếu tab đã gắn với session durable */
+	sessionId?: string
+
+	/** Tiêu đề hiển thị trên thanh tab */
 	title: string
 
-	/** Agent ID đang phụ trách hoặc đang được focus trong phiên này (ví dụ: "coordinator", "implementer", "team-feed") */
+	/** Agent ID/slug đang phụ trách hoặc đang được focus trong phiên này */
 	activeAgentId: string
+
+	/** Agent numeric ID nếu đã resolve */
+	activeAgentNumericId?: number
 
 	/**
 	 * BẢN ĐỒ AGENT TASK: Gắn kết từng Agent với Task ID tương ứng trong phiên này
+	 * Nguồn sự thật duy nhất cho liên kết agent -> task trong phiên.
 	 * Ví dụ: { "coordinator": "task-01", "implementer": "task-02" }
 	 */
 	agentTasks: Record<string, string>
 
+	/** Bản đồ Agent Task theo số định danh bất biến (nếu có) */
+	agentTasksByNumericId?: Record<number, string>
+
 	/**
 	 * BẢN ĐỒ DRAFT INPUT: Lưu nội dung đang gõ dở theo từng Agent để không bị mất khi chuyển đổi
-	 * Ví dụ: { "coordinator": "", "implementer": "Hãy viết thêm test..." }
+	 * Lưu trữ client-side độc lập, không đưa vào session transcript.
 	 */
 	agentDrafts?: Record<string, string>
 
@@ -32,7 +42,7 @@ export interface ChatTab {
 	/** Trạng thái cờ đang chạy (running) hay chờ người dùng */
 	isRunning?: boolean
 
-	/** @deprecated Tương thích ngược: Task ID của activeAgentId */
+	/** @deprecated Tương thích ngược: Đọc qua getTabActiveTaskId(tab). Không ghi độc lập. */
 	taskId?: string
 
 	/** @deprecated Tương thích ngược: Draft input của activeAgentId */
@@ -51,5 +61,17 @@ export interface ChatTabsState {
 }
 
 export const CONSOLE_TABS_STORAGE_KEY = "orvanta_console_tabs_state"
+export const CONSOLE_TABS_STORAGE_KEY_V1 = "orvanta_console_tabs_state_v1"
+export const CONSOLE_DRAFTS_STORAGE_KEY = "orvanta_console_drafts_v1"
 export const DEFAULT_TAB_TITLE = "Phiên làm việc mới"
 export const MAX_TABS_COUNT = 15
+export const MAX_DRAFT_LENGTH = 50_000
+
+/**
+ * Trích xuất an toàn taskId của agent đang active trong tab.
+ * Luôn ưu tiên agentTasks[activeAgentId] trước, sau đó fallback taskId legacy nếu còn sót.
+ */
+export function getTabActiveTaskId(tab: ChatTab | undefined): string | undefined {
+	if (!tab) return undefined
+	return tab.agentTasks?.[tab.activeAgentId] || tab.taskId
+}

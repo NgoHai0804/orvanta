@@ -4,6 +4,7 @@ import { OrvantaAgentProfile } from "@shared/proto/cline/orvanta"
 export function toOrvantaAgentProfile(profile: AgentProfile): OrvantaAgentProfile {
 	return OrvantaAgentProfile.create({
 		id: profile.id,
+		agentNumericId: profile.agentNumericId !== undefined ? profile.agentNumericId : undefined,
 		displayName: profile.displayName,
 		role: profile.role,
 		description: profile.description,
@@ -36,6 +37,7 @@ export function toOrvantaAgentProfile(profile: AgentProfile): OrvantaAgentProfil
 export function fromOrvantaAgentProfile(proto: OrvantaAgentProfile): AgentProfile {
 	return {
 		id: proto.id,
+		agentNumericId: proto.agentNumericId !== undefined ? Number(proto.agentNumericId) : undefined,
 		displayName: proto.displayName,
 		role: (proto.role === "lead" ? "lead" : "teammate") as "lead" | "teammate",
 		description: proto.description,

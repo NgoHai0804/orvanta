@@ -259,6 +259,7 @@ export const AgentEditor = ({
 			role: eid === "coordinator" ? "lead" : "teammate",
 			status: "idle",
 			reportsTo: eid === "coordinator" ? undefined : "coordinator",
+			legacySlugs: [],
 		}))
 	}, [rosterAgents, existingIds])
 
@@ -354,6 +355,7 @@ export const AgentEditor = ({
 
 		const profileToSave = OrvantaAgentProfile.create({
 			id: trimmedId,
+			agentNumericId: initialProfile.agentNumericId !== undefined ? initialProfile.agentNumericId : undefined,
 			displayName: trimmedName,
 			description: trimmedDesc,
 			role: isCoordinator ? "lead" : role,

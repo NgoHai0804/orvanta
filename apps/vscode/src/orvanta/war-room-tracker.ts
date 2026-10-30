@@ -65,7 +65,7 @@ export class WarRoomTracker {
 	private readonly listeners = new Set<() => void>()
 	private tickTimer: ReturnType<typeof setInterval> | undefined
 
-	syncRoster(agents: OrvantaRosterAgent[]): void {
+	syncRoster(agents: Array<Pick<OrvantaRosterAgent, "id" | "displayName" | "role"> & { status?: string }>): void {
 		let changed = false
 		const knownIds = new Set(agents.map((a) => a.id))
 		for (const id of this.cards.keys()) {
