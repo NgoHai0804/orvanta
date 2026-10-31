@@ -1,6 +1,6 @@
-import { mkdirSync } from "node:fs";
+import { copyFileSync, mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { getErrorCode, getErrorMessage } from "../parse/error";
 
 export type SqliteStatement = {
@@ -17,6 +17,35 @@ export type SqliteDb = {
 	exec: (sql: string) => void;
 	close?: () => void;
 };
+
+/**
+ * Produce a standalone copy of a WAL database after checkpointing and closing
+ * this connection. The caller must ensure there are no other active writers
+ * during this operation; copying only the main DB file while a writer is open
+ * can omit committed pages still resident in `-wal`.
+ */
+export function backupSqliteDatabaseAfterClose(
+	db: SqliteDb,
+	sourcePath: string,
+	destinationPath: string,
+): void {
+	const source = resolve(sourcePath);
+	const destination = resolve(destinationPath);
+	if (source === destination) {
+		throw new Error(
+			"SQLite backup destination must differ from the source database",
+		);
+	}
+	const checkpoint = db.prepare("PRAGMA wal_checkpoint(TRUNCATE)").get();
+	if (Number(checkpoint?.busy ?? 0) !== 0) {
+		throw new Error(
+			"SQLite backup checkpoint is busy; database connection remains open",
+		);
+	}
+	db.close?.();
+	mkdirSync(dirname(destination), { recursive: true });
+	copyFileSync(source, destination);
+}
 
 const SQLITE_BUSY_RETRY_LIMIT = 3;
 const SQLITE_BUSY_RETRY_BASE_DELAY_MS = 50;

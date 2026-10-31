@@ -223,6 +223,82 @@ describe("SdkSessionLifecycle", () => {
 		expect(mockCreateSessionHost).toHaveBeenCalledWith(expect.objectContaining({ telemetry }))
 	})
 
+	it("creates and reuses independent hosts for different project roots", async () => {
+		const firstHost = makeSdkHost({ startResult: { sessionId: "first-session" } })
+		const secondHost = makeSdkHost({ startResult: { sessionId: "second-session" } })
+		mockCreateSessionHost.mockResolvedValueOnce(firstHost).mockResolvedValueOnce(secondHost)
+		const rootsFor = (workspaceRoot: string) => ({
+			workspaceRoot,
+			teamStoreDir: `${workspaceRoot}/.orvanta/local/db`,
+			sdkDbDir: `${workspaceRoot}/.orvanta/local/sdk/db`,
+			sdkArtifactDir: `${workspaceRoot}/.orvanta/local/sdk/sessions`,
+		})
+		const lifecycle = makeLifecycle({ resolveProjectStorageRoots: (workspaceRoot) => rootsFor(workspaceRoot ?? "") })
+
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({ config: { cwd: "/one", workspaceRoot: "/one" } } as any)
+		await lifecycle.endActiveSession("switch-project")
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({ config: { cwd: "/two", workspaceRoot: "/two" } } as any)
+		await lifecycle.endActiveSession("return-project")
+		// biome-ignore lint/suspicious/noExplicitAny: focused fake for lifecycle unit test
+		await lifecycle.startNewSession({ config: { cwd: "/one", workspaceRoot: "/one" } } as any)
+
+		expect(mockCreateSessionHost).toHaveBeenCalledTimes(2)
+		expect(mockCreateSessionHost).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({
+				projectStorageRoots: rootsFor("/one"),
+			}),
+		)
+		expect(mockCreateSessionHost).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				projectStorageRoots: rootsFor("/two"),
+			}),
+		)
+		expect(firstHost.start).toHaveBeenCalledTimes(2)
+		expect(secondHost.start).toHaveBeenCalledOnce()
+		await lifecycle.dispose("testDispose")
+		expect(firstHost.dispose).toHaveBeenCalledOnce()
+		expect(secondHost.dispose).toHaveBeenCalledOnce()
+	})
+
+	it("reuses project history hosts until lifecycle disposal", async () => {
+		const sdkHost = makeSdkHost()
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const rootsFor = (workspaceRoot: string) => ({
+			workspaceRoot,
+			teamStoreDir: `${workspaceRoot}/.orvanta/local/db`,
+			sdkDbDir: `${workspaceRoot}/.orvanta/local/sdk/db`,
+			sdkArtifactDir: `${workspaceRoot}/.orvanta/local/sdk/sessions`,
+		})
+		const lifecycle = makeLifecycle({ resolveProjectStorageRoots: (workspaceRoot) => rootsFor(workspaceRoot ?? "") })
+
+		const first = await lifecycle.getHostForWorkspaceRoot("/workspace")
+		const second = await lifecycle.getHostForWorkspaceRoot("/workspace")
+
+		expect(first).toBe(sdkHost)
+		expect(second).toBe(first)
+		expect(mockCreateSessionHost).toHaveBeenCalledOnce()
+		expect(sdkHost.dispose).not.toHaveBeenCalled()
+
+		await lifecycle.dispose("testDispose")
+		expect(sdkHost.dispose).toHaveBeenCalledOnce()
+	})
+
+	it("keeps a non-project workspace on the unscoped lifecycle path", async () => {
+		const sdkHost = makeSdkHost()
+		mockCreateSessionHost.mockResolvedValueOnce(sdkHost)
+		const lifecycle = makeLifecycle({ resolveProjectStorageRoots: vi.fn(() => undefined) })
+
+		// Without a project resolver result, use the legacy/unscoped lifecycle path.
+		await lifecycle.startNewSession({ config: { cwd: "/workspace" } } as StartInput)
+		expect(mockCreateSessionHost).toHaveBeenCalledWith(
+			expect.not.objectContaining({ projectStorageRoots: expect.anything() }),
+		)
+	})
+
 	it("marks the active session idle after a non-queued send completes", async () => {
 		const onSendComplete = vi.fn()
 		const sdkHost = makeSdkHost({ send: vi.fn().mockResolvedValue(undefined) })

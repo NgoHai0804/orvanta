@@ -30,7 +30,7 @@ export interface PrepareTaskResumeStartDeps {
 	taskHistory: SdkTaskHistory
 	sessionConfigBuilder: SdkSessionConfigBuilder
 	getWorkspaceRoot: () => Promise<string>
-	createTempSessionHost: () => Promise<SdkSessionHost>
+	createTempSessionHost: (workspaceRoot?: string) => Promise<SdkSessionHost>
 	loadInitialMessages: (sessionHost: SdkSessionHost, taskId: string) => Promise<unknown[] | undefined>
 }
 
@@ -58,13 +58,8 @@ export async function prepareTaskResumeStartInput(
 		)
 	}
 
-	const tempManager = await deps.createTempSessionHost()
-	let persistedInitialMessages: unknown[] | undefined
-	try {
-		persistedInitialMessages = await deps.loadInitialMessages(tempManager, taskId)
-	} finally {
-		await tempManager.dispose("readMessages")
-	}
+	const tempManager = await deps.createTempSessionHost(cwd)
+	const persistedInitialMessages = await deps.loadInitialMessages(tempManager, taskId)
 	const initialMessages = isLegacyTask
 		? await deps.taskHistory.getLegacyResumeInitialMessages(taskId, persistedInitialMessages)
 		: persistedInitialMessages

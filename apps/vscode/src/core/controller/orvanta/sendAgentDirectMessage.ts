@@ -1,4 +1,6 @@
+import { getActiveTaskBinding, getCeoSessionPause, isCeoSessionDispatchBlocked } from "@cline/shared"
 import { OrvantaSendAgentDirectMessageRequest, OrvantaSendAgentDirectMessageResponse } from "@shared/proto/cline/orvanta"
+import { resolveOrvantaWorkspaceRoot } from "@/orvanta/resolve-workspace"
 import { globalWarRoomTracker } from "@/orvanta/war-room-tracker"
 import { Logger } from "@/shared/services/Logger"
 
@@ -10,6 +12,22 @@ export async function sendAgentDirectMessage(
 ): Promise<OrvantaSendAgentDirectMessageResponse> {
 	try {
 		Logger.info(`sendAgentDirectMessage: sending message to ${request.agentId}`)
+
+		const taskId = controller.task?.taskId?.trim()
+		const binding = taskId ? getActiveTaskBinding(taskId) : undefined
+		const ceoSessionId = binding?.sessionId?.trim()
+		if (ceoSessionId) {
+			const root = binding?.workspaceRoot || (await resolveOrvantaWorkspaceRoot())
+			if (root) {
+				const pause = await getCeoSessionPause(root, ceoSessionId)
+				if (isCeoSessionDispatchBlocked(pause)) {
+					return OrvantaSendAgentDirectMessageResponse.create({
+						success: false,
+						error: `CEO session is ${pause?.status ?? "paused"}; resume before sending new work.`,
+					})
+				}
+			}
+		}
 
 		const targetId = request.agentId.trim().toLowerCase()
 		const isLead = targetId === "coordinator" || targetId === "lead"

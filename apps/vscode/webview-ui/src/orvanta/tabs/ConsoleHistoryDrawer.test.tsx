@@ -9,6 +9,9 @@ vi.mock("@/services/grpc-client", () => ({
 	TaskServiceClient: {
 		deleteTasksWithIds: vi.fn().mockResolvedValue({}),
 	},
+	OrvantaServiceClient: {
+		listCeoSessions: vi.fn().mockResolvedValue({ success: true, status: "ready", sessions: [] }),
+	},
 }))
 
 vi.mock("../useOrvantaCompany", () => ({

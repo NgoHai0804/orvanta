@@ -16,7 +16,21 @@ export function makeSubSessionId(
 	return joined.length > 180 ? joined.slice(0, 180) : joined;
 }
 
+/**
+ * Canonical durable SDK transcript id for one (root session, teammate).
+ * Run/task associations live in Orvanta history; do not mint a new id per run.
+ */
 export function makeTeamTaskSubSessionId(
+	rootSessionId: string,
+	agentId: string,
+): string {
+	const root = sanitizeSessionToken(rootSessionId);
+	const agent = sanitizeSessionToken(agentId);
+	return `${root}__teamtask__${agent}__canonical`;
+}
+
+/** @deprecated Prefer makeTeamTaskSubSessionId (stable). Kept for fixture IDs. */
+export function makeEphemeralTeamTaskSubSessionId(
 	rootSessionId: string,
 	agentId: string,
 ): string {

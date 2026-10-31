@@ -51,6 +51,7 @@ class MockAgentTeamsRuntime {
 		outcomeFragments: [],
 	}));
 	markStaleRunsInterrupted = vi.fn();
+	interruptRunningRuns = vi.fn(() => []);
 	recoverActiveRuns = vi.fn();
 	getTeammateIds = vi.fn(() => []);
 	shutdownTeammate = vi.fn();
@@ -125,9 +126,12 @@ class MockTeamStore {
 	persistRuntime = vi.fn();
 }
 
-const createLocalTeamStoreMock = vi.fn((_options?: unknown) => new MockTeamStore());
+const createLocalTeamStoreMock = vi.fn(
+	(_options?: unknown) => new MockTeamStore(),
+);
 vi.mock("../../services/storage/team-store", () => ({
-	createLocalTeamStore: (options?: unknown) => createLocalTeamStoreMock(options),
+	createLocalTeamStore: (options?: unknown) =>
+		createLocalTeamStoreMock(options),
 }));
 
 describe("DefaultRuntimeBuilder team persistence boundary", () => {
@@ -180,6 +184,7 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 		}
 
 		expect(runtimeInstance.markStaleRunsInterrupted).not.toHaveBeenCalled();
+		expect(runtimeInstance.interruptRunningRuns).not.toHaveBeenCalled();
 		expect(runtimeInstance.recoverActiveRuns).toHaveBeenCalledWith(
 			"runtime_recovered",
 		);
@@ -331,12 +336,64 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 				enableTools: false,
 				enableSpawnAgent: false,
 				enableAgentTeams: true,
-				teamDir: "/custom/workspace/.orvanta/state/team",
+				teamDir: "/custom/workspace/.orvanta/local/db",
 			},
 		});
 
 		expect(createLocalTeamStoreMock).toHaveBeenCalledWith({
-			teamDir: "/custom/workspace/.orvanta/state/team",
+			teamDir: "/custom/workspace/.orvanta/local/db",
+			failClosed: undefined,
 		});
+	});
+
+	it("for Orvanta sessions interrupts running runs before recover", async () => {
+		const { DefaultRuntimeBuilder } = await import("./runtime-builder");
+		runtimeInstance = undefined;
+
+		await new DefaultRuntimeBuilder().build({
+			config: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				apiKey: "key",
+				systemPrompt: "test",
+				cwd: process.cwd(),
+				enableTools: false,
+				enableSpawnAgent: false,
+				enableAgentTeams: true,
+				orvantaSessionId: "ceo_recover_1",
+			},
+		});
+
+		expect(runtimeInstance).toBeDefined();
+		expect(runtimeInstance?.interruptRunningRuns).toHaveBeenCalledWith(
+			"unclear_side_effect_on_restart",
+		);
+		expect(runtimeInstance?.recoverActiveRuns).toHaveBeenCalledWith(
+			"runtime_recovered",
+		);
+	});
+
+	it("skips team auto-recover when teamAutoRecover is false", async () => {
+		const { DefaultRuntimeBuilder } = await import("./runtime-builder");
+		runtimeInstance = undefined;
+
+		await new DefaultRuntimeBuilder().build({
+			config: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				apiKey: "key",
+				systemPrompt: "test",
+				cwd: process.cwd(),
+				enableTools: false,
+				enableSpawnAgent: false,
+				enableAgentTeams: true,
+				orvantaSessionId: "ceo_paused_1",
+				teamAutoRecover: false,
+			},
+		});
+
+		expect(runtimeInstance).toBeDefined();
+		expect(runtimeInstance?.interruptRunningRuns).not.toHaveBeenCalled();
+		expect(runtimeInstance?.recoverActiveRuns).not.toHaveBeenCalled();
 	});
 });

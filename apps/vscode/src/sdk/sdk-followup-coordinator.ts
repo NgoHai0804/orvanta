@@ -34,7 +34,7 @@ export interface SdkFollowupCoordinatorOptions {
 	taskHistory: SdkTaskHistory
 	sessionConfigBuilder: SdkSessionConfigBuilder
 	getTask: () => TaskProxy | undefined
-	createTempSessionHost: () => Promise<SdkSessionHost>
+	createTempSessionHost: (workspaceRoot?: string) => Promise<SdkSessionHost>
 	getWorkspaceRoot: () => Promise<string>
 	loadInitialMessages: (sessionHost: SdkSessionHost, taskId: string) => Promise<unknown[] | undefined>
 	buildStartSessionInput: (config: SessionConfig, input: { cwd: string; mode: Mode }) => StartInput

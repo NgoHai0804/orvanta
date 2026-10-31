@@ -1,4 +1,5 @@
 import { captureSdkError } from "@cline/shared";
+import { validateProjectStorageRoots } from "@cline/shared/orvanta";
 import type { ClineCoreOptions } from "../../cline-core/types";
 import {
 	ensureCompatibleLocalHubUrl,
@@ -54,14 +55,37 @@ function prewarmLocalHubIfNeeded(
 
 async function reconcileDeadSessionsIfSupported(
 	backend: SessionBackend,
+	failClosed = false,
 ): Promise<void> {
 	const service = backend as SessionBackend & {
 		reconcileDeadSessions?: (limit?: number) => Promise<number>;
 	};
-	await service.reconcileDeadSessions?.().catch(() => {});
+	const reconcile = service.reconcileDeadSessions?.();
+	if (failClosed) {
+		await reconcile;
+	} else {
+		await reconcile?.catch(() => {});
+	}
 }
 
 function createLocalBackend(options: ClineCoreOptions): SessionBackend {
+	const projectStorageRoots = options.projectStorageRoots
+		? validateProjectStorageRoots(
+				options.projectStorageRoots,
+				options.projectStorageRoots.workspaceRoot,
+			)
+		: undefined;
+	if (projectStorageRoots) {
+		const store = new SqliteSessionStore({
+			sessionsDir: projectStorageRoots.sdkDbDir,
+		});
+		store.init();
+		return new CoreSessionService(store, {
+			sessionArtifactsDir: projectStorageRoots.sdkArtifactDir,
+			messagesArtifactUploader: options.messagesArtifactUploader,
+			logger: options.logger,
+		});
+	}
 	try {
 		const store = new SqliteSessionStore();
 		store.init();
@@ -101,21 +125,31 @@ function createLocalRuntimeHost(
 	distinctId: string,
 	backend?: SessionBackend,
 ): LocalRuntimeHost {
+	const sessionService = options.projectStorageRoots
+		? (backend ?? createLocalBackend(options))
+		: (backend ?? options.sessionService ?? createLocalBackend(options));
 	return new LocalRuntimeHost({
-		sessionService:
-			backend ?? options.sessionService ?? createLocalBackend(options),
+		sessionService,
 		capabilities: options.capabilities,
 		logger: options.logger,
 		telemetry: options.telemetry,
 		toolPolicies: options.toolPolicies,
 		distinctId,
 		fetch: options.fetch,
+		closeSessionServiceOnDispose: Boolean(
+			options.projectStorageRoots && !options.sessionService,
+		),
 	});
 }
 
 export async function resolveSessionBackend(
 	options: ClineCoreOptions,
 ): Promise<SessionBackend> {
+	if (options.projectStorageRoots) {
+		const backend = createLocalBackend(options);
+		await reconcileDeadSessionsIfSupported(backend, true);
+		return backend;
+	}
 	if (cachedBackend) {
 		return cachedBackend;
 	}
@@ -139,7 +173,32 @@ export async function createRuntimeHost(
 ): Promise<RuntimeHost> {
 	const distinctId = resolveCoreDistinctId(options.distinctId);
 	options.telemetry?.setDistinctId(distinctId);
-	const configuredMode = resolveConfiguredBackendMode(options);
+	const projectStorageRoots = options.projectStorageRoots
+		? validateProjectStorageRoots(
+				options.projectStorageRoots,
+				options.projectStorageRoots.workspaceRoot,
+			)
+		: undefined;
+	const scopedOptions = projectStorageRoots
+		? { ...options, projectStorageRoots }
+		: options;
+	if (
+		projectStorageRoots &&
+		options.backendMode !== undefined &&
+		options.backendMode !== "local"
+	) {
+		throw new Error(
+			"Project-owned session storage requires backendMode 'local'",
+		);
+	}
+	if (projectStorageRoots && options.sessionService) {
+		throw new Error(
+			"Project-owned session storage cannot use a caller-supplied sessionService",
+		);
+	}
+	const configuredMode: RuntimeHostMode = projectStorageRoots
+		? "local"
+		: resolveConfiguredBackendMode(options);
 	if (configuredMode === "remote") {
 		const remoteEndpoint = options.remote?.endpoint?.trim();
 		if (!remoteEndpoint) {
@@ -260,7 +319,7 @@ export async function createRuntimeHost(
 			reason: "compatible_hub_unavailable",
 			severity: "warn",
 		});
-		return createLocalRuntimeHost(options, distinctId);
+		return createLocalRuntimeHost(scopedOptions, distinctId);
 	}
-	return createLocalRuntimeHost(options, distinctId);
+	return createLocalRuntimeHost(scopedOptions, distinctId);
 }

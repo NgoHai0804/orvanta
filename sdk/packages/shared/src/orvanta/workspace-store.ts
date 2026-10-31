@@ -1,4 +1,4 @@
-import { cp, mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
 	type AgentProfile,
@@ -27,6 +27,8 @@ import {
 	COORDINATOR_MEMORY_FILE,
 	COORDINATOR_PROFILE_FILE,
 	KNOWLEDGE_DIRNAME,
+	PROJECT_LAYOUT_VERSION,
+	PROJECT_LAYOUT_VERSION_FILE,
 	PURPOSE_FILE,
 	ROSTER_FILE,
 	SCHEMA_VERSION,
@@ -37,6 +39,11 @@ import {
 	WORKSPACE_TMP_DIRNAME,
 } from "./paths";
 import { COORDINATOR_PROFILE_TEMPLATE } from "./templates/coordinator";
+import {
+	getAgentMemory as readAcceptedAgentMemory,
+	renameAgentMemoryDir,
+	saveAgentMemory as writeAcceptedAgentMemory,
+} from "./agent-memory-store";
 
 export class CompanyAlreadyExistsError extends Error {
 	constructor(workspaceRoot: string) {
@@ -248,6 +255,7 @@ async function writeTree(
 		],
 		[COORDINATOR_PROFILE_FILE, COORDINATOR_PROFILE_TEMPLATE],
 		[COORDINATOR_MEMORY_FILE, ""],
+		[PROJECT_LAYOUT_VERSION_FILE, `${PROJECT_LAYOUT_VERSION}\n`],
 		[join(KNOWLEDGE_DIRNAME, "brand-guidelines.md"), BRAND_GUIDELINES_TEMPLATE],
 		[join(KNOWLEDGE_DIRNAME, "coding-standards.md"), CODING_STANDARDS_TEMPLATE],
 	];
@@ -369,19 +377,7 @@ export async function getAgentMemory(
 	workspaceRoot: string,
 	agentId: string,
 ): Promise<string> {
-	const memoryPath = join(
-		workspaceRoot,
-		WORKSPACE_DIRNAME,
-		"org",
-		"agents",
-		agentId,
-		"workspace",
-		"memory.md",
-	);
-	if (!(await pathExists(memoryPath))) {
-		return "";
-	}
-	return (await readTextIfPresent(memoryPath)) ?? "";
+	return readAcceptedAgentMemory(workspaceRoot, agentId);
 }
 
 export async function saveAgentMemory(
@@ -389,19 +385,7 @@ export async function saveAgentMemory(
 	agentId: string,
 	content: string,
 ): Promise<void> {
-	const workspaceDir = join(
-		workspaceRoot,
-		WORKSPACE_DIRNAME,
-		"org",
-		"agents",
-		agentId,
-		"workspace",
-	);
-	await mkdir(workspaceDir, { recursive: true });
-	const memoryPath = join(workspaceDir, "memory.md");
-	const tmpPath = join(workspaceDir, "memory.md.tmp");
-	await writeFile(tmpPath, content, "utf8");
-	await rename(tmpPath, memoryPath);
+	await writeAcceptedAgentMemory(workspaceRoot, agentId, content);
 }
 
 export async function initCompanyKnowledge(
@@ -459,6 +443,7 @@ export async function writeAgentProfile(
 	agentDir: string,
 	profile: AgentProfile,
 ): Promise<void> {
+	await mkdir(agentDir, { recursive: true });
 	const profilePath = join(agentDir, "profile.md");
 	const serialized = serializeAgentProfile(profile);
 	await writeFile(profilePath, serialized, "utf8");
@@ -537,15 +522,12 @@ async function upsertAgentLocked(
 	}
 
 	const agentDir = join(root, "org", "agents", profile.id);
-	const workspaceDir = join(agentDir, "workspace");
 	const previousAgentDir = identity ? join(root, "org", "agents", identity.id) : undefined;
 	const finalAgentDir = agentDir;
 	const stageAgentDir = `${agentDir}.tmp-${crypto.randomUUID()}`;
 	await mkdir(stageAgentDir, { recursive: true });
-	const stageWorkspaceDir = join(stageAgentDir, "workspace");
-	await mkdir(stageWorkspaceDir, { recursive: true });
 	const oldProfile = identity ? await readTextIfPresent(join(previousAgentDir!, "profile.md")) : undefined;
-	const oldMemory = identity ? await readTextIfPresent(join(previousAgentDir!, "workspace", "memory.md")) : undefined;
+	const oldMemory = identity ? await getAgentMemory(workspaceRoot, identity.id) : undefined;
 	const childProfiles = new Map<string, { path: string; original: string; updated: AgentProfile }>();
 	if (identity && identity.id !== profile.id) {
 		for (const child of currentRoster.agents.filter((agent) => agent.reportsTo === identity.id && agent.agentNumericId !== identity.agentNumericId)) {
@@ -558,20 +540,16 @@ async function upsertAgentLocked(
 		}
 	}
 	try {
-		if (identity && previousAgentDir !== finalAgentDir && await pathExists(join(previousAgentDir!, "workspace"))) {
-			await cp(join(previousAgentDir!, "workspace"), stageWorkspaceDir, { recursive: true, force: true });
-		}
 		for (const [childId, child] of childProfiles) await writeAgentProfile(join(root, "org", "agents", childId), child.updated);
 		await writeAgentProfile(stageAgentDir, profile);
-		await writeFile(join(stageWorkspaceDir, "memory.md"), oldMemory ?? "", "utf8");
 		if (identity && previousAgentDir !== finalAgentDir) {
 			await rm(finalAgentDir, { recursive: true, force: true });
 			await rename(stageAgentDir, finalAgentDir);
+			await renameAgentMemoryDir(workspaceRoot, identity.id, profile.id);
 		} else {
 			await rm(stageAgentDir, { recursive: true, force: true });
-			await mkdir(workspaceDir, { recursive: true });
+			await mkdir(agentDir, { recursive: true });
 			await writeAgentProfile(agentDir, profile);
-			if (!(await pathExists(join(workspaceDir, "memory.md")))) await writeFile(join(workspaceDir, "memory.md"), "", "utf8");
 		}
 	} catch (error) {
 		await rm(stageAgentDir, { recursive: true, force: true }).catch(() => undefined);

@@ -3,7 +3,11 @@ import { sanitizeInitialMessagesForSessionStart } from "./initial-message-saniti
 import { readCurrentMessages, type SdkInitialMessages, type SdkSessionHost } from "./session-host"
 
 export class SdkSessionHistoryLoader {
-	async loadInitialMessages(sessionHost: SdkSessionHost, taskId: string): Promise<SdkInitialMessages | undefined> {
+	async loadInitialMessages(
+		sessionHost: SdkSessionHost,
+		taskId: string,
+		options: { failClosed?: boolean } = {},
+	): Promise<SdkInitialMessages | undefined> {
 		try {
 			// A rebuild right after aborting a turn (e.g. a plan/act mode switch
 			// mid-approval) would read an empty persisted transcript and drop
@@ -20,8 +24,10 @@ export class SdkSessionHistoryLoader {
 				return sanitizedMessages
 			}
 		} catch (error) {
+			if (options.failClosed) throw error
 			Logger.warn("[SdkController] Failed to read SDK-persisted messages:", error)
 		}
+		if (options.failClosed) return undefined
 
 		try {
 			const { getSavedApiConversationHistory } = await import("@core/storage/disk")

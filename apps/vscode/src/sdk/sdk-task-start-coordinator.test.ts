@@ -69,6 +69,7 @@ describe("SdkTaskStartCoordinator", () => {
 			taskSettings: undefined,
 			cwd: "/workspace",
 			mode: "act",
+			orvantaSessionId: expect.stringMatching(/^ceo_/),
 		})
 		expect(options.buildStartSessionInput).toHaveBeenCalledWith(
 			expect.objectContaining({ providerId: "anthropic", modelId: "model", sessionId }),
@@ -221,9 +222,9 @@ describe("SdkTaskStartCoordinator", () => {
 		expect(isDirectory).toHaveBeenCalledWith("/task-cwd")
 		expect(options.getWorkspaceRoot).not.toHaveBeenCalled()
 		expect(options.sessionConfigBuilder.build).toHaveBeenCalledWith({ cwd: "/task-cwd", mode: "act" })
-		expect(options.createTempSessionHost).toHaveBeenCalledOnce()
+		expect(options.createTempSessionHost).toHaveBeenCalledWith("/task-cwd")
 		expect(options.loadInitialMessages).toHaveBeenCalledWith(tempHost, "task-1")
-		expect(tempHost.dispose).toHaveBeenCalledWith("readMessages")
+		expect(tempHost.dispose).not.toHaveBeenCalled()
 		expect(options.sessions.startNewSession).toHaveBeenCalledWith({
 			config: expect.objectContaining({ providerId: "anthropic", modelId: "model" }),
 			interactive: true,

@@ -5,6 +5,7 @@ import type {
 	BasicLogger,
 	ITelemetryService,
 } from "@cline/shared";
+import type { ProjectStorageRoots } from "@cline/shared/orvanta";
 import type { CronEventSuppression } from "../cron/events/cron-event-ingress";
 import type {
 	CronEventLogRecord,
@@ -196,6 +197,12 @@ export interface ClineCoreOptions {
 	 * - `"local"` — always uses local in-process execution and local SQLite/file storage.
 	 */
 	backendMode?: RuntimeHostMode;
+	/**
+	 * Validated project-owned SDK persistence locations. When supplied, local
+	 * session metadata and artifacts are bound to this workspace and storage
+	 * initialization failures are fatal (never downgraded to file persistence).
+	 */
+	projectStorageRoots?: ProjectStorageRoots;
 	/**
 	 * Hub runtime connection options. Used when `backendMode` is `"hub"` or when `"auto"`
 	 * should prefer a shared local hub if available.

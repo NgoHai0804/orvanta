@@ -6,6 +6,9 @@ import type { HistoryItem } from "@shared/HistoryItem"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { StateManager } from "@/core/storage/StateManager"
+import { registerCeoSessionRuntime } from "@/orvanta/ceo-session-runtime-reconnect"
+import { registerCeoTranscriptBinding } from "@/orvanta/team-run-transcript-linker"
+import { loadCompany } from "@/orvanta/workspace-store"
 import { Logger } from "@/shared/services/Logger"
 import { isDirectory } from "@/utils/fs"
 import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE, type ProviderFailureTelemetry } from "./provider-failure-telemetry"
@@ -43,13 +46,19 @@ export interface SdkTaskStartCoordinatorOptions {
 			mode: Mode
 		},
 	) => StartInput
-	createHistoryItemFromSession: (sessionId: string, prompt: string, modelId?: string, cwd?: string) => HistoryItem
+	createHistoryItemFromSession: (
+		sessionId: string,
+		prompt: string,
+		modelId?: string,
+		cwd?: string,
+		orvantaSessionId?: string,
+	) => HistoryItem
 	clearTask: () => Promise<void>
 	setTask: (task: TaskProxy | undefined) => void
 	onAskResponse: (text?: string, images?: string[], files?: string[]) => Promise<void>
 	onCancelTask: () => Promise<void>
 	getWorkspaceRoot: () => Promise<string>
-	createTempSessionHost: () => Promise<SdkSessionHost>
+	createTempSessionHost: (workspaceRoot?: string) => Promise<SdkSessionHost>
 	loadInitialMessages: (reader: SdkSessionHost, taskId: string) => Promise<unknown[] | undefined>
 	resolveContextMentions: (text: string) => Promise<string>
 	isClineManagedProviderActive: () => boolean
@@ -80,6 +89,10 @@ export class SdkTaskStartCoordinator {
 			return await this.options.sessions.trackSessionStart(async () => {
 				const cwd = await this.options.getWorkspaceRoot()
 				const mode = this.getCurrentMode()
+				// CEO session identity is separate from the SDK transcript id.
+				// Reuse a resumed HistoryItem.sessionId; otherwise allocate one now so
+				// bindTaskToSession never invents a new CEO session on each history write.
+				const orvantaSessionId = historyItem?.sessionId?.trim() || createSessionId("ceo_")
 				Logger.log(`[SdkController] Building session config: mode=${mode}, cwd=${cwd}`)
 				const config = await this.options.sessionConfigBuilder.build({
 					prompt,
@@ -89,6 +102,7 @@ export class SdkTaskStartCoordinator {
 					taskSettings,
 					cwd,
 					mode,
+					orvantaSessionId,
 				})
 				providerId = config.providerId
 				modelId = config.modelId
@@ -111,6 +125,7 @@ export class SdkTaskStartCoordinator {
 				const configWithSessionId = {
 					...config,
 					sessionId: taskSessionId,
+					orvantaSessionId,
 				}
 
 				const startInput = this.options.buildStartSessionInput(configWithSessionId, {
@@ -148,8 +163,26 @@ export class SdkTaskStartCoordinator {
 					prompt ?? "",
 					configWithSessionId.modelId,
 					cwd,
+					orvantaSessionId,
 				)
 				await this.options.taskHistory.updateTaskHistoryItem(newHistoryItem)
+				try {
+					const companyLoad = await loadCompany(cwd)
+					if (companyLoad.status === "ready") {
+						registerCeoTranscriptBinding({
+							workspaceRoot: cwd,
+							companyId: companyLoad.company.id,
+							orvantaSessionId,
+							rootSdkSessionId: taskSessionId,
+						})
+						registerCeoSessionRuntime({
+							orvantaSessionId,
+							sdkSessionId: taskSessionId,
+						})
+					}
+				} catch (error) {
+					Logger.warn("[SdkController] Failed to register CEO transcript binding:", error)
+				}
 				await this.options.postStateToWebview()
 
 				if (prompt?.trim() || images?.length || files?.length) {
@@ -199,9 +232,8 @@ export class SdkTaskStartCoordinator {
 				mode: "act",
 			})
 
-			const tempManager = await this.options.createTempSessionHost()
+			const tempManager = await this.options.createTempSessionHost(cwd)
 			const initialMessages = await this.options.loadInitialMessages(tempManager, taskId)
-			await tempManager.dispose("readMessages")
 
 			const { startResult } = await this.options.sessions.startNewSession({
 				config,

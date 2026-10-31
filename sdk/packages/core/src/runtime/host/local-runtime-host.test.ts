@@ -7815,6 +7815,7 @@ describe("LocalRuntimeHost", () => {
 			"[error] 401 Unauthorized",
 			undefined,
 			failedMessages,
+			undefined,
 		);
 	});
 

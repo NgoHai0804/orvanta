@@ -1,5 +1,5 @@
 ﻿import type { OrvantaAgentCard, OrvantaWarRoomSnapshot } from "@shared/proto/cline/orvanta"
-import { IconPlayerPause, IconPlayerPlay, IconX } from "@tabler/icons-react"
+import { IconX } from "@tabler/icons-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { WarRoomFilter } from "./useWarRoom"
 
@@ -248,8 +248,15 @@ export interface WarRoomViewProps {
 
 const PAGE_SIZE = 12
 
-export function WarRoomView({ snapshot, paused, filter, onPauseToggle, onFilterChange, onTalkToAgent }: WarRoomViewProps) {
-	const [expandedCard, setExpandedCard] = useState<OrvantaAgentCard | null>(null)
+export function WarRoomView({
+	snapshot,
+	paused,
+	filter,
+	onPauseToggle: _onPauseToggle,
+	onFilterChange,
+	onTalkToAgent,
+}: WarRoomViewProps) {
+	const [expandedAgentId, setExpandedAgentId] = useState<string | null>(null)
 	const [layoutCols, setLayoutCols] = useState<1 | 2 | 3>(1)
 	const [searchQuery, setSearchQuery] = useState("")
 	const [page, setPage] = useState(0)
@@ -311,6 +318,7 @@ export function WarRoomView({ snapshot, paused, filter, onPauseToggle, onFilterC
 
 	const regularCards = visibleCards.filter((c) => !c.isEphemeral)
 	const ephemeralCards = visibleCards.filter((c) => c.isEphemeral)
+	const expandedCard = expandedAgentId ? (cards.find((c) => c.id === expandedAgentId) ?? null) : null
 
 	const gridClass =
 		layoutCols === 1
@@ -367,25 +375,14 @@ export function WarRoomView({ snapshot, paused, filter, onPauseToggle, onFilterC
 							</button>
 						))}
 					</fieldset>
-					<button
-						className={`rounded px-2 py-0.5 text-[10px] inline-flex items-center gap-1 cursor-pointer ${paused ? "bg-indigo-500/30 text-indigo-200 border border-indigo-500/50" : "bg-surface-secondary opacity-80 hover:opacity-100"}`}
-						onClick={() => onPauseToggle(!paused)}
-						title={paused ? "Runtime van chay. Click de tiep tuc stream." : "Dung cap nhat UI (runtime van chay)"}
-						type="button">
-						{paused ? (
-							<>
-								<IconPlayerPlay size={10} stroke={1.5} />
-								<span>Resume</span>
-							</>
-						) : (
-							<>
-								<IconPlayerPause size={10} stroke={1.5} />
-								<span>Pause</span>
-							</>
-						)}
-					</button>
 				</div>
-				{paused && <p className="mt-1 text-[10px] text-indigo-300 italic">Paused · runtime van chay</p>}
+				{(snapshot.syncStatus === "stale" || snapshot.syncStatus === "reconnecting") && (
+					<p className="mt-1 text-[10px] text-amber-300" data-testid="war-room-sync-status">
+						{snapshot.syncStatus === "reconnecting" ? "Đang kết nối lại…" : "Dữ liệu chưa hội tụ (stale)"}
+						{snapshot.lastUpdatedAt ? ` · cập nhật ${snapshot.lastUpdatedAt}` : ""}
+					</p>
+				)}
+				{paused && <p className="mt-1 text-[10px] text-indigo-300 italic">Paused</p>}
 				{isVirtual && (
 					<div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground border-t border-border-panel/40 pt-1">
 						<span>
@@ -419,7 +416,12 @@ export function WarRoomView({ snapshot, paused, filter, onPauseToggle, onFilterC
 					<>
 						<div className={gridClass}>
 							{regularCards.map((card) => (
-								<AgentCard card={card} key={card.id} onExpand={setExpandedCard} onTalk={handleTalk} />
+								<AgentCard
+									card={card}
+									key={card.id}
+									onExpand={(next) => setExpandedAgentId(next.id)}
+									onTalk={handleTalk}
+								/>
 							))}
 						</div>
 						{ephemeralCards.length > 0 && (
@@ -429,7 +431,12 @@ export function WarRoomView({ snapshot, paused, filter, onPauseToggle, onFilterC
 								</div>
 								<div className={gridClass}>
 									{ephemeralCards.map((card) => (
-										<AgentCard card={card} key={card.id} onExpand={setExpandedCard} onTalk={handleTalk} />
+										<AgentCard
+											card={card}
+											key={card.id}
+											onExpand={(next) => setExpandedAgentId(next.id)}
+											onTalk={handleTalk}
+										/>
 									))}
 								</div>
 							</div>
@@ -437,7 +444,7 @@ export function WarRoomView({ snapshot, paused, filter, onPauseToggle, onFilterC
 					</>
 				)}
 			</div>
-			{expandedCard && <ExpandPanel card={expandedCard} onClose={() => setExpandedCard(null)} onTalk={handleTalk} />}
+			{expandedCard && <ExpandPanel card={expandedCard} onClose={() => setExpandedAgentId(null)} onTalk={handleTalk} />}
 		</div>
 	)
 }

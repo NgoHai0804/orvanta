@@ -75,6 +75,9 @@ function makeHistory(sdkRecords: SessionHistoryRecord[] = [], enableLegacyCutove
 			sessionId: "active-1",
 			isRunning: false,
 		})),
+		getUnscopedHost: vi.fn(async () => host),
+		getHostForWorkspaceRoot: vi.fn(async () => host),
+		resolveStorageRootsForWorkspace: vi.fn(() => undefined),
 	} as unknown as SdkSessionLifecycle
 
 	const history = new SdkTaskHistory({

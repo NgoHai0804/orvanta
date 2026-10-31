@@ -5,6 +5,7 @@ import {
 	readdirSync,
 	readFileSync,
 	renameSync,
+	rmSync,
 	statSync,
 	writeFileSync,
 } from "node:fs";
@@ -285,6 +286,13 @@ export class FileTeamStore implements TeamStore {
 		};
 		this.persistRuntime(teamName, envelope.teamState, envelope.teammates);
 		return interrupted;
+	}
+
+	deleteTeam(teamName: string): boolean {
+		const teamDir = join(this.ensureTeamDir(), sanitizeTeamName(teamName));
+		if (!existsSync(teamDir)) return false;
+		rmSync(teamDir, { recursive: true, force: true });
+		return !existsSync(teamDir);
 	}
 
 	private ensureTeamDir(): string {

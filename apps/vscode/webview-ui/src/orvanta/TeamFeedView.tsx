@@ -1,5 +1,5 @@
 import { IconActivity, IconBroadcast, IconClock, IconCornerDownRight, IconHash, IconSparkles } from "@tabler/icons-react"
-import { useEffect, useMemo, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AgentBadge } from "@/components/common/AgentBadge"
 import { cn } from "@/lib/utils"
 import { getAgentRoleIconComponent } from "./TeamSidebar"
@@ -8,6 +8,8 @@ import { useWarRoom } from "./useWarRoom"
 export interface TeamFeedViewProps {
 	onSelectAgent: (agentId: string) => void
 	companyName?: string
+	/** CEO session id for durable runtime pause; omit for draft tabs. */
+	ceoSessionId?: string
 }
 
 interface TimelineEntry {
@@ -25,8 +27,18 @@ function formatElapsed(seconds: number): string {
 	return `${Math.floor(seconds / 60)}m${(seconds % 60).toString().padStart(2, "0")}s`
 }
 
-export function TeamFeedView({ onSelectAgent, companyName }: TeamFeedViewProps) {
-	const { snapshot } = useWarRoom(true)
+export function TeamFeedView({ onSelectAgent, companyName, ceoSessionId }: TeamFeedViewProps) {
+	const {
+		snapshot,
+		syncStatus,
+		lastUpdatedAt,
+		pauseStatus,
+		needsAttention,
+		canPauseRuntime,
+		requestRuntimePause,
+		requestRuntimeResume,
+		pauseError,
+	} = useWarRoom(true, ceoSessionId)
 	const timelineScrollRef = useRef<HTMLDivElement>(null)
 
 	const agents = useMemo(() => snapshot?.cards ?? [], [snapshot?.cards])
@@ -73,11 +85,21 @@ export function TeamFeedView({ onSelectAgent, companyName }: TeamFeedViewProps) 
 		return merged
 	}, [agents])
 
+	const [autoScroll, setAutoScroll] = useState(true)
+
 	useEffect(() => {
-		if (timelineScrollRef.current) {
-			timelineScrollRef.current.scrollTop = timelineScrollRef.current.scrollHeight
-		}
-	}, [timelineEntries.length])
+		const el = timelineScrollRef.current
+		if (!el || !autoScroll) return
+		el.scrollTop = el.scrollHeight
+	}, [timelineEntries.length, autoScroll])
+
+	const onTimelineScroll = useCallback(() => {
+		const el = timelineScrollRef.current
+		if (!el) return
+		const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+		// Scroll up only disables auto-scroll; events keep applying to snapshot.
+		setAutoScroll(distanceFromBottom < 48)
+	}, [])
 
 	return (
 		<div
@@ -99,6 +121,48 @@ export function TeamFeedView({ onSelectAgent, companyName }: TeamFeedViewProps) 
 					</div>
 				</div>
 				<div className="flex items-center gap-2 shrink-0 text-xs">
+					{(syncStatus === "stale" || syncStatus === "reconnecting") && (
+						<span className="text-[10px] text-amber-300" data-testid="team-feed-sync-status">
+							{syncStatus === "reconnecting" ? "Đang kết nối lại…" : "Stale"}
+							{lastUpdatedAt ? ` · ${lastUpdatedAt}` : ""}
+						</span>
+					)}
+					{needsAttention.length > 0 && (
+						<span
+							className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-200"
+							data-testid="team-feed-needs-attention"
+							title={needsAttention.map((n) => `${n.agentId}: ${n.reason}`).join("\n")}>
+							Needs attention ({needsAttention.length})
+						</span>
+					)}
+					{canPauseRuntime &&
+						(pauseStatus === "paused" || pauseStatus === "pause_requested" || pauseStatus === "partial") && (
+							<button
+								className="rounded border border-border-panel px-2 py-0.5 text-[11px] font-medium hover:bg-surface-secondary"
+								data-testid="team-feed-runtime-resume"
+								onClick={() => void requestRuntimeResume()}
+								title="Resume runtime CEO session"
+								type="button">
+								Resume
+							</button>
+						)}
+					{canPauseRuntime && (
+						<button
+							className="rounded border border-border-panel px-2 py-0.5 text-[11px] font-medium hover:bg-surface-secondary disabled:opacity-40"
+							data-testid="team-feed-runtime-pause"
+							disabled={pauseStatus === "paused" || pauseStatus === "pause_requested"}
+							onClick={() => void requestRuntimePause()}
+							title="Pause runtime toàn CEO session (durable)"
+							type="button">
+							{pauseStatus === "paused"
+								? "Paused"
+								: pauseStatus === "pause_requested"
+									? "Pausing…"
+									: pauseStatus === "partial"
+										? "Pause partial"
+										: "Pause"}
+						</button>
+					)}
 					<span
 						className={cn("flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium border", {
 							"bg-violet-500/10 border-violet-500/30 text-violet-400": runningCount > 0,
@@ -114,6 +178,9 @@ export function TeamFeedView({ onSelectAgent, companyName }: TeamFeedViewProps) 
 					</span>
 				</div>
 			</div>
+			{pauseError && (
+				<div className="shrink-0 border-b border-error/40 bg-error/10 px-4 py-1 text-[11px] text-error">{pauseError}</div>
+			)}
 			{/* Section 1: Compact War Room Grid (Header Strip) */}
 			<div className="shrink-0 border-b border-border-panel bg-(--vscode-sideBar-background)/40 p-2.5 space-y-1.5">
 				<div className="flex items-center justify-between text-xs font-semibold text-description uppercase tracking-wider">
@@ -198,6 +265,7 @@ export function TeamFeedView({ onSelectAgent, companyName }: TeamFeedViewProps) 
 				<div
 					className="flex-1 min-h-0 scroller-y p-3 space-y-1.5 pb-6"
 					data-testid="timeline-container"
+					onScroll={onTimelineScroll}
 					ref={timelineScrollRef}>
 					{timelineEntries.length === 0 ? (
 						<div className="h-full flex flex-col items-center justify-center py-12 text-center text-xs text-muted-foreground space-y-2">

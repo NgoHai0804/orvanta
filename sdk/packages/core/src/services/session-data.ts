@@ -312,7 +312,10 @@ export function resolveMessagesFileContext(
 			agent: "teammate",
 			sessionId: row.sessionId,
 			taskType: "team",
-			origin,
+			origin: {
+				...origin,
+				mode: "team",
+			},
 		};
 	}
 	const subSessionMatch = parseSubSessionId(row.sessionId);

@@ -74,6 +74,8 @@ export interface TeamStore {
 		teamName: string,
 		reason: string,
 	): Promise<string[]> | string[];
+	/** Deletes all durable state and event history for one team. */
+	deleteTeam(teamName: string): Promise<boolean> | boolean;
 }
 
 export interface ArtifactStore {

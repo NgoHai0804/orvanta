@@ -70,6 +70,7 @@
 									"!@cline/core/rpc",
 									"!@cline/shared/browser",
 									"!@cline/shared/node",
+									"!@cline/shared/orvanta",
 									"!@cline/shared/types",
 									"!@cline/shared/storage",
 									"!@cline/shared/db"

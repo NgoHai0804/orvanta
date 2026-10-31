@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it } from "bun:test"
-import { TeamMessageType } from "@cline/shared"
+import { TeamMessageType, type TeamRuntimeState } from "@cline/shared"
+import { beforeEach, describe, expect, it } from "vitest"
 import { WarRoomTracker } from "./war-room-tracker"
 
 describe("WarRoomTracker", () => {
@@ -193,5 +193,64 @@ describe("WarRoomTracker", () => {
 		const card = tracker.getCard("dave")
 		expect(card?.buffer).toHaveLength(1)
 		expect(card?.buffer[0].text).toContain("[CEO ➜ @Dave]")
+	})
+
+	it("hydrateFromTeamRuntime overlays member/run status without inventing roster-only agents as participants", () => {
+		tracker.syncRoster([
+			{ id: "coordinator", displayName: "Coordinator", role: "lead", status: "idle" },
+			{ id: "reviewer", displayName: "Reviewer", role: "teammate", status: "idle" },
+		])
+		const state: TeamRuntimeState = {
+			teamId: "t1",
+			teamName: "acme",
+			members: [
+				{ agentId: "coordinator", role: "lead", status: "idle" },
+				{ agentId: "reviewer", role: "teammate", status: "running" },
+			],
+			tasks: [
+				{
+					id: "task-1",
+					title: "Review PR",
+					description: "",
+					status: "in_progress",
+					createdAt: new Date(),
+					updatedAt: new Date(),
+					createdBy: "coordinator",
+					assignee: "reviewer",
+					dependsOn: [],
+				},
+			],
+			mailbox: [],
+			missionLog: [
+				{
+					id: "m1",
+					ts: new Date(),
+					teamId: "t1",
+					agentId: "reviewer",
+					kind: "progress",
+					summary: "Reading files",
+				},
+			],
+			runs: [
+				{
+					id: "run_00001",
+					agentId: "reviewer",
+					status: "running",
+					message: "Review PR",
+					priority: 0,
+					retryCount: 0,
+					maxRetries: 0,
+					startedAt: new Date(),
+				},
+			],
+			outcomes: [],
+			outcomeFragments: [],
+		}
+		tracker.hydrateFromTeamRuntime(state)
+		const reviewer = tracker.getCard("reviewer")
+		expect(reviewer?.status).toBe("running")
+		expect(reviewer?.taskTitle).toBe("Review PR")
+		expect(reviewer?.buffer.some((l) => l.text.includes("Reading files"))).toBe(true)
+		expect(tracker.listActiveAgentIds()).toContain("reviewer")
 	})
 })

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "bun:test"
 import { TeamMessageType } from "@cline/shared"
+import { describe, expect, it } from "vitest"
 import { TeamStatusTracker } from "./team-status-tracker"
 
 describe("TeamStatusTracker", () => {

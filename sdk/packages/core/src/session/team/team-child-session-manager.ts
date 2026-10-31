@@ -1,4 +1,4 @@
-import { appendFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type * as LlmsProviders from "@cline/llms";
 import type { AgentResult } from "@cline/shared";
@@ -282,28 +282,54 @@ export class TeamChildSessionManager {
 	): Promise<void> {
 		const root = await this.adapter.getSession(rootSessionId);
 		if (!root) return;
+		// One durable SDK transcript per (root session, agent). Run IDs are
+		// associations only — do not mint a new transcript identity per run.
 		const sessionId = makeTeamTaskSubSessionId(rootSessionId, agentId);
 		const startedAt = nowIso();
 		const { messagesPath } = this.manifestStore.artifacts.subagentArtifactPaths(
 			sessionId,
 			agentId,
 		);
-		const row = this.buildSubsessionRow(root, {
-			sessionId,
-			mode: "team",
-			parentSessionId: rootSessionId,
-			parentAgentId: "lead",
-			agentId,
-			prompt: message || `Team task for ${agentId}`,
-			startedAt,
-			messagesPath,
-		});
-		await this.adapter.upsertSession(row);
-		this.manifestStore.initializeMessagesFile(row, messagesPath, startedAt);
+		const existing = await this.adapter.getSession(sessionId);
+		const prompt = message || existing?.prompt || `Team task for ${agentId}`;
+		if (!existing) {
+			const row = this.buildSubsessionRow(root, {
+				sessionId,
+				mode: "team",
+				parentSessionId: rootSessionId,
+				parentAgentId: "lead",
+				agentId,
+				prompt,
+				startedAt,
+				messagesPath,
+			});
+			await this.adapter.upsertSession(row);
+			this.manifestStore.initializeMessagesFile(row, messagesPath, startedAt);
+		} else {
+			const rootHistoryOrigin = readSessionHistoryOriginMetadata(root.metadata);
+			await this.adapter.updateSession({
+				sessionId,
+				setRunning: true,
+				parentSessionId: rootSessionId,
+				parentAgentId: "lead",
+				agentId,
+				prompt: existing.prompt ?? prompt,
+				metadata: resolveMetadataWithTitle({
+					metadata: withSessionHistoryOriginMetadata(existing.metadata, {
+						mode: "team",
+						version: rootHistoryOrigin?.version,
+					}),
+					prompt: existing.prompt ?? prompt,
+				}),
+				expectedStatusLock: existing.statusLock,
+			});
+		}
 		if (runId) this.teamTaskSessionsByRun.set(`${rootSessionId}::${runId}`, sessionId);
 		const key = this.teamTaskQueueKey(rootSessionId, agentId);
 		const queue = this.teamTaskSessionsByAgent.get(key) ?? [];
-		queue.push(sessionId);
+		if (!queue.includes(sessionId)) {
+			queue.push(sessionId);
+		}
 		this.teamTaskSessionsByAgent.set(key, queue);
 	}
 
@@ -338,10 +364,9 @@ export class TeamChildSessionManager {
 			messages,
 		);
 		if (persistedMessages) {
-			await this.manifestStore.persistSessionMessages(
-				sessionId,
-				persistedMessages,
-			);
+			const prior = await this.readExistingPersistedMessages(sessionId);
+			const merged = mergeTeamTranscriptMessages(prior, persistedMessages);
+			await this.manifestStore.persistSessionMessages(sessionId, merged);
 		}
 		await this.applySubagentStatusBySessionId(sessionId, status);
 		this.teamTaskLastHeartbeatBySession.delete(sessionId);
@@ -435,4 +460,39 @@ export class TeamChildSessionManager {
 			"utf8",
 		);
 	}
+
+	private async readExistingPersistedMessages(
+		sessionId: string,
+	): Promise<StoredMessageWithMetadata[]> {
+		const row = await this.adapter.getSession(sessionId);
+		const path = row?.messagesPath?.trim();
+		if (!path || !existsSync(path)) return [];
+		try {
+			const raw = JSON.parse(readFileSync(path, "utf8")) as {
+				messages?: StoredMessageWithMetadata[];
+			};
+			return Array.isArray(raw.messages) ? raw.messages : [];
+		} catch {
+			return [];
+		}
+	}
+}
+
+/**
+ * Prefer the newer snapshot when it already contains the prior transcript
+ * (continued conversation). Otherwise append so concurrent/fresh runs keep
+ * one canonical file without dropping earlier turns.
+ */
+export function mergeTeamTranscriptMessages(
+	prior: StoredMessageWithMetadata[],
+	next: StoredMessageWithMetadata[],
+): StoredMessageWithMetadata[] {
+	if (prior.length === 0) return next;
+	if (next.length === 0) return prior;
+	if (next.length >= prior.length) {
+		const priorFingerprint = JSON.stringify(prior);
+		const nextPrefix = JSON.stringify(next.slice(0, prior.length));
+		if (priorFingerprint === nextPrefix) return next;
+	}
+	return [...prior, ...next];
 }

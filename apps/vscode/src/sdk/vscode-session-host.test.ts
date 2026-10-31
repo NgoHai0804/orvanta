@@ -71,6 +71,17 @@ describe("VscodeSessionHost telemetry wiring", () => {
 		await host.dispose()
 	})
 
+	it("passes validated project storage roots into ClineCore creation", async () => {
+		const projectStorageRoots = {
+			workspaceRoot: "/workspace",
+			teamStoreDir: "/workspace/.orvanta/local/db",
+			sdkDbDir: "/workspace/.orvanta/local/sdk/db",
+			sdkArtifactDir: "/workspace/.orvanta/local/sdk/sessions",
+		}
+		await VscodeSessionHost.create({ mcpHub: {} as never, projectStorageRoots })
+		expect(mockClineCoreCreate).toHaveBeenCalledWith(expect.objectContaining({ backendMode: "local", projectStorageRoots }))
+	})
+
 	it("preserves remote-config telemetry but uses host consent for Git", async () => {
 		const telemetry = makeTelemetry()
 		const remoteTelemetry = makeTelemetry()

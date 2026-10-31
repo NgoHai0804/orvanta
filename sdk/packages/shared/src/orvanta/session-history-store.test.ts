@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -282,6 +282,33 @@ describe("Session History Store CRUD Operations", () => {
 			const reloaded = await getSession(workspaceRoot, "orv-session-01");
 			expect(reloaded.participants[0].transcript?.sdkSessionId).toBe("sdk-session-abc");
 			expect(reloaded.participants[0].transcript?.runIds).toEqual(["run_00001", "run_00002"]);
+
+			// Omitting sdkSessionId (or passing undefined) must not wipe the canonical mapping.
+			const sticky = await upsertParticipant(workspaceRoot, "orv-session-01", {
+				agentNumericId: 7,
+				agentSlugAtJoin: "reviewer",
+				displayNameAtJoin: "Reviewer",
+				roleAtJoin: "teammate",
+				taskId: "orv-task-01",
+				transcript: { sdkSessionId: undefined, runIds: ["run_00003"] },
+			});
+			expect(sticky.participants[0].transcript?.sdkSessionId).toBe("sdk-session-abc");
+			expect(sticky.participants[0].transcript?.runIds).toEqual([
+				"run_00001",
+				"run_00002",
+				"run_00003",
+			]);
+
+			await expect(
+				upsertParticipant(workspaceRoot, "orv-session-01", {
+					agentNumericId: 7,
+					agentSlugAtJoin: "reviewer",
+					displayNameAtJoin: "Reviewer",
+					roleAtJoin: "teammate",
+					taskId: "orv-task-01",
+					transcript: { sdkSessionId: "sdk-session-other", runIds: ["run_00004"] },
+				}),
+			).rejects.toThrow(/cannot remap/);
 		} finally {
 			await rm(workspaceRoot, { recursive: true, force: true });
 		}
@@ -657,18 +684,20 @@ describe("Phase 6 — Delete, Repair, Privacy, and Operational Stability", () =>
 			});
 
 			// Seed a corrupt session manifest
-			const corruptDir = join(workspaceRoot, ".orvanta", "history", "sessions", "sess-corrupt");
+			const corruptDir = join(workspaceRoot, ".orvanta", "local", "history", "sessions", "sess-corrupt");
 			await mkdir(corruptDir, { recursive: true });
 			await writeFile(join(corruptDir, "session.json"), "{ invalid json broken", "utf8");
 
 			// Seed a legacy file (which must remain 100% untouched)
 			const legacyDir = join(workspaceRoot, ".orvanta", "history");
+			await mkdir(legacyDir, { recursive: true });
 			const legacyPath = join(legacyDir, "sessions.json");
 			const legacyContent = JSON.stringify([{ id: "legacy-untouched", task: "Legacy Task" }]);
 			await writeFile(legacyPath, legacyContent, "utf8");
 
 			// Seed a stale temp file
-			await writeFile(join(legacyDir, "index.json.tmp-stale"), "temp", "utf8");
+			const canonicalHistoryDir = join(workspaceRoot, ".orvanta", "local", "history");
+			await writeFile(join(canonicalHistoryDir, "index.json.tmp-stale"), "temp", "utf8");
 
 			// Run diagnosis and repair
 			const report = await diagnoseAndRepairHistory(workspaceRoot);

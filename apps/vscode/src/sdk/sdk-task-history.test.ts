@@ -1,7 +1,8 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { SessionHistoryRecord } from "@cline/core"
+import { resolveSessionDataDir } from "@cline/shared/storage"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import getFolderSize from "get-folder-size"
@@ -13,6 +14,12 @@ import { sdkMessagesToClineMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { type CloudHistorySource, SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
 import type { VscodeSessionHost } from "./vscode-session-host"
+
+const storagePathsMock = vi.hoisted(() => ({
+	resolveSessionDataDir: vi.fn(),
+}))
+
+vi.mock("@cline/shared/storage", () => storagePathsMock)
 
 vi.mock("@/core/storage/disk", () => ({
 	GlobalFileNames: {
@@ -89,6 +96,7 @@ describe("SdkTaskHistory", () => {
 		legacyStateReaderMock.uiMessagesByDataDir.clear()
 		legacyStateReaderMock.apiConversationHistory = []
 		legacyStateReaderMock.apiConversationHistoryByDataDir.clear()
+		storagePathsMock.resolveSessionDataDir.mockReset()
 		vi.clearAllMocks()
 		vi.mocked(getFolderSize.loose).mockReset()
 	})
@@ -421,6 +429,60 @@ describe("SdkTaskHistory", () => {
 		})
 	})
 
+	it("fails closed on a project-scoped miss without consulting the unscoped host", async () => {
+		const workspaceRoot = await mkdtemp(join(tmpdir(), "cline-history-project-"))
+		const projectRoots = {
+			workspaceRoot,
+			teamStoreDir: join(workspaceRoot, ".orvanta", "local", "db"),
+			sdkDbDir: join(workspaceRoot, ".orvanta", "local", "sdk", "db"),
+			sdkArtifactDir: join(workspaceRoot, ".orvanta", "local", "sdk", "sessions"),
+		}
+		const scopedHost = { get: vi.fn().mockResolvedValue(undefined) }
+		const unscopedHost = { get: vi.fn().mockResolvedValue(makeSessionRecord("task-1")) }
+		const sessions = {
+			getActiveSession: vi.fn().mockReturnValue(undefined),
+			getHostForWorkspaceRoot: vi.fn().mockResolvedValue(scopedHost),
+			getUnscopedHost: vi.fn().mockResolvedValue(unscopedHost),
+			resolveStorageRootsForWorkspace: vi.fn().mockResolvedValue(projectRoots),
+		} as unknown as SdkSessionLifecycle
+		const history = new SdkTaskHistory({
+			mcpHub: {} as McpHub,
+			sessions,
+			getWorkspaceRoot: async () => workspaceRoot,
+		})
+
+		try {
+			await expect(history.findHistoryItem("task-1")).rejects.toThrow(
+				"Session not found in selected project workspace: task-1",
+			)
+			expect(sessions.getHostForWorkspaceRoot).toHaveBeenCalledWith(workspaceRoot)
+			expect(scopedHost.get).toHaveBeenCalledWith("task-1")
+			expect(unscopedHost.get).not.toHaveBeenCalled()
+		} finally {
+			await rm(workspaceRoot, { recursive: true, force: true })
+		}
+	})
+
+	it("propagates project storage initialization failures without trying shared storage", async () => {
+		const failure = new Error("project database unavailable")
+		const unscopedHost = { get: vi.fn().mockResolvedValue(makeSessionRecord("task-1")) }
+		const sessions = {
+			getActiveSession: vi.fn().mockReturnValue(undefined),
+			getHostForWorkspaceRoot: vi.fn(),
+			getUnscopedHost: vi.fn().mockResolvedValue(unscopedHost),
+			resolveStorageRootsForWorkspace: vi.fn().mockRejectedValue(failure),
+		} as unknown as SdkSessionLifecycle
+		const history = new SdkTaskHistory({
+			mcpHub: {} as McpHub,
+			sessions,
+			getWorkspaceRoot: async () => "/workspace",
+		})
+
+		await expect(history.findHistoryItem("task-1")).rejects.toBe(failure)
+		expect(sessions.getHostForWorkspaceRoot).not.toHaveBeenCalled()
+		expect(unscopedHost.get).not.toHaveBeenCalled()
+	})
+
 	it("backfills SDK task size from the session artifact directory", async () => {
 		vi.mocked(getFolderSize.loose).mockResolvedValue(4096 as never)
 		const { history, updateSession } = makeHistory([
@@ -490,6 +552,52 @@ describe("SdkTaskHistory", () => {
 		const { history } = makeHistory([])
 
 		await expect(history.findHistoryItem("missing-task")).resolves.toBeUndefined()
+	})
+
+	it("does not search the global SDK artifact directory when project roots are unavailable", async () => {
+		const globalSessionsDir = await mkdtemp(join(tmpdir(), "cline-global-sessions-"))
+		storagePathsMock.resolveSessionDataDir.mockReturnValue(globalSessionsDir)
+		await mkdir(join(globalSessionsDir, "task-1"), { recursive: true })
+		const { history } = makeHistory([makeSessionRecord("task-1", { messagesPath: undefined })])
+
+		try {
+			await expect(history.getTaskDirPath("task-1")).resolves.toBeUndefined()
+			expect(resolveSessionDataDir).not.toHaveBeenCalled()
+		} finally {
+			await rm(globalSessionsDir, { recursive: true, force: true })
+		}
+	})
+
+	it("does not enable the global SDK manifest fallback for project-scoped history", async () => {
+		const workspaceRoot = await mkdtemp(join(tmpdir(), "cline-history-project-list-"))
+		const projectRoots = {
+			workspaceRoot,
+			teamStoreDir: join(workspaceRoot, ".orvanta", "local", "db"),
+			sdkDbDir: join(workspaceRoot, ".orvanta", "local", "sdk", "db"),
+			sdkArtifactDir: join(workspaceRoot, ".orvanta", "local", "sdk", "sessions"),
+		}
+		const scopedHost = { listHistory: vi.fn().mockResolvedValue([]) }
+		const unscopedHost = { listHistory: vi.fn().mockResolvedValue([]) }
+		const sessions = {
+			getActiveSession: vi.fn().mockReturnValue(undefined),
+			getHostForWorkspaceRoot: vi.fn().mockResolvedValue(scopedHost),
+			getUnscopedHost: vi.fn().mockResolvedValue(unscopedHost),
+			resolveStorageRootsForWorkspace: vi.fn().mockResolvedValue(projectRoots),
+		} as unknown as SdkSessionLifecycle
+		const history = new SdkTaskHistory({
+			mcpHub: {} as McpHub,
+			sessions,
+			getWorkspaceRoot: async () => workspaceRoot,
+		})
+
+		try {
+			await expect(history.listHistory()).resolves.toEqual([])
+			expect(scopedHost.listHistory).toHaveBeenCalledWith(expect.objectContaining({ includeManifestFallback: false }))
+			expect(unscopedHost.listHistory).not.toHaveBeenCalled()
+			expect(resolveSessionDataDir).not.toHaveBeenCalled()
+		} finally {
+			await rm(workspaceRoot, { recursive: true, force: true })
+		}
 	})
 
 	it("updates SDK session metadata for task history changes", async () => {
@@ -1025,6 +1133,10 @@ function makeHistory(
 	} as unknown as VscodeSessionHost
 	const sessions = {
 		getActiveSession: () => ({ sdkHost: host }),
+		getActiveSessionHost: () => host,
+		getUnscopedHost: async () => host,
+		getHostForWorkspaceRoot: async () => host,
+		resolveStorageRootsForWorkspace: () => undefined,
 	} as unknown as SdkSessionLifecycle
 	const history = new SdkTaskHistory({
 		mcpHub: {} as McpHub,

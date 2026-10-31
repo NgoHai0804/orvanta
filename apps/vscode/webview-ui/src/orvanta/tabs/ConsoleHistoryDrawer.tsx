@@ -1,4 +1,5 @@
 import { StringArrayRequest } from "@shared/proto/cline/common"
+import type { OrvantaCeoSessionIndexItem } from "@shared/proto/cline/orvanta"
 import {
 	IconClock,
 	IconCoin,
@@ -10,14 +11,15 @@ import {
 	IconTrash,
 	IconX,
 } from "@tabler/icons-react"
-import React, { useContext, useMemo, useState } from "react"
+import React, { useContext, useEffect, useMemo, useState } from "react"
 import { ExtensionStateContext } from "@/context/ExtensionStateContext"
-import { TaskServiceClient } from "@/services/grpc-client"
+import { OrvantaServiceClient, TaskServiceClient } from "@/services/grpc-client"
 
 export interface ConsoleHistoryDrawerProps {
 	isOpen: boolean
 	onClose: () => void
 	onSelectTask: (taskId: string, title?: string, agentId?: string, sessionAgentTasks?: Record<string, string>) => void
+	onSelectCeoSession?: (session: OrvantaCeoSessionIndexItem) => void
 	onDeleteTask?: (taskId: string) => void
 	currentTaskId?: string
 	companyAgents?: Array<{ id: string; displayName?: string; role?: string }>
@@ -42,6 +44,7 @@ export const ConsoleHistoryDrawer: React.FC<ConsoleHistoryDrawerProps> = ({
 	isOpen,
 	onClose,
 	onSelectTask,
+	onSelectCeoSession,
 	onDeleteTask,
 	currentTaskId,
 	companyAgents = [],
@@ -51,6 +54,32 @@ export const ConsoleHistoryDrawer: React.FC<ConsoleHistoryDrawerProps> = ({
 	const [searchQuery, setSearchQuery] = useState("")
 	const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 	const [deletedIds, setDeletedIds] = useState<Set<string>>(() => new Set())
+	const [ceoSessions, setCeoSessions] = useState<OrvantaCeoSessionIndexItem[]>([])
+	const [ceoListError, setCeoListError] = useState<string | undefined>()
+
+	useEffect(() => {
+		if (!isOpen) return
+		let cancelled = false
+		OrvantaServiceClient.listCeoSessions({})
+			.then((resp) => {
+				if (cancelled) return
+				if (!resp.success) {
+					setCeoListError(resp.error || resp.status || "Không đọc được index CEO session")
+					setCeoSessions([])
+					return
+				}
+				setCeoListError(undefined)
+				setCeoSessions(resp.sessions ?? [])
+			})
+			.catch((error) => {
+				if (cancelled) return
+				setCeoListError(error instanceof Error ? error.message : String(error))
+				setCeoSessions([])
+			})
+		return () => {
+			cancelled = true
+		}
+	}, [isOpen])
 
 	// Đóng drawer khi nhấn Escape
 	React.useEffect(() => {
@@ -123,7 +152,7 @@ export const ConsoleHistoryDrawer: React.FC<ConsoleHistoryDrawerProps> = ({
 					</div>
 					<div className="flex items-center gap-1 text-[10px] text-[var(--vscode-descriptionForeground)] mt-0.5">
 						<IconFolder size={11} />
-						<span>.orvanta/history</span>
+						<span>.orvanta/local/history</span>
 					</div>
 				</div>
 				<button
@@ -167,24 +196,67 @@ export const ConsoleHistoryDrawer: React.FC<ConsoleHistoryDrawerProps> = ({
 
 			{/* Task List Container */}
 			<div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-				{filteredTasks.length === 0 ? (
+				{(ceoSessions.length > 0 || ceoListError) && (
+					<div className="mb-2 space-y-1.5" data-testid="ceo-session-history-list">
+						<div className="px-0.5 text-[10px] font-medium text-[var(--vscode-descriptionForeground)]">
+							CEO sessions (index)
+						</div>
+						{ceoListError && (
+							<div className="rounded border border-rose-500/40 bg-rose-500/10 px-2 py-1.5 text-[10px] text-rose-300">
+								{ceoListError}
+							</div>
+						)}
+						{ceoSessions
+							.filter((s) => {
+								const q = searchQuery.trim().toLowerCase()
+								if (!q) return true
+								return (
+									s.title.toLowerCase().includes(q) ||
+									s.sessionId.toLowerCase().includes(q) ||
+									s.participants.some(
+										(p) => p.agentSlug.toLowerCase().includes(q) || p.displayName.toLowerCase().includes(q),
+									)
+								)
+							})
+							.map((session) => (
+								<button
+									className="w-full text-left p-2.5 rounded border border-[var(--vscode-sideBar-border,rgba(255,255,255,0.06))] bg-[var(--vscode-sideBarSectionHeader-background,rgba(255,255,255,0.01))] hover:border-[var(--vscode-focusBorder,#007fd4)] transition-all"
+									key={session.sessionId}
+									onClick={() => onSelectCeoSession?.(session)}
+									type="button">
+									<div className="font-medium text-xs line-clamp-2">{session.title}</div>
+									<div className="mt-1 flex flex-wrap gap-1">
+										{session.participants.map((p) => (
+											<span
+												className="rounded bg-[var(--vscode-badge-background)] px-1 py-0.5 text-[9px] text-[var(--vscode-badge-foreground)]"
+												key={`${session.sessionId}-${p.agentNumericId}`}>
+												{p.displayName || p.agentSlug}
+											</span>
+										))}
+									</div>
+									<div className="mt-1 text-[10px] text-[var(--vscode-descriptionForeground)]">
+										{session.status} · {session.sessionId}
+									</div>
+								</button>
+							))}
+					</div>
+				)}
+				{filteredTasks.length === 0 && ceoSessions.length === 0 ? (
 					<div className="flex flex-col items-center justify-center p-8 text-center text-xs text-[var(--vscode-descriptionForeground)]">
 						<IconMessage className="opacity-30 mb-2" size={32} />
 						<span>
 							{searchQuery ? "Không tìm thấy phiên làm việc phù hợp" : "Chưa có phiên làm việc nào được lưu"}
 						</span>
 					</div>
-				) : (
+				) : filteredTasks.length === 0 ? null : (
 					filteredTasks.map((task) => {
 						const isCurrent = task.id === currentTaskId
 						const isConfirmingDelete = confirmDeleteId === task.id
 						const totalTokens = (task.tokensIn || 0) + (task.tokensOut || 0)
 						const displayTitle = task.task || "Phiên hội thoại không tên"
 
-						const taskAgents =
-							task.agents && task.agents.length > 0
-								? task.agents
-								: companyAgents.filter((ca) => task.task?.toLowerCase().includes(ca.id.toLowerCase()))
+						// Participants only — never invent roster agents from prompt text.
+						const taskAgents = task.agents && task.agents.length > 0 ? task.agents : []
 
 						return (
 							<div

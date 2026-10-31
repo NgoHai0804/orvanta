@@ -37,6 +37,10 @@ export type DelegatedAgentConnectionConfig = Pick<
 export interface DelegatedAgentRuntimeConfig
 	extends DelegatedAgentConnectionConfig {
 	cwd?: string;
+	/** Canonical project workspace for Orvanta pause/history checks. */
+	workspaceRoot?: string;
+	/** CEO session identity; never inferred from the SDK session id. */
+	orvantaSessionId?: string;
 	providerId: string;
 	clinePlatform?: string;
 	clineIdeName?: string;

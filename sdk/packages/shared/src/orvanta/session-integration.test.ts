@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -189,7 +189,7 @@ describe("Phase 7 — End-to-End Session Integration & Verification", () => {
 			).rejects.toThrow("belongs to company");
 
 			// Untrusted / corrupt JSON preservation (never overwrite broken JSON)
-			const corruptDir = join(workspaceRoot, WORKSPACE_DIRNAME, "history", "sessions", "sess-broken");
+			const corruptDir = join(workspaceRoot, WORKSPACE_DIRNAME, "local", "history", "sessions", "sess-broken");
 			await mkdir(corruptDir, { recursive: true });
 			const corruptPath = join(corruptDir, "session.json");
 			const corruptData = "{ broken json corrupt!@#$";

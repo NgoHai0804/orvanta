@@ -5,7 +5,12 @@ import {
 	type TeamRuntimeState,
 	type TeamTeammateSpec,
 } from "@cline/shared";
-import { loadSqliteDb, nowIso, type SqliteDb } from "@cline/shared/db";
+import {
+	backupSqliteDatabaseAfterClose,
+	loadSqliteDb,
+	nowIso,
+	type SqliteDb,
+} from "@cline/shared/db";
 import { resolveDbDataDir } from "@cline/shared/storage";
 import type {
 	TeamEvent,
@@ -27,6 +32,8 @@ function defaultTeamDir(): string {
 
 export interface SqliteTeamStoreOptions {
 	teamDir?: string;
+	/** Fail rather than changing persistence format for an explicit project-owned directory. */
+	failClosed?: boolean;
 }
 
 export interface TeamRuntimeLoadResult {
@@ -199,6 +206,12 @@ export class SqliteTeamStore implements TeamStore {
 		this.db = undefined;
 	}
 
+	backupTo(destinationPath: string): void {
+		const db = this.getRawDb();
+		backupSqliteDatabaseAfterClose(db, this.dbPath(), destinationPath);
+		this.db = undefined;
+	}
+
 	private ensureTeamDir(): string {
 		if (!existsSync(this.teamDirPath)) {
 			mkdirSync(this.teamDirPath, { recursive: true });
@@ -215,7 +228,12 @@ export class SqliteTeamStore implements TeamStore {
 			return this.db;
 		}
 		const db = loadSqliteDb(this.dbPath());
-		this.ensureSchema(db);
+		try {
+			this.ensureSchema(db);
+		} catch (error) {
+			db.close?.();
+			throw error;
+		}
 		this.db = db;
 		return db;
 	}
@@ -916,6 +934,26 @@ export class SqliteTeamStore implements TeamStore {
 			}
 		});
 		return rows.map((row) => str(row.run_id));
+	}
+
+	deleteTeam(teamName: string): boolean {
+		const safeTeamName = sanitizeTeamName(teamName);
+		const db = this.getRawDb();
+		let existed = false;
+		this.withTransaction(() => {
+			for (const table of [
+				...ENTITY_TABLES,
+				"team_members",
+				"team_runtime_snapshot",
+				"team_events",
+			]) {
+				const result = db
+					.prepare(`DELETE FROM ${table} WHERE team_name = ?`)
+					.run(safeTeamName);
+				if ((result.changes ?? 0) > 0) existed = true;
+			}
+		});
+		return existed;
 	}
 
 	/** Legacy single-event path: telemetry is dropped, payloads compacted. */

@@ -87,17 +87,32 @@ describe("WarRoomView", () => {
 		expect(screen.getByText("▸ read_file")).toBeInTheDocument()
 	})
 
-	it("pause button calls onPauseToggle", () => {
-		const onPauseToggle = vi.fn()
-		render(<WarRoomView {...defaultProps} onPauseToggle={onPauseToggle} snapshot={makeSnapshot()} />)
-		fireEvent.click(screen.getByText(/Pause/i))
-		expect(onPauseToggle).toHaveBeenCalledWith(true)
+	it("does not render a UI-only Pause control", () => {
+		render(<WarRoomView {...defaultProps} snapshot={makeSnapshot()} />)
+		expect(screen.queryByText(/^Pause$/i)).not.toBeInTheDocument()
+		expect(screen.queryByText(/^Resume$/i)).not.toBeInTheDocument()
 	})
 
-	it("shows paused indicator when paused=true", () => {
-		render(<WarRoomView {...defaultProps} paused={true} snapshot={makeSnapshot()} />)
-		expect(screen.getByText(/Paused/i)).toBeInTheDocument()
-		expect(screen.getByText(/Resume/i)).toBeInTheDocument()
+	it("re-resolves expanded detail from the latest snapshot by Agent ID", () => {
+		const first = makeSnapshot()
+		const { rerender } = render(<WarRoomView {...defaultProps} snapshot={first} />)
+		fireEvent.click(screen.getAllByText("Mo")[0])
+		const dialog = screen.getByRole("dialog")
+		expect(dialog).toBeInTheDocument()
+		expect(dialog).toHaveTextContent("Build feature X")
+		rerender(
+			<WarRoomView
+				{...defaultProps}
+				snapshot={makeSnapshot({
+					cards: first.cards.map((card) =>
+						card.id === "coordinator" ? { ...card, taskTitle: "Updated live task", status: "running" } : card,
+					),
+				})}
+			/>,
+		)
+		const liveDialog = screen.getByRole("dialog")
+		expect(liveDialog).toHaveTextContent("Updated live task")
+		expect(liveDialog).not.toHaveTextContent("Build feature X")
 	})
 
 	it("filter buttons call onFilterChange", () => {

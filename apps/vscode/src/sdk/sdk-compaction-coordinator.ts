@@ -53,7 +53,7 @@ export interface SdkCompactionCoordinatorOptions {
 	sessionConfigBuilder: SdkSessionConfigBuilder
 	/** The task currently shown in the webview (may have no active session). */
 	getDisplayedTaskId: () => string | undefined
-	createTempSessionHost: () => Promise<SdkSessionHost>
+	createTempSessionHost: (workspaceRoot?: string) => Promise<SdkSessionHost>
 	loadInitialMessages: (sessionHost: SdkSessionHost, taskId: string) => Promise<unknown[] | undefined>
 	getWorkspaceRoot: () => Promise<string>
 	postStateToWebview: () => Promise<void>
@@ -174,7 +174,7 @@ export class SdkCompactionCoordinator {
 			// down this one. Enforce the same stop-before-start as startNewSession.
 			await this.options.sessions.waitForPendingStop(taskId)
 
-			const sdkHost = await this.options.createTempSessionHost()
+			const sdkHost = await this.options.createTempSessionHost(resumeStart.config.cwd)
 			let sessionId: string | undefined
 			try {
 				const startResult = await sdkHost.start({
@@ -187,13 +187,7 @@ export class SdkCompactionCoordinator {
 				// isolated host owns this session, while UI emitters fence stale rows.
 				await this.runCompaction(sdkHost, sessionId)
 			} finally {
-				try {
-					if (sessionId) {
-						await sdkHost.stop(sessionId)
-					}
-				} finally {
-					await sdkHost.dispose("compactDisplayedTask")
-				}
+				if (sessionId) await sdkHost.stop(sessionId)
 			}
 		})
 	}

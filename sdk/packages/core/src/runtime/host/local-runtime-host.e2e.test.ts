@@ -11,9 +11,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type * as LlmsProviders from "@cline/llms";
 import type { AgentResult } from "@cline/shared";
+import {
+	resolveProjectStorageRoots,
+	validateProjectStorageRoots,
+} from "@cline/shared/orvanta";
 import { setClineDir, setHomeDir } from "@cline/shared/storage";
 import { nanoid } from "nanoid";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ClineCore } from "../../ClineCore";
 import { deriveTitleFromPrompt } from "../../services/session-data";
 import type { SessionManifest } from "../../session/models/session-manifest";
 import type { SessionRow } from "../../session/models/session-row";
@@ -22,6 +27,72 @@ import type { SessionSource, SessionStatus } from "../../types/common";
 import { listSessionHistory } from "./history";
 import { LocalRuntimeHost as RuntimeHostUnderTest } from "./local-runtime-host";
 import { splitCoreSessionConfig } from "./runtime-host";
+
+const PROJECT_HISTORY_SESSION_ID = "overlapping-project-session";
+const PROJECT_HISTORY_MODEL_ID = "local-history-test-model";
+
+type ChatCompletionRequest = {
+	messages?: Array<{ role?: string; content?: unknown }>;
+};
+
+function textFromContent(content: unknown): string {
+	if (typeof content === "string") {
+		return content;
+	}
+	if (!Array.isArray(content)) {
+		return "";
+	}
+	return content
+		.filter(
+			(block): block is { type: "text"; text: string } =>
+				typeof block === "object" &&
+				block !== null &&
+				"type" in block &&
+				block.type === "text" &&
+				"text" in block &&
+				typeof block.text === "string",
+		)
+		.map((block) => block.text)
+		.join("");
+}
+
+function createProjectHistoryFetch() {
+	return vi.fn<typeof fetch>(async (input, init) => {
+		const request = new Request(input, init);
+		const payload = (await request.clone().json()) as ChatCompletionRequest;
+		const latestUserMessage = [...(payload.messages ?? [])]
+			.reverse()
+			.find((message) => message.role === "user");
+		const prompt = textFromContent(latestUserMessage?.content);
+		if (!prompt) {
+			throw new Error(
+				"Expected a user prompt in the OpenAI-compatible request",
+			);
+		}
+
+		const chunk = (
+			delta: Record<string, unknown>,
+			finishReason: string | null,
+		) => ({
+			id: "chatcmpl-project-history-test",
+			object: "chat.completion.chunk",
+			created: 0,
+			model: PROJECT_HISTORY_MODEL_ID,
+			choices: [{ index: 0, delta, finish_reason: finishReason }],
+		});
+		const events = [
+			`data: ${JSON.stringify(chunk({ role: "assistant" }, null))}`,
+			`data: ${JSON.stringify(chunk({ content: `persisted reply for ${prompt}` }, null))}`,
+			`data: ${JSON.stringify(chunk({}, "stop"))}`,
+			"data: [DONE]",
+			"",
+		].join("\n\n");
+		return new Response(events, {
+			status: 200,
+			headers: { "content-type": "text/event-stream; charset=utf-8" },
+		});
+	});
+}
 
 function nowIso(): string {
 	return new Date().toISOString();
@@ -298,6 +369,160 @@ describe("LocalRuntimeHost e2e", () => {
 			rmSync(dir, { recursive: true, force: true });
 		}
 		rmSync(isolatedHomeDir, { recursive: true, force: true });
+	});
+
+	it("isolates task history for the same session id across reopened projects", async () => {
+		const alphaWorkspace = mkdtempSync(join(tmpdir(), "core-project-alpha-"));
+		const betaWorkspace = mkdtempSync(join(tmpdir(), "core-project-beta-"));
+		tempDirs.push(alphaWorkspace, betaWorkspace);
+		const alphaRoots = resolveProjectStorageRoots(alphaWorkspace);
+		const betaRoots = resolveProjectStorageRoots(betaWorkspace);
+		const alphaFetch = createProjectHistoryFetch();
+		const betaFetch = createProjectHistoryFetch();
+		const cores: ClineCore[] = [];
+
+		const createCore = async (
+			projectStorageRoots: ReturnType<typeof resolveProjectStorageRoots>,
+			fetch: typeof globalThis.fetch,
+		) => {
+			const core = await ClineCore.create({
+				backendMode: "local",
+				clientName: "project-history-e2e",
+				distinctId: "project-history-e2e-machine",
+				projectStorageRoots,
+				fetch,
+			});
+			cores.push(core);
+			return core;
+		};
+
+		const createSession = async (
+			core: ClineCore,
+			workspaceRoot: string,
+			prompt: string,
+		) =>
+			await core.start({
+				config: {
+					providerId: "openai-compatible",
+					modelId: PROJECT_HISTORY_MODEL_ID,
+					baseUrl: "http://project-history.invalid/v1",
+					knownModels: {
+						[PROJECT_HISTORY_MODEL_ID]: {
+							id: PROJECT_HISTORY_MODEL_ID,
+							name: PROJECT_HISTORY_MODEL_ID,
+							contextWindow: 4096,
+							maxTokens: 256,
+							capabilities: ["streaming"],
+						},
+					},
+					sessionId: PROJECT_HISTORY_SESSION_ID,
+					cwd: workspaceRoot,
+					workspaceRoot,
+					systemPrompt: "Reply with the deterministic result.",
+					mode: "act",
+					enableTools: false,
+					enableSpawnAgent: false,
+					enableAgentTeams: false,
+					checkpoint: { enabled: false },
+				},
+				prompt,
+				interactive: true,
+				localRuntime: { configExtensions: [] },
+			});
+
+		const disposeCore = async (core: ClineCore) => {
+			await core.dispose();
+			const index = cores.indexOf(core);
+			if (index >= 0) cores.splice(index, 1);
+		};
+
+		try {
+			const alphaCore = await createCore(alphaRoots, alphaFetch);
+			const betaCore = await createCore(betaRoots, betaFetch);
+			const alphaPrompt = "alpha-only prompt";
+			const betaPrompt = "beta-only prompt";
+			const alphaStarted = await createSession(
+				alphaCore,
+				alphaWorkspace,
+				alphaPrompt,
+			);
+			const betaStarted = await createSession(
+				betaCore,
+				betaWorkspace,
+				betaPrompt,
+			);
+
+			expect(alphaStarted.sessionId).toBe(PROJECT_HISTORY_SESSION_ID);
+			expect(betaStarted.sessionId).toBe(PROJECT_HISTORY_SESSION_ID);
+			expect(alphaStarted.manifest.workspace_root).toBe(alphaWorkspace);
+			expect(betaStarted.manifest.workspace_root).toBe(betaWorkspace);
+			expect(alphaStarted.result?.text).toContain(
+				`persisted reply for ${alphaPrompt}`,
+			);
+			expect(betaStarted.result?.text).toContain(
+				`persisted reply for ${betaPrompt}`,
+			);
+			expect(alphaFetch).toHaveBeenCalledTimes(1);
+			expect(betaFetch).toHaveBeenCalledTimes(1);
+
+			await Promise.all([
+				alphaCore.stop(PROJECT_HISTORY_SESSION_ID),
+				betaCore.stop(PROJECT_HISTORY_SESSION_ID),
+			]);
+			await Promise.all([disposeCore(alphaCore), disposeCore(betaCore)]);
+
+			const reopenedAlpha = await createCore(alphaRoots, alphaFetch);
+			const reopenedBeta = await createCore(betaRoots, betaFetch);
+			const [alphaHistory, betaHistory] = await Promise.all([
+				reopenedAlpha.listHistory({ limit: 10 }),
+				reopenedBeta.listHistory({ limit: 10 }),
+			]);
+			expect(alphaHistory.map((session) => session.sessionId)).toEqual([
+				PROJECT_HISTORY_SESSION_ID,
+			]);
+			expect(betaHistory.map((session) => session.sessionId)).toEqual([
+				PROJECT_HISTORY_SESSION_ID,
+			]);
+			expect(alphaHistory[0]?.workspaceRoot).toBe(alphaWorkspace);
+			expect(betaHistory[0]?.workspaceRoot).toBe(betaWorkspace);
+
+			const [alphaMessages, betaMessages] = await Promise.all([
+				reopenedAlpha.readMessages(PROJECT_HISTORY_SESSION_ID),
+				reopenedBeta.readMessages(PROJECT_HISTORY_SESSION_ID),
+			]);
+			const alphaTranscript = JSON.stringify(alphaMessages);
+			const betaTranscript = JSON.stringify(betaMessages);
+			expect(alphaTranscript).toContain(alphaPrompt);
+			expect(alphaTranscript).toContain(`persisted reply for ${alphaPrompt}`);
+			expect(alphaTranscript).not.toContain(betaPrompt);
+			expect(betaTranscript).toContain(betaPrompt);
+			expect(betaTranscript).toContain(`persisted reply for ${betaPrompt}`);
+			expect(betaTranscript).not.toContain(alphaPrompt);
+			expect(alphaStarted.messagesPath).toContain(alphaRoots.sdkArtifactDir);
+			expect(betaStarted.messagesPath).toContain(betaRoots.sdkArtifactDir);
+			expect(alphaRoots.sdkDbDir).not.toBe(betaRoots.sdkDbDir);
+			expect(alphaStarted.messagesPath.startsWith(alphaRoots.sdkArtifactDir)).toBe(true);
+			expect(betaStarted.messagesPath.startsWith(betaRoots.sdkArtifactDir)).toBe(true);
+			expect(alphaStarted.messagesPath.includes(betaWorkspace)).toBe(false);
+			expect(betaStarted.messagesPath.includes(alphaWorkspace)).toBe(false);
+			const clineDir = process.env.CLINE_DIR ?? "";
+			expect(alphaStarted.messagesPath.includes(clineDir)).toBe(false);
+			expect(betaStarted.messagesPath.includes(clineDir)).toBe(false);
+			expect(existsSync(join(alphaRoots.sdkArtifactDir, PROJECT_HISTORY_SESSION_ID))).toBe(
+				true,
+			);
+			expect(existsSync(join(betaRoots.sdkArtifactDir, PROJECT_HISTORY_SESSION_ID))).toBe(
+				true,
+			);
+			expect(
+				existsSync(join(clineDir, "sessions", PROJECT_HISTORY_SESSION_ID)),
+			).toBe(false);
+			expect(() =>
+				validateProjectStorageRoots(alphaRoots, betaWorkspace),
+			).toThrowError(/different workspace/);
+		} finally {
+			await Promise.allSettled(cores.map((core) => core.dispose()));
+		}
 	});
 
 	it("runs an interactive lifecycle with real artifact files", async () => {

@@ -1,5 +1,5 @@
 import type { TeamEvent } from "@cline/core"
-import { TeamMessageType } from "@cline/shared"
+import { TeamMessageType, type TeamRuntimeState } from "@cline/shared"
 import type { OrvantaAgentCard, OrvantaCardBufferLine, OrvantaRosterAgent } from "@shared/proto/cline/orvanta"
 
 const BUFFER_MAX = 20
@@ -69,7 +69,9 @@ export class WarRoomTracker {
 		let changed = false
 		const knownIds = new Set(agents.map((a) => a.id))
 		for (const id of this.cards.keys()) {
-			if (!knownIds.has(id)) {
+			const card = this.cards.get(id)
+			// Keep ephemeral / in-flight cards that TeamStore may still reference.
+			if (!knownIds.has(id) && card && !card.isEphemeral && card.status === "idle") {
 				this.cards.delete(id)
 				changed = true
 			}
@@ -98,6 +100,93 @@ export class WarRoomTracker {
 			}
 		}
 		if (changed) this.notify()
+	}
+
+	/**
+	 * Authoritative restart hydrate from TeamStore runtime snapshot.
+	 * Does not wipe live cards; overlays member/run/task status and recent mission lines.
+	 */
+	hydrateFromTeamRuntime(state: TeamRuntimeState): void {
+		let changed = false
+		const activeRunByAgent = new Map<string, (typeof state.runs)[number]>()
+		for (const run of state.runs) {
+			if (run.status === "running" || run.status === "queued") {
+				const prev = activeRunByAgent.get(run.agentId)
+				if (!prev || run.status === "running") activeRunByAgent.set(run.agentId, run)
+			}
+		}
+		const taskTitleByAgent = new Map<string, string>()
+		for (const task of state.tasks) {
+			if (task.assignee && (task.status === "in_progress" || task.status === "pending" || task.status === "blocked")) {
+				taskTitleByAgent.set(task.assignee, task.title)
+			}
+		}
+
+		for (const member of state.members) {
+			let card = this.cards.get(member.agentId)
+			if (!card) {
+				card = {
+					id: member.agentId,
+					displayName: member.agentId,
+					role: member.role,
+					status: "idle",
+					taskTitle: "",
+					isEphemeral: false,
+					startedAt: undefined,
+					buffer: [],
+					inputTokens: 0,
+					outputTokens: 0,
+					cost: 0,
+				}
+				this.cards.set(member.agentId, card)
+				changed = true
+			}
+			const run = activeRunByAgent.get(member.agentId)
+			const nextStatus: CardStatus = run
+				? run.status === "queued"
+					? "queued"
+					: "running"
+				: member.status === "stopped"
+					? "stopped"
+					: member.status === "running"
+						? "running"
+						: "idle"
+			const nextTitle = taskTitleByAgent.get(member.agentId) || run?.message?.slice(0, 120) || card.taskTitle
+			if (card.status !== nextStatus) {
+				card.status = nextStatus
+				card.startedAt = nextStatus === "running" ? Date.now() : undefined
+				changed = true
+			}
+			if (nextTitle && card.taskTitle !== nextTitle) {
+				card.taskTitle = nextTitle
+				changed = true
+			}
+		}
+
+		// Seed short buffers from recent mission log when card buffer is empty.
+		const recent = [...state.missionLog].slice(-BUFFER_MAX)
+		for (const entry of recent) {
+			const card = this.cards.get(entry.agentId)
+			if (!card || card.buffer.length > 0) continue
+			const kind: OrvantaCardBufferLine["kind"] =
+				entry.kind === "error" ? "error" : entry.kind === "done" ? "progress" : "progress"
+			const line: OrvantaCardBufferLine = { kind, text: trunc(entry.summary) }
+			card.buffer = pushLine(card.buffer, line)
+			this.pushToTranscript(entry.agentId, line)
+			changed = true
+		}
+
+		if (changed) {
+			this.ensureTick()
+			this.notify()
+		}
+	}
+
+	/** Agents currently draining (running/queued) — used by pause ack. */
+	listActiveAgentIds(): string[] {
+		return Array.from(this.cards.values())
+			.filter((c) => c.status === "running" || c.status === "queued")
+			.map((c) => c.id)
 	}
 	handleTeamEvent(event: TeamEvent): void {
 		// biome-ignore lint/suspicious/noExplicitAny: event union from core has loose payload fields

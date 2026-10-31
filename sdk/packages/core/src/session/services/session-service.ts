@@ -322,6 +322,10 @@ export class CoreSessionService extends UnifiedSessionPersistenceService {
 			],
 		);
 	}
+
+	close(): void {
+		this.store.close();
+	}
 }
 
 export type {

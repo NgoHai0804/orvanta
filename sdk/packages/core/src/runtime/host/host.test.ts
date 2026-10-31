@@ -1,7 +1,12 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { resolveProjectStorageRoots } from "@cline/shared/orvanta";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FileSessionService } from "../../session/services/file-session-service";
 
 const sqliteInitMock = vi.hoisted(() => vi.fn());
+const sqliteStoreOptionsMock = vi.hoisted(() => vi.fn());
 const ensureCompatibleLocalHubUrlMock = vi.hoisted(() => vi.fn());
 const resolveCompatibleLocalHubUrlMock = vi.hoisted(() => vi.fn());
 const hubConnectMock = vi.hoisted(() => vi.fn());
@@ -38,8 +43,20 @@ vi.mock("../../hub/daemon", async () => {
 
 vi.mock("../../services/storage/sqlite-session-store", () => ({
 	SqliteSessionStore: class {
+		constructor(options?: unknown) {
+			sqliteStoreOptionsMock(options);
+		}
 		init(): void {
 			sqliteInitMock();
+		}
+		queryAll(): unknown[] {
+			return [];
+		}
+		queryOne(): undefined {
+			return undefined;
+		}
+		run(): { changes: number } {
+			return { changes: 0 };
 		}
 	},
 }));
@@ -50,9 +67,16 @@ describe("runtime host resolution", () => {
 		log: vi.fn(),
 		error: vi.fn(),
 	};
+	const temporaryRoots: string[] = [];
+	const createRoots = () => {
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "cline-project-storage-"));
+		temporaryRoots.push(workspaceRoot);
+		return resolveProjectStorageRoots(workspaceRoot);
+	};
 
 	afterEach(() => {
 		sqliteInitMock.mockReset();
+		sqliteStoreOptionsMock.mockReset();
 		ensureCompatibleLocalHubUrlMock.mockReset();
 		resolveCompatibleLocalHubUrlMock.mockReset();
 		hubConnectMock.mockReset();
@@ -60,22 +84,30 @@ describe("runtime host resolution", () => {
 		logger.debug.mockReset();
 		logger.log.mockReset();
 		logger.error.mockReset();
+		for (const root of temporaryRoots.splice(0)) {
+			rmSync(root, { recursive: true, force: true });
+		}
 		delete process.env.CLINE_SESSION_BACKEND_MODE;
 		delete process.env.CLINE_VCR;
 		vi.resetModules();
 	});
 
-	it("falls back to file session storage when sqlite initialization fails", async () => {
+	it("fails explicitly when project-owned sqlite initialization fails", async () => {
 		sqliteInitMock.mockImplementation(() => {
 			throw new Error("sqlite unavailable");
 		});
 		const { resolveSessionBackend } = await import("./host");
+		const projectStorageRoots = createRoots();
 
-		const backend = await resolveSessionBackend({ backendMode: "local" });
-		expect(backend.constructor.name).toBe("FileSessionService");
+		await expect(
+			resolveSessionBackend({ backendMode: "local", projectStorageRoots }),
+		).rejects.toThrow("sqlite unavailable");
+		expect(sqliteStoreOptionsMock).toHaveBeenCalledWith({
+			sessionsDir: projectStorageRoots.sdkDbDir,
+		});
 	});
 
-	it("silently falls back to file session storage when node:sqlite is unavailable", async () => {
+	it("retains the legacy file fallback for unscoped storage when SQLite is unavailable", async () => {
 		sqliteInitMock.mockImplementation(() => {
 			const error = new Error(
 				"No such built-in module: node:sqlite",
@@ -98,6 +130,59 @@ describe("runtime host resolution", () => {
 		const backend = await resolveSessionBackend({});
 
 		expect(backend).not.toBeInstanceOf(FileSessionService);
+	});
+
+	it("creates separate persistence backends for different project roots", async () => {
+		const { resolveSessionBackend } = await import("./host");
+		const firstRoots = createRoots();
+		const secondRoots = createRoots();
+
+		const first = await resolveSessionBackend({
+			backendMode: "local",
+			projectStorageRoots: firstRoots,
+		});
+		const second = await resolveSessionBackend({
+			backendMode: "local",
+			projectStorageRoots: secondRoots,
+		});
+
+		expect(first).not.toBe(second);
+		expect(first.constructor.name).toBe("CoreSessionService");
+		expect(second.constructor.name).toBe("CoreSessionService");
+		expect(first.ensureSessionsDir()).toBe(firstRoots.sdkArtifactDir);
+		expect(second.ensureSessionsDir()).toBe(secondRoots.sdkArtifactDir);
+		expect(sqliteStoreOptionsMock).toHaveBeenNthCalledWith(1, {
+			sessionsDir: firstRoots.sdkDbDir,
+		});
+		expect(sqliteStoreOptionsMock).toHaveBeenNthCalledWith(2, {
+			sessionsDir: secondRoots.sdkDbDir,
+		});
+	});
+
+	it("does not allow environment-selected runtime modes to redirect project persistence", async () => {
+		process.env.CLINE_SESSION_BACKEND_MODE = "hub";
+		const { createRuntimeHost } = await import("./host");
+		const roots = createRoots();
+
+		const host = await createRuntimeHost({ projectStorageRoots: roots });
+
+		expect(host.constructor.name).toBe("LocalRuntimeHost");
+		expect(ensureCompatibleLocalHubUrlMock).not.toHaveBeenCalled();
+		expect(resolveCompatibleLocalHubUrlMock).not.toHaveBeenCalled();
+	});
+
+	it("rejects a supplied project backend that does not match its storage identity", async () => {
+		const { resolveSessionBackend } = await import("./host");
+		const roots = createRoots();
+		await expect(
+			resolveSessionBackend({
+				backendMode: "local",
+				projectStorageRoots: {
+					...roots,
+					workspaceRoot: join(roots.workspaceRoot, "child"),
+				},
+			}),
+		).rejects.toMatchObject({ code: "INVALID_WORKSPACE_ROOT" });
 	});
 
 	it("forces local backend when vcr is enabled", async () => {

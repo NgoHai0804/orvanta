@@ -10,10 +10,9 @@ import {
 	loadWorkspaceTaskMessages,
 	parseUserInputMode,
 	recordTaskTurnEvent,
-	saveWorkspaceSession,
 	saveWorkspaceTaskMessages,
 } from "@cline/shared"
-import { resolveSessionDataDir } from "@cline/shared/storage"
+import { type ProjectStorageRoots, validateProjectStorageRoots } from "@cline/shared/orvanta"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import getFolderSize from "get-folder-size"
@@ -30,7 +29,7 @@ import {
 import type { MessageIdMinter } from "./message-id-minter"
 import { sdkMessagesToClineMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
-import type { VscodeSessionHost } from "./vscode-session-host"
+import type { SdkSessionHost } from "./session-host"
 
 export interface TaskUsage {
 	tokensIn: number
@@ -66,6 +65,8 @@ export interface SdkTaskHistoryOptions {
 	 * and no legacy files are modified or migrated.
 	 */
 	enableLegacyCutover?: boolean
+	getWorkspaceRoot?: () => Promise<string>
+	getActiveSessionHost?: () => SdkSessionHost | undefined
 }
 
 export interface CloudHistorySource {
@@ -115,6 +116,15 @@ function compareSessionHistoryRecordsByRecencyDesc(a: SessionHistoryRecord, b: S
 		dateStringToTimestamp(b.updatedAt ?? b.endedAt ?? b.startedAt) -
 		dateStringToTimestamp(a.updatedAt ?? a.endedAt ?? a.startedAt)
 	)
+}
+
+function projectRootsMatch(sessionWorkspace: string | undefined, roots: ProjectStorageRoots | undefined): boolean {
+	if (!sessionWorkspace || !roots) return false
+	try {
+		return validateProjectStorageRoots(roots, sessionWorkspace).workspaceRoot === roots.workspaceRoot
+	} catch {
+		return false
+	}
 }
 
 export function historyItemToSessionMetadata(item: HistoryItem, fallbackModelId?: string): Record<string, unknown> {
@@ -249,17 +259,23 @@ export function sessionHistoryRecordToHistoryItem(item: SessionHistoryRecord): H
 }
 
 export class SdkTaskHistory {
-	private cachedHistoryHost?: VscodeSessionHost
-	private cachedHistoryHostPromise?: Promise<VscodeSessionHost>
-	private cachedHistoryHostRefCount = 0
-	private cachedHistoryHostIdleTimer?: NodeJS.Timeout
+	private readonly sessionWorkspaceRoots = new Map<string, string>()
+	private readonly metadataHistoryCacheByWorkspace = new Map<
+		string,
+		{
+			records: SessionHistoryRecord[]
+			hostLimit: number
+			workspaceRoot?: string
+			createdAt: number
+		}
+	>()
 	private metadataHistoryCache?: {
 		records: SessionHistoryRecord[]
 		hostLimit: number
+		workspaceRoot?: string
 		createdAt: number
 	}
 	private disposed = false
-	private readonly cachedHistoryHostIdleMs = 30_000
 	private readonly pendingDisplayMessageSaves = new Map<
 		string,
 		{ timer: ReturnType<typeof setTimeout>; workspaceRoot: string; messages: ClineMessage[] }
@@ -306,95 +322,126 @@ export class SdkTaskHistory {
 		return this.options.cloud?.isCloudSessionId(taskId) ?? false
 	}
 
-	private getActiveHistoryHost(): VscodeSessionHost | undefined {
+	private getActiveHistoryHost(): SdkSessionHost | undefined {
 		const sdkHost = this.options.sessions.getActiveSession()?.sdkHost
 		// A cloud host only knows its own sandbox; local history always needs the local store.
 		if (sdkHost && "listHistory" in sdkHost && !("isCloud" in sdkHost)) {
-			return sdkHost as VscodeSessionHost
+			return sdkHost
 		}
 		return undefined
 	}
 
-	private async getCachedHistoryHost(): Promise<VscodeSessionHost> {
+	private async getHistoryHostForSession(sessionId: string, record?: SessionHistoryRecord): Promise<SdkSessionHost> {
+		const active = this.options.sessions.getActiveSession()
+		const selectedWorkspace = await this.options.getWorkspaceRoot?.()
+		const currentProjectRoots = selectedWorkspace
+			? await this.options.sessions.resolveStorageRootsForWorkspace(selectedWorkspace)
+			: undefined
+		const sessionWorkspaceRoot = record?.workspaceRoot || record?.cwd || this.sessionWorkspaceRoots.get(sessionId)
+		if (sessionWorkspaceRoot) {
+			const projectRoots = await this.options.sessions.resolveStorageRootsForWorkspace(sessionWorkspaceRoot)
+			if (currentProjectRoots && !projectRootsMatch(sessionWorkspaceRoot, currentProjectRoots)) {
+				throw new Error(`Session ${sessionId} does not belong to the selected project workspace`)
+			}
+			if (projectRoots) return this.getHistoryHost(projectRoots.workspaceRoot)
+			if (selectedWorkspace && currentProjectRoots) {
+				throw new Error(`Session ${sessionId} is missing project-scoped storage roots`)
+			}
+			return this.getHistoryHost(sessionWorkspaceRoot)
+		}
+		if (currentProjectRoots) {
+			if (active?.sessionId === sessionId && this.options.sessions.isProjectScopedHost?.(active.sdkHost)) {
+				return active.sdkHost
+			}
+			return this.getHistoryHost(currentProjectRoots.workspaceRoot)
+		}
+		if (active?.sessionId === sessionId) return active.sdkHost
+
+		if (typeof this.options.sessions.getUnscopedHost === "function") return this.options.sessions.getUnscopedHost()
+		return this.options.getActiveSessionHost?.() ?? this.getHistoryHost()
+	}
+
+	private async getCurrentProjectStorageRoots(): Promise<ProjectStorageRoots | undefined> {
+		const workspaceRoot = await this.options.getWorkspaceRoot?.()
+		return workspaceRoot ? await this.options.sessions.resolveStorageRootsForWorkspace(workspaceRoot) : undefined
+	}
+
+	private async getSessionRecord(sessionId: string): Promise<SessionHistoryRecord | undefined> {
+		const selectedWorkspace = await this.options.getWorkspaceRoot?.()
+		const currentProjectRoots = selectedWorkspace
+			? await this.options.sessions.resolveStorageRootsForWorkspace(selectedWorkspace)
+			: undefined
+		let record: SessionHistoryRecord | undefined
+		if (currentProjectRoots) {
+			const scopedHost = await this.getHistoryHost(currentProjectRoots.workspaceRoot)
+			record = (await scopedHost.get(sessionId)) as SessionHistoryRecord | undefined
+			if (record) {
+				const root = record.workspaceRoot || record.cwd
+				if (!root || !projectRootsMatch(root, currentProjectRoots)) {
+					throw new Error(`Session ${sessionId} workspace does not match the selected project storage root`)
+				}
+				this.sessionWorkspaceRoots.set(sessionId, root)
+				return record
+			}
+			return undefined
+		}
+		if (selectedWorkspace) {
+			// A selected non-project workspace uses the legacy shared backend, but
+			// never consult a project-scoped active host from a previously selected
+			// workspace.
+			return (await (await this.getHistoryHost(selectedWorkspace)).get(sessionId)) as SessionHistoryRecord | undefined
+		}
+
+		const knownRoot = this.sessionWorkspaceRoots.get(sessionId)
+		if (knownRoot) {
+			const roots = await this.options.sessions.resolveStorageRootsForWorkspace(knownRoot)
+			const scopedHost = roots
+				? await this.getHistoryHost(roots.workspaceRoot)
+				: typeof this.options.sessions.getUnscopedHost === "function"
+					? await this.options.sessions.getUnscopedHost()
+					: await this.getHistoryHost()
+			return (await scopedHost.get(sessionId)) as SessionHistoryRecord | undefined
+		}
+
+		const activeHistoryHost = this.options.getActiveSessionHost?.() ?? this.getActiveHistoryHost()
+		if (activeHistoryHost) {
+			record = (await activeHistoryHost.get(sessionId)) as SessionHistoryRecord | undefined
+			if (record) {
+				const root = record.workspaceRoot || record.cwd
+				if (root) this.sessionWorkspaceRoots.set(sessionId, root)
+				return record
+			}
+			if (this.options.sessions.isProjectScopedHost?.(activeHistoryHost)) return undefined
+		}
+
+		const unscopedHost =
+			typeof this.options.sessions.getUnscopedHost === "function"
+				? await this.options.sessions.getUnscopedHost()
+				: (this.options.getActiveSessionHost?.() ?? this.getActiveHistoryHost() ?? (await this.getHistoryHost()))
+		record = (await unscopedHost.get(sessionId)) as SessionHistoryRecord | undefined
+		if (record) {
+			const root = record.workspaceRoot || record.cwd
+			if (root) this.sessionWorkspaceRoots.set(sessionId, root)
+		}
+		return record
+	}
+
+	private async getHistoryHost(workspaceRoot?: string): Promise<SdkSessionHost> {
 		if (this.disposed) {
 			throw new Error("SdkTaskHistory has been disposed")
 		}
-
-		if (this.cachedHistoryHostIdleTimer) {
-			clearTimeout(this.cachedHistoryHostIdleTimer)
-			this.cachedHistoryHostIdleTimer = undefined
-		}
-
-		if (this.cachedHistoryHost) {
-			return this.cachedHistoryHost
-		}
-		if (this.cachedHistoryHostPromise) {
-			return this.cachedHistoryHostPromise
-		}
-
-		this.cachedHistoryHostPromise = (async () => {
-			const { VscodeSessionHost } = await import("./vscode-session-host")
-			const historyHost = await VscodeSessionHost.create({
-				mcpHub: this.options.mcpHub,
-			})
-			this.cachedHistoryHost = historyHost
-			return historyHost
-		})()
-
-		try {
-			return await this.cachedHistoryHostPromise
-		} catch (error) {
-			this.cachedHistoryHost = undefined
-			throw error
-		} finally {
-			this.cachedHistoryHostPromise = undefined
-		}
-	}
-
-	private scheduleCachedHistoryHostDispose(): void {
-		if (this.disposed || this.cachedHistoryHostRefCount > 0 || !this.cachedHistoryHost) {
-			return
-		}
-
-		this.cachedHistoryHostIdleTimer = setTimeout(() => {
-			void this.disposeCachedHistoryHost("idle")
-		}, this.cachedHistoryHostIdleMs)
-		this.cachedHistoryHostIdleTimer.unref?.()
-	}
-
-	private async disposeCachedHistoryHost(reason: string): Promise<void> {
-		if (this.cachedHistoryHostIdleTimer) {
-			clearTimeout(this.cachedHistoryHostIdleTimer)
-			this.cachedHistoryHostIdleTimer = undefined
-		}
-
-		if (this.cachedHistoryHostRefCount > 0) {
-			return
-		}
-
-		const historyHost = this.cachedHistoryHost
-		this.cachedHistoryHost = undefined
-		if (!historyHost) {
-			return
-		}
-
-		await historyHost.dispose(`taskHistory:${reason}`).catch((error) => {
-			Logger.warn("[SdkTaskHistory] Failed to dispose cached history host:", error)
-		})
+		return this.options.sessions.getHostForWorkspaceRoot(workspaceRoot)
 	}
 
 	async dispose(): Promise<void> {
 		this.disposed = true
 		await Promise.all([...this.pendingDisplayMessageSaves.keys()].map((taskId) => this.flushDisplayMessages(taskId)))
 		this.invalidateMetadataHistoryCache()
-		if (this.cachedHistoryHostPromise) {
-			await this.cachedHistoryHostPromise.catch(() => undefined)
-		}
-		await this.disposeCachedHistoryHost("controllerDispose")
 	}
 
 	private invalidateMetadataHistoryCache(): void {
 		this.metadataHistoryCache = undefined
+		this.metadataHistoryCacheByWorkspace.clear()
 	}
 
 	/** Forces the next listing to re-enumerate (e.g. a cloud session changed status). */
@@ -416,13 +463,11 @@ export class SdkTaskHistory {
 	private updateCachedSessionRecord(
 		sessionId: string,
 		updates: { prompt: string; metadata: Record<string, unknown>; updatedAt: string },
+		cacheKey: string,
 	): void {
-		const cache = this.metadataHistoryCache
-		if (!cache) {
-			return
-		}
-		const index = cache.records.findIndex((record) => record.sessionId === sessionId)
-		if (index === -1) {
+		const cache = this.metadataHistoryCacheByWorkspace.get(cacheKey)
+		const index = cache?.records.findIndex((record) => record.sessionId === sessionId) ?? -1
+		if (!cache || index === -1) {
 			this.invalidateMetadataHistoryCache()
 			return
 		}
@@ -440,29 +485,57 @@ export class SdkTaskHistory {
 		return options.hydrate === false
 	}
 
-	private async withHistoryHost<T>(fn: (host: VscodeSessionHost) => Promise<T>): Promise<T> {
-		const activeHistoryHost = this.getActiveHistoryHost()
-		if (activeHistoryHost) {
-			return fn(activeHistoryHost)
-		}
+	private async getCurrentHistoryCacheKey(): Promise<string> {
+		const workspaceRoot = await this.options.getWorkspaceRoot?.()
+		if (!workspaceRoot) return "<unscoped>"
+		const projectRoots = await this.options.sessions.resolveStorageRootsForWorkspace(workspaceRoot)
+		return projectRoots?.workspaceRoot ?? workspaceRoot
+	}
 
-		const historyHost = await this.getCachedHistoryHost()
-		this.cachedHistoryHostRefCount += 1
-		try {
-			return await fn(historyHost)
-		} finally {
-			this.cachedHistoryHostRefCount = Math.max(0, this.cachedHistoryHostRefCount - 1)
-			this.scheduleCachedHistoryHostDispose()
+	private async withHistoryHost<T>(fn: (host: SdkSessionHost) => Promise<T>, sessionId?: string): Promise<T> {
+		const currentProjectRoots = await this.getCurrentProjectStorageRoots()
+		if (currentProjectRoots) {
+			// The selected project owns this operation; never route it through an
+			// active session or shared host from another workspace.
+			return fn(await this.getHistoryHost(currentProjectRoots.workspaceRoot))
 		}
+		const selectedWorkspace = await this.options.getWorkspaceRoot?.()
+		if (selectedWorkspace) {
+			return fn(await this.getHistoryHost(selectedWorkspace))
+		}
+		const activeHistory = this.options.sessions.getActiveSession()
+		const activeHost = this.options.getActiveSessionHost?.() ?? this.getActiveHistoryHost()
+		if (activeHistory && activeHost && (sessionId === undefined || activeHistory.sessionId === sessionId)) {
+			return fn(activeHost)
+		}
+		if (sessionId) {
+			const record = await this.getSessionRecord(sessionId)
+			return fn(await this.getHistoryHostForSession(sessionId, record))
+		}
+		const workspaceRoot = await this.options.getWorkspaceRoot?.()
+		const projectRoots = workspaceRoot
+			? await this.options.sessions.resolveStorageRootsForWorkspace(workspaceRoot)
+			: undefined
+		if (projectRoots) return fn(await this.getHistoryHost(projectRoots.workspaceRoot))
+		if (typeof this.options.sessions.getUnscopedHost === "function") {
+			return fn(await this.options.sessions.getUnscopedHost())
+		}
+		const active = this.getActiveHistoryHost()
+		return fn(active ?? (await this.getHistoryHost()))
 	}
 
 	async listHistory(options: SdkTaskHistoryListOptions = {}): Promise<SessionHistoryRecord[]> {
 		const offset = Math.max(0, Math.floor(options.offset ?? 0))
 		const limit = Math.max(0, Math.floor(options.limit ?? 10_000))
 		const hostLimit = offset + limit
+		const workspaceRoot = await this.options.getWorkspaceRoot?.()
+		const projectRoots = workspaceRoot
+			? await this.options.sessions.resolveStorageRootsForWorkspace(workspaceRoot)
+			: undefined
 		const useCache = this.canUseMetadataHistoryCache(options)
 		const now = Date.now()
-		const cached = useCache ? this.metadataHistoryCache : undefined
+		const cacheKey = projectRoots?.workspaceRoot ?? workspaceRoot ?? "<unscoped>"
+		const cached = useCache ? this.metadataHistoryCacheByWorkspace.get(cacheKey) : undefined
 		if (cached && cached.hostLimit >= hostLimit && now - cached.createdAt < this.metadataHistoryCacheTtlMs) {
 			const result = cached.records.slice(offset, offset + limit)
 			return result
@@ -471,20 +544,35 @@ export class SdkTaskHistory {
 		const hostOptions: ClineCoreListHistoryOptions = { ...options }
 		delete (hostOptions as { offset?: number }).offset
 
-		const sdkHistory = await this.withHistoryHost((host) =>
-			host.listHistory({
-				...hostOptions,
-				limit: hostLimit || 10_000,
-				includeManifestFallback: true,
-			}),
-		)
+		const historyHost = projectRoots
+			? await this.getHistoryHost(projectRoots.workspaceRoot)
+			: this.options.getWorkspaceRoot !== undefined
+				? workspaceRoot
+					? await this.getHistoryHost(workspaceRoot)
+					: await this.getHistoryHost()
+				: typeof this.options.sessions.getUnscopedHost === "function"
+					? await this.options.sessions.getUnscopedHost()
+					: (this.getActiveHistoryHost() ?? (await this.getHistoryHost()))
+		const sdkHistory = await historyHost.listHistory({
+			...hostOptions,
+			limit: hostLimit || 10_000,
+			// The SDK manifest fallback scans resolveSessionDataDir(), which is
+			// process-global. Never let a project-scoped history query supplement
+			// its project DB with manifests from the user's shared Cline store.
+			includeManifestFallback: !projectRoots,
+		})
+		for (const record of sdkHistory) {
+			const root = record.workspaceRoot || record.cwd
+			if (root) this.sessionWorkspaceRoots.set(record.sessionId, root)
+		}
 		const visibleSdkHistory = sdkHistory.filter((item) => item.isSubagent !== true)
 		const sdkIds = new Set(visibleSdkHistory.map((item) => item.sessionId))
-		const legacyHistory = this.isCutoverActive()
-			? []
-			: this.readAllLegacyTaskHistory()
-					.filter(({ item }) => item.task && !sdkIds.has(item.id))
-					.map(({ item }) => historyItemToSessionHistoryRecord(item))
+		const legacyHistory =
+			projectRoots || this.isCutoverActive()
+				? []
+				: this.readAllLegacyTaskHistory()
+						.filter(({ item }) => item.task && !sdkIds.has(item.id))
+						.map(({ item }) => historyItemToSessionHistoryRecord(item))
 		// An SDK record with legacy metadata is a legacy task that was resumed,
 		// i.e. migrated (historyItemToSessionMetadata stamps legacyTask on resume).
 		const migratedSdkTaskCount = visibleSdkHistory.filter(
@@ -504,11 +592,13 @@ export class SdkTaskHistory {
 			compareSessionHistoryRecordsByRecencyDesc,
 		)
 		if (useCache) {
-			this.metadataHistoryCache = {
+			const entry = {
 				records: mergedHistory,
 				hostLimit,
+				workspaceRoot,
 				createdAt: Date.now(),
 			}
+			this.metadataHistoryCacheByWorkspace.set(cacheKey, entry)
 		}
 
 		this.options.telemetry?.safeCapture(
@@ -527,7 +617,7 @@ export class SdkTaskHistory {
 	}
 
 	private async getSdkRecord(taskId: string): Promise<SessionHistoryRecord | undefined> {
-		return this.withHistoryHost((host) => host.get(taskId) as Promise<SessionHistoryRecord | undefined>)
+		return this.getSessionRecord(taskId)
 	}
 
 	queueDisplayMessagesSave(taskId: string, workspaceRoot: string, messages: ClineMessage[]): void {
@@ -564,9 +654,14 @@ export class SdkTaskHistory {
 			return []
 		}
 		const sdkRecord = await this.getSdkRecord(taskId)
-		const legacyTask = this.findLegacyTask(taskId)
+		const selectedWorkspace = await this.options.getWorkspaceRoot?.()
+		const projectRoots = selectedWorkspace
+			? await this.options.sessions.resolveStorageRootsForWorkspace(selectedWorkspace)
+			: undefined
+		if (projectRoots && !sdkRecord) return []
+		const legacyTask = projectRoots ? undefined : this.findLegacyTask(taskId)
 		const workspaceRoot = sdkRecord?.cwd || sdkRecord?.workspaceRoot || legacyTask?.item.cwdOnTaskInitialization
-		if (sdkRecord && workspaceRoot) {
+		if (sdkRecord && workspaceRoot && !projectRoots) {
 			try {
 				const persistedDisplayMessages = await loadWorkspaceTaskMessages<ClineMessage>(workspaceRoot, taskId)
 				// Only trust the display artifact as the richer source when it contains
@@ -584,14 +679,18 @@ export class SdkTaskHistory {
 				// Fall through to SDK canonical history.
 			}
 		}
-		if (!sdkRecord && legacyTask) {
+		if (!projectRoots && !sdkRecord && legacyTask) {
 			if (this.isCutoverActive()) {
 				return []
 			}
 			return readUiMessages(taskId, legacyTask.dataDir)
 		}
-		if (!sdkRecord && !legacyTask) {
-			const cachedRecord = this.metadataHistoryCache?.records.find((record) => record.sessionId === taskId)
+		if (!projectRoots && !sdkRecord && !legacyTask) {
+			const selectedWorkspace = await this.options.getWorkspaceRoot?.()
+			const cacheKey = selectedWorkspace ?? "<unscoped>"
+			const cachedRecord = this.metadataHistoryCacheByWorkspace
+				.get(cacheKey)
+				?.records.find((record) => record.sessionId === taskId)
 			const cwd = cachedRecord?.cwd
 			if (cwd) {
 				try {
@@ -605,7 +704,7 @@ export class SdkTaskHistory {
 			}
 		}
 
-		const sdkMessages = await this.withHistoryHost((host) => host.readMessages(taskId) as Promise<SdkMessage[]>)
+		const sdkMessages = await this.withHistoryHost((host) => host.readMessages(taskId) as Promise<SdkMessage[]>, taskId)
 		const clineMessages = sdkMessagesToClineMessages(
 			sanitizeSdkUserMessagesForDisplay(sdkMessages),
 			this.options.getMinter?.(),
@@ -632,7 +731,7 @@ export class SdkTaskHistory {
 
 		// Cache to .orvanta/history/tasks/<taskId>/ui_messages.json
 		const wsRoot = sdkRecord?.cwd || sdkRecord?.workspaceRoot || legacyTask?.item.cwdOnTaskInitialization
-		if (wsRoot && finalMessages.length > 0) {
+		if (wsRoot && finalMessages.length > 0 && !projectRoots) {
 			try {
 				await saveWorkspaceTaskMessages(wsRoot, taskId, finalMessages)
 			} catch {
@@ -656,12 +755,15 @@ export class SdkTaskHistory {
 				return path.dirname(messagesPath)
 			}
 			// Older records may lack messagesPath; fall back to the canonical
-			// session directory when it exists on disk.
-			const sessionDir = path.join(resolveSessionDataDir(), taskId)
-			if (existsSync(sessionDir)) {
+			// project session directory when its storage roots are available.
+			const recordRoot = sdkRecord.cwd || sdkRecord.workspaceRoot
+			const projectRoots = recordRoot ? await this.options.sessions.resolveStorageRootsForWorkspace(recordRoot) : undefined
+			const sessionDir = projectRoots ? path.join(projectRoots.sdkArtifactDir, taskId) : undefined
+			if (sessionDir && existsSync(sessionDir)) {
 				return sessionDir
 			}
 		}
+		if (await this.getCurrentProjectStorageRoots()) return undefined
 		return this.getLegacyTaskDirPath(taskId)
 	}
 
@@ -681,7 +783,7 @@ export class SdkTaskHistory {
 		if (this.isCloudTask(taskId)) {
 			return (await this.options.cloud?.find(taskId))?.status
 		}
-		const sdkRecord = await this.getSdkRecord(taskId).catch(() => undefined)
+		const sdkRecord = await this.getSdkRecord(taskId)
 		return sdkRecord?.status
 	}
 
@@ -696,13 +798,21 @@ export class SdkTaskHistory {
 				metadataBoolean(sdkRecord.metadata, "migratedFromLegacyTask") === true
 			)
 		}
+		const workspaceRoot = await this.options.getWorkspaceRoot?.()
+		if (workspaceRoot && (await this.options.sessions.resolveStorageRootsForWorkspace(workspaceRoot))) {
+			return false
+		}
 
 		return this.findLegacyTask(taskId) !== undefined
 	}
 
 	async getLegacyResumeInitialMessages(taskId: string, fallbackMessages?: unknown[]): Promise<unknown[] | undefined> {
 		const sdkRecord = await this.getSdkRecord(taskId)
-		const legacyTask = sdkRecord ? undefined : this.findLegacyTask(taskId)
+		const workspaceRoot = await this.options.getWorkspaceRoot?.()
+		const projectRoots = workspaceRoot
+			? await this.options.sessions.resolveStorageRootsForWorkspace(workspaceRoot)
+			: undefined
+		const legacyTask = sdkRecord || projectRoots ? undefined : this.findLegacyTask(taskId)
 		if (legacyTask) {
 			const legacyApiHistory = readApiConversationHistory(taskId, legacyTask.dataDir)
 			if (legacyApiHistory.length > 0) {
@@ -717,6 +827,7 @@ export class SdkTaskHistory {
 	}
 
 	private async updateSession(sessionId: string, item: HistoryItem): Promise<void> {
+		const cacheKey = await this.getCurrentHistoryCacheKey()
 		const { metadata: writtenMetadata, updated } = await this.withHistoryHost(async (host) => {
 			const existing = await host.get(sessionId)
 			const metadata: Record<string, unknown> = {
@@ -737,7 +848,7 @@ export class SdkTaskHistory {
 				title: item.task,
 			})
 			return { metadata, updated: result.updated }
-		})
+		}, sessionId)
 		if (!updated) {
 			// The write didn't land (e.g. the session was deleted, or an optimistic-
 			// concurrency retry was exhausted by a racing writer). Patching the cache
@@ -751,11 +862,15 @@ export class SdkTaskHistory {
 		// rather than deriving from `item.ts`: callers like toggleTaskFavorite() reuse
 		// an old HistoryItem whose `ts` predates this write, which would otherwise let
 		// the cached ordering diverge from what's on disk until the cache TTL expires.
-		this.updateCachedSessionRecord(sessionId, {
-			prompt: item.task,
-			metadata: writtenMetadata,
-			updatedAt: new Date().toISOString(),
-		})
+		this.updateCachedSessionRecord(
+			sessionId,
+			{
+				prompt: item.task,
+				metadata: writtenMetadata,
+				updatedAt: new Date().toISOString(),
+			},
+			cacheKey,
+		)
 	}
 
 	async updateTaskHistoryItem(item: HistoryItem): Promise<void> {
@@ -808,6 +923,7 @@ export class SdkTaskHistory {
 							displayName,
 							role: candidateRole,
 							prompt: item.task,
+							sdkSessionId: item.id,
 							usage: {
 								tokensIn: item.tokensIn ?? 0,
 								tokensOut: item.tokensOut ?? 0,
@@ -817,26 +933,10 @@ export class SdkTaskHistory {
 						})
 					}
 				}
-
-				// Also update legacy format without whole roster fallback
-				await saveWorkspaceSession(cwd, {
-					id: item.id,
-					title: item.task,
-					createdAt: item.ts,
-					updatedAt: Date.now(),
-					tokensIn: item.tokensIn,
-					tokensOut: item.tokensOut,
-					totalCost: item.totalCost,
-					isFavorited: item.isFavorited,
-					agents: item.agents?.map((agent) => ({
-						...agent,
-						role: agent.role === "lead" ? "lead" : "teammate",
-					})),
-					agentIds: item.agentIds,
-					agentTasks: item.agentTasks,
-				})
-			} catch {
-				// Non-blocking: workspace might not have .orvanta directory or permission
+			} catch (error) {
+				// Non-blocking for non-Orvanta workspaces; log so CEO-session mapping
+				// failures are visible during Orvanta development.
+				Logger.warn("[SdkTaskHistory] Orvanta session bind/update failed:", error)
 			}
 		}
 	}
@@ -847,7 +947,16 @@ export class SdkTaskHistory {
 			this.invalidateMetadataHistoryCache()
 			return
 		}
-		const legacyTask = this.findLegacyTask(sessionId)
+		const currentProjectRoots = await this.getCurrentProjectStorageRoots()
+		const sdkRecord = await this.getSessionRecord(sessionId)
+		if (currentProjectRoots && !sdkRecord) {
+			throw new Error(`Session not found in selected project workspace: ${sessionId}`)
+		}
+		const projectRoots =
+			sdkRecord?.workspaceRoot || sdkRecord?.cwd
+				? await this.options.sessions.resolveStorageRootsForWorkspace(sdkRecord.workspaceRoot || sdkRecord.cwd || "")
+				: undefined
+		const legacyTask = projectRoots ? undefined : this.findLegacyTask(sessionId)
 		let cwd: string | undefined = legacyTask?.dataDir
 		if (!cwd) {
 			const historyItem = await this.findHistoryItem(sessionId)
@@ -855,9 +964,14 @@ export class SdkTaskHistory {
 		}
 
 		try {
-			await this.withHistoryHost(async (host) => {
-				await host.delete(sessionId)
-			})
+			const host = sdkRecord
+				? await this.getHistoryHostForSession(sessionId, sdkRecord)
+				: projectRoots
+					? await this.getHistoryHost(projectRoots.workspaceRoot)
+					: typeof this.options.sessions.getUnscopedHost === "function"
+						? await this.options.sessions.getUnscopedHost()
+						: await this.getHistoryHost()
+			await host.delete(sessionId)
 		} catch (error) {
 			if (!legacyTask) {
 				throw error
@@ -882,19 +996,24 @@ export class SdkTaskHistory {
 			const cloudRecord = await this.options.cloud?.find(taskId)
 			return cloudRecord ? sessionHistoryRecordToHistoryItem(cloudRecord) : undefined
 		}
-		const sdkHistoryItem = await this.withHistoryHost(async (host) => {
-			const sdkRecord = await host.get(taskId)
+		const currentProjectRoots = await this.getCurrentProjectStorageRoots()
+		const sdkRecord = await this.getSessionRecord(taskId)
+		if (currentProjectRoots && !sdkRecord) {
+			throw new Error(`Session not found in selected project workspace: ${taskId}`)
+		}
+		const sdkHistoryItem = await (async () => {
 			if (!sdkRecord || sdkRecord.isSubagent === true) {
 				return undefined
 			}
-
-			const historyItem = sessionHistoryRecordToHistoryItem(sdkRecord as SessionHistoryRecord)
-			historyItem.size = await this.getCachedTaskSize(host, sdkRecord as SessionHistoryRecord)
+			const host = await this.getHistoryHostForSession(taskId, sdkRecord)
+			const historyItem = sessionHistoryRecordToHistoryItem(sdkRecord)
+			historyItem.size = await this.getCachedTaskSize(host, sdkRecord)
 			return historyItem
-		})
+		})()
 		if (sdkHistoryItem) {
 			return sdkHistoryItem
 		}
+		if (await this.getCurrentProjectStorageRoots()) return undefined
 
 		if (this.isCutoverActive()) {
 			return undefined
@@ -966,7 +1085,7 @@ export class SdkTaskHistory {
 		await this.updateTaskHistoryItem(historyItem)
 	}
 
-	private async getCachedTaskSize(host: VscodeSessionHost, record: SessionHistoryRecord): Promise<number | undefined> {
+	private async getCachedTaskSize(host: SdkSessionHost, record: SessionHistoryRecord): Promise<number | undefined> {
 		// metadata.size is a display cache: fill it when absent, and let explicit item.size updates replace it.
 		const cachedSize = metadataNumber(record.metadata, "size")
 		if (cachedSize !== undefined && cachedSize >= 0) {
@@ -999,7 +1118,7 @@ export class SdkTaskHistory {
 		}
 	}
 
-	private async cacheTaskSize(host: VscodeSessionHost, record: SessionHistoryRecord, size: number): Promise<void> {
+	private async cacheTaskSize(host: SdkSessionHost, record: SessionHistoryRecord, size: number): Promise<void> {
 		if (!Number.isFinite(size) || size < 0 || metadataNumber(record.metadata, "size") === size) {
 			return
 		}

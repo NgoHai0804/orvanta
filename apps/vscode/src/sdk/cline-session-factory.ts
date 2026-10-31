@@ -35,10 +35,15 @@ import {
 	buildTeammateSpecs,
 	createOrvantaRequestDecisionTool,
 	createOrvantaSubmitHandoffTool,
+	createSessionId,
 	EphemeralTracker,
+	getCeoSessionPause,
 	injectAgentMemory,
 	injectOrvantaSystemPrompt,
+	isCeoSessionBlindRecoverBlocked,
+	isCeoSessionDispatchBlocked,
 	isClineProvider,
+	planCeoSessionRuntimeRecovery,
 	requestDecision,
 	type TeamTeammateSpec,
 } from "@cline/shared"
@@ -55,6 +60,9 @@ import { reasoningEffortFromThinkingBudget } from "@shared/utils/reasoning-suppo
 import { stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
+import { handlePauseDrainOnTeamEvent } from "@/orvanta/ceo-session-pause-drain"
+import { adoptLiveCeoSessionRuntime, getLiveCeoSessionRuntime } from "@/orvanta/ceo-session-runtime-reconnect"
+import { handleTeamEventTranscriptLink } from "@/orvanta/team-run-transcript-linker"
 import { globalTeamStatusTracker } from "@/orvanta/team-status-tracker"
 import { globalWarRoomTracker } from "@/orvanta/war-room-tracker"
 import { getAgentMemory, getAgentProfile, listAgentProfiles, loadCompany } from "@/orvanta/workspace-store"
@@ -1205,13 +1213,11 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		if (companyLoad.status === "ready") {
 			enableAgentTeams = true
 			teamName = companyLoad.company.teamName
-			teamDir = path.join(workspaceRoot, ".orvanta", "state", "team")
-			await fs.mkdir(teamDir, { recursive: true }).catch((err) => {
-				Logger.warn("[SessionFactory] Failed to create teamDir:", err)
-			})
+			teamDir = path.join(workspaceRoot, ".orvanta", "local", "db")
 
-			// 0. Auto-create Artifacts directories
-			const artifactDirs = [
+			// 0. Auto-create TeamStore + Artifacts directories
+			const bootstrapDirs = [
+				teamDir,
 				path.join(workspaceRoot, ".orvanta", "artifacts", "marketing"),
 				path.join(workspaceRoot, ".orvanta", "artifacts", "sales"),
 				path.join(workspaceRoot, ".orvanta", "artifacts", "research"),
@@ -1219,9 +1225,9 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 				path.join(workspaceRoot, ".orvanta", "artifacts", "build"),
 			]
 			await Promise.all(
-				artifactDirs.map((dir) =>
+				bootstrapDirs.map((dir) =>
 					fs.mkdir(dir, { recursive: true }).catch((err) => {
-						Logger.warn("[SessionFactory] Failed to create artifact dir:", dir, err)
+						Logger.warn("[SessionFactory] Failed to create bootstrap dir:", dir, err)
 					}),
 				),
 			)
@@ -1313,6 +1319,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		enableAgentTeams,
 		...(teamName ? { teamName } : {}),
 		...(teamDir ? { teamDir } : {}),
+		...(teamDir ? { teamStoreFailClosed: true } : {}),
 		...(teammates ? { teammates } : {}),
 		...(includeLeadSpawnTool !== undefined ? { includeLeadSpawnTool } : {}),
 		...(orvantaExtraTools.length > 0 ? { extraTools: orvantaExtraTools } : {}),
@@ -1345,6 +1352,8 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		onTeamEvent: (event) => {
 			globalTeamStatusTracker.handleTeamEvent(event)
 			globalWarRoomTracker.handleTeamEvent(event)
+			void handleTeamEventTranscriptLink(input.orvantaSessionId, event)
+			void handlePauseDrainOnTeamEvent(workspaceRoot, input.orvantaSessionId, event)
 		},
 
 		...(useAutoCondense
@@ -1376,6 +1385,22 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			logger: sdkLogger,
 		},
 		hooks: buildAgentHooks(StateManager.get()),
+	}
+
+	// Phase 6.3: gate TeamStore auto-recover for Orvanta CEO sessions.
+	if (input.orvantaSessionId?.trim() && workspaceRoot) {
+		const ceoId = input.orvantaSessionId.trim()
+		const live = getLiveCeoSessionRuntime(ceoId)
+		const adopt = adoptLiveCeoSessionRuntime({ orvantaSessionId: ceoId })
+		const pause = await getCeoSessionPause(workspaceRoot, ceoId).catch(() => undefined)
+		const plan = planCeoSessionRuntimeRecovery({
+			pause,
+			runtimeAlive: adopt.mode === "reconnect" || Boolean(live),
+		})
+		const skip = plan.skipAutoRecover || isCeoSessionDispatchBlocked(pause) || isCeoSessionBlindRecoverBlocked(pause)
+		if (skip) {
+			config.teamAutoRecover = false
+		}
 	}
 
 	return config
@@ -1457,10 +1482,19 @@ export function updateHistoryItem(item: HistoryItem, dataDir?: string): HistoryI
 
 /**
  * Create a new HistoryItem from a session start result.
+ * `sessionId` is the SDK transcript id. `orvantaSessionId` is the CEO session
+ * identity and must stay distinct — never inferred from the SDK id.
  */
-export function createHistoryItemFromSession(sessionId: string, prompt: string, modelId?: string, cwd?: string): HistoryItem {
+export function createHistoryItemFromSession(
+	sessionId: string,
+	prompt: string,
+	modelId?: string,
+	cwd?: string,
+	orvantaSessionId?: string,
+): HistoryItem {
 	return {
 		id: sessionId,
+		sessionId: orvantaSessionId?.trim() || createSessionId("ceo_"),
 		ts: Date.now(),
 		task: prompt,
 		tokensIn: 0,

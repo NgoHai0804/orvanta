@@ -31,6 +31,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import ReactMarkdown from "react-markdown"
 import { InstructionsRulesTab, type WorkspaceRuleItem } from "./InstructionsRulesTab"
 import { McpServersTab } from "./McpServersTab"
+import { MemoryTab } from "./MemoryTab"
 import { ModelParamsTab } from "./ModelParamsTab"
 import { SkillsTab, type WorkspaceSkillItem } from "./SkillsTab"
 import { ToolsPermissionsTab } from "./ToolsPermissionsTab"
@@ -38,7 +39,7 @@ import { getAllowedManagers } from "./tree-utils"
 
 const AGENT_ID_RE = /^[a-z][a-z0-9_-]{1,31}$/
 
-export type EditorTab = "profile" | "model" | "tools" | "rules" | "skills" | "mcp"
+export type EditorTab = "profile" | "model" | "tools" | "rules" | "skills" | "mcp" | "memory"
 
 export interface EditorTabInfo {
 	id: EditorTab
@@ -49,6 +50,7 @@ export interface EditorTabInfo {
 export const EDITOR_TABS: EditorTabInfo[] = [
 	{ id: "profile", label: "Profile", icon: IconUser },
 	{ id: "model", label: "Thông số", icon: IconBrain },
+	{ id: "memory", label: "Memory", icon: IconFileText },
 	{ id: "tools", label: "Tools", icon: IconTools },
 	{ id: "rules", label: "Rules", icon: IconFileText },
 	{ id: "skills", label: "Skills", icon: IconSparkles },
@@ -820,6 +822,10 @@ export const AgentEditor = ({
 					{/* Tab 6: MCP */}
 					{activeTab === "mcp" && (
 						<McpServersTab agentMcpServers={agentMcpServers} setAgentMcpServers={setAgentMcpServers} />
+					)}
+
+					{activeTab === "memory" && (
+						<MemoryTab agentId={isNew ? id.trim() : initialProfile.id} disabled={isNew && !id.trim()} />
 					)}
 				</div>
 			</div>

@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OrvantaConsoleStateSnapshot, OrvantaSendAgentDirectMessageRequest } from "@shared/proto/cline/orvanta"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { Controller } from "@/core/controller"
 import { sendAgentDirectMessage } from "@/core/controller/orvanta/sendAgentDirectMessage"
 import { subscribeConsoleState } from "@/core/controller/orvanta/subscribeConsoleState"
@@ -41,7 +41,7 @@ describe("Console State & Direct Steering Handlers (Orvanta v0.0.4)", () => {
 	})
 
 	it("sendAgentDirectMessage steers coordinator via controller.task.handleWebviewAskResponse", async () => {
-		const handleAskResponse = mock(async () => {})
+		const handleAskResponse = vi.fn(async () => {})
 		const mockController = {
 			task: {
 				handleWebviewAskResponse: handleAskResponse,

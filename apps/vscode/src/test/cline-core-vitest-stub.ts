@@ -71,7 +71,13 @@ export {
 	StoredModelEntrySchema,
 	syncStoredProviderRegistration,
 } from "../../../../sdk/packages/core/src/services/providers/local-provider-registry"
+export { SqliteTeamStore } from "../../../../sdk/packages/core/src/services/storage/sqlite-team-store"
 export { captureGitSnapshot } from "../../../../sdk/packages/core/src/services/telemetry/core-events"
+export {
+	makeSubSessionId,
+	makeTeamTaskSubSessionId,
+	sanitizeSessionToken,
+} from "../../../../sdk/packages/core/src/session/models/session-graph"
 
 export type GlobalCompactionStrategy = "basic" | "agentic"
 

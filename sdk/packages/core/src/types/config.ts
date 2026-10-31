@@ -7,6 +7,7 @@ import type {
 	BasicLogger,
 	ConsecutiveMistakeLimitContext,
 	ConsecutiveMistakeLimitDecision,
+	EphemeralTracker,
 	ExtensionContext,
 	HookErrorMode,
 	ITelemetryService,
@@ -15,8 +16,6 @@ import type {
 	SessionPromptConfig,
 	SessionWorkspaceConfig,
 	TeamTeammateSpec,
-	EphemeralTracker,
-
 } from "@cline/shared";
 
 import type { ToolRoutingRule } from "../extensions/tools/model-tool-routing";
@@ -267,14 +266,24 @@ export interface CoreSessionConfig
 	/** Explicit Orvanta session identity for durable Team run association. This is
 	 * separate from the SDK sessionId and must never be inferred from it. */
 	orvantaSessionId?: string;
+	/**
+	 * When false, skip TeamStore `recoverActiveRuns` after hydrate (CEO pause
+	 * active, live reconnect, or unresolved needs-attention). Default true.
+	 */
+	teamAutoRecover?: boolean;
 	workspaceRoot?: string;
 	systemPrompt: string;
 	teamName?: string;
 	teamDir?: string;
+	/** Fail rather than changing persistence format if an explicit project TeamStore cannot initialize. */
+	teamStoreFailClosed?: boolean;
 	teammates?: TeamTeammateSpec[];
 	includeLeadSpawnTool?: boolean;
 	ephemeralTracker?: EphemeralTracker;
-	onPersistentSpawnDenied?: (info: { agentId: string; rolePrompt: string }) => void;
+	onPersistentSpawnDenied?: (info: {
+		agentId: string;
+		rolePrompt: string;
+	}) => void;
 	onOverEphemeral?: (info: { count: number; limit: number }) => void;
 
 	missionLogIntervalSteps?: number;

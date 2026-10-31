@@ -634,7 +634,10 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 
 		let teamRuntime: AgentTeamsRuntime | undefined;
 		const teamStore = normalized.enableAgentTeams
-			? createLocalTeamStore({ teamDir: config.teamDir })
+			? createLocalTeamStore({
+					teamDir: config.teamDir,
+					failClosed: config.teamStoreFailClosed,
+				})
 			: undefined;
 		const restoredTeam = teamStore?.loadRuntime(teamStoreKey);
 		const restoredTeamState = restoredTeam?.state;
@@ -646,7 +649,6 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			teammateSpecs.set(spec.agentId, spec);
 		}
 		const teamPersistence = teamStore
-
 			? new TeamPersistenceWriter({
 					teamKey: teamStoreKey,
 					...(config.orvantaSessionId
@@ -677,6 +679,10 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			distinctId: input.distinctId,
 			sessionId: config.sessionId,
 			cwd: config.cwd,
+			workspaceRoot: config.workspaceRoot ?? config.cwd,
+			...(config.orvantaSessionId
+				? { orvantaSessionId: config.orvantaSessionId }
+				: {}),
 			apiKey: config.apiKey ?? "",
 			baseUrl: config.baseUrl,
 			headers: config.headers,
@@ -835,7 +841,19 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				});
 
 				if (restoredStateHydratedIntoRuntime) {
-					teamRuntime.recoverActiveRuns("runtime_recovered");
+					if (config.teamAutoRecover === false) {
+						// CEO pause / live reconnect / unresolved needs-attention:
+						// do not start or re-queue team work.
+					} else if (config.orvantaSessionId) {
+						// Orvanta: only auto-resume queued durable runs. Mid-flight
+						// running work becomes interrupted + needs-attention.
+						teamRuntime.interruptRunningRuns(
+							"unclear_side_effect_on_restart",
+						);
+						teamRuntime.recoverActiveRuns("runtime_recovered");
+					} else {
+						teamRuntime.recoverActiveRuns("runtime_recovered");
+					}
 				}
 
 				if (teamBootstrap.restoredFromPersistence) {
@@ -940,8 +958,12 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				if ((globalThis as any).__activeTeamRuntime === teamRuntime) {
 					(globalThis as any).__activeTeamRuntime = undefined;
 				}
-				// Final synchronous write so nothing batched is lost on exit.
-				teamPersistence?.dispose();
+				try {
+					// Final synchronous write so nothing batched is lost on exit.
+					teamPersistence?.dispose();
+				} finally {
+					teamStore?.close?.();
+				}
 				this.teamRuntimeEntries.delete(registryKey);
 				await mcpShutdown?.();
 				for (const service of ownedUserInstructionServices) {

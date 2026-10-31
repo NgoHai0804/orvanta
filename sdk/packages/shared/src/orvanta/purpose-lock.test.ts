@@ -96,10 +96,25 @@ describe("checkPurposeLockPath", () => {
 	it("allows write to agent's own workspace folder", () => {
 		expect(
 			checkPurposeLockPath({
-				targetPath: ".orvanta/org/agents/implementer/workspace/memory.md",
+				targetPath: ".orvanta/org/agents/implementer/workspace/notes.md",
 				requesterId: "implementer",
 			}).allowed,
 		).toBe(true);
+	});
+
+	it("allows agent proposals but not accepted memory.md", () => {
+		expect(
+			checkPurposeLockPath({
+				targetPath: ".orvanta/local/memory/agents/implementer/proposals/p1.md",
+				requesterId: "implementer",
+			}).allowed,
+		).toBe(true);
+		expect(
+			checkPurposeLockPath({
+				targetPath: ".orvanta/local/memory/agents/implementer/memory.md",
+				requesterId: "implementer",
+			}),
+		).toMatchObject({ allowed: false, code: "purpose_lock_denied" });
 	});
 
 	it("denies write to another agent's workspace folder", () => {

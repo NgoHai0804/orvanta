@@ -134,7 +134,7 @@ describe("v0.1.0 Chrome Tabs & History in ConsoleView", () => {
 		const drawer = screen.getByTestId("console-history-drawer")
 		expect(drawer).toBeInTheDocument()
 		expect(within(drawer).getByText("Fix authorization middleware for v0.1.0")).toBeInTheDocument()
-		expect(within(drawer).getByText(".orvanta/history")).toBeInTheDocument()
+		expect(within(drawer).getByText(".orvanta/local/history")).toBeInTheDocument()
 
 		// Click on the past task to open it
 		fireEvent.click(within(drawer).getByText("Fix authorization middleware for v0.1.0"))

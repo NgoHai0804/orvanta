@@ -71,6 +71,8 @@ import {
 	TeamTaskToolResultSchema,
 	type TeamTeammateSpec,
 	EphemeralTracker,
+	getCeoSessionPause,
+	isCeoSessionDispatchBlocked,
 	validateWithZod,
 	wrapToolWithPurposeLock,
 	zodToJsonSchema,
@@ -82,6 +84,37 @@ import {
 	type DelegatedAgentRuntimeConfig,
 } from "./delegated-agent";
 import type { AgentTeamsRuntime } from "./multi-agent";
+
+async function assertCeoSessionAllowsDispatch(
+	configProvider: DelegatedAgentConfigProvider,
+): Promise<void> {
+	const runtime = configProvider.getRuntimeConfig();
+	const workspaceRoot = runtime.workspaceRoot?.trim() || runtime.cwd?.trim();
+	const sessionId = runtime.orvantaSessionId?.trim();
+	// Keep this path sync when no CEO session is bound so tool execute stays
+	// synchronous through the concurrent team_run_task dedupe window.
+	if (!workspaceRoot || !sessionId) {
+		return;
+	}
+	const pause = await getCeoSessionPause(workspaceRoot, sessionId);
+	if (isCeoSessionDispatchBlocked(pause)) {
+		throw new Error(
+			`CEO session '${sessionId}' is ${pause?.status ?? "paused"}; new teammate dispatch is blocked until resume.`,
+		);
+	}
+}
+
+function maybeAssertCeoSessionAllowsDispatch(
+	configProvider: DelegatedAgentConfigProvider,
+): Promise<void> | undefined {
+	const runtime = configProvider.getRuntimeConfig();
+	const workspaceRoot = runtime.workspaceRoot?.trim() || runtime.cwd?.trim();
+	const sessionId = runtime.orvantaSessionId?.trim();
+	if (!workspaceRoot || !sessionId) {
+		return undefined;
+	}
+	return assertCeoSessionAllowsDispatch(configProvider);
+}
 
 function truncateText(value: string, maxLength: number): string {
 	const normalized = value.replace(/\s+/g, " ").trim();
@@ -336,6 +369,10 @@ export function createAgentTeamsTools(
 						TeamSpawnTeammateInputSchema,
 						input,
 					);
+					const spawnPauseGate = maybeAssertCeoSessionAllowsDispatch(
+						options.teammateConfigProvider,
+					);
+					if (spawnPauseGate) await spawnPauseGate;
 					if (options.runtime.getMemberRole(options.requesterId) !== "lead") {
 						throw new Error("Only the lead agent can manage teammates.");
 					}
@@ -549,6 +586,10 @@ export function createAgentTeamsTools(
 			inputSchema: zodToJsonSchema(TeamRunTaskInputSchema),
 			execute: async (input) => {
 				const validatedInput = validateWithZod(TeamRunTaskInputSchema, input);
+				const runPauseGate = maybeAssertCeoSessionAllowsDispatch(
+					options.teammateConfigProvider,
+				);
+				if (runPauseGate) await runPauseGate;
 				const isLead =
 					options.runtime.getMemberRole(options.requesterId) === "lead" ||
 					options.requesterId === "coordinator" ||

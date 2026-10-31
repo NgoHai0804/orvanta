@@ -80,6 +80,113 @@ describe("UnifiedSessionPersistenceService", () => {
 	});
 
 	sqliteIt(
+		"isolates concurrent project sessions and artifacts across close, reopen, list, read, and delete",
+		async () => {
+			const projectA = mkdtempSync(join(tmpdir(), "session-project-a-"));
+			const projectB = mkdtempSync(join(tmpdir(), "session-project-b-"));
+			tempDirs.push(projectA, projectB);
+			const dbA = join(projectA, "db");
+			const dbB = join(projectB, "db");
+			const artifactsA = join(projectA, "sessions");
+			const artifactsB = join(projectB, "sessions");
+			const sessionId = "overlapping-session-id";
+			let storeA = new SqliteSessionStore({ sessionsDir: dbA });
+			let storeB = new SqliteSessionStore({ sessionsDir: dbB });
+			stores.push(storeA, storeB);
+			let serviceA = new CoreSessionService(storeA, {
+				sessionArtifactsDir: artifactsA,
+			});
+			let serviceB = new CoreSessionService(storeB, {
+				sessionArtifactsDir: artifactsB,
+			});
+			const createProjectSession = async (
+				service: CoreSessionService,
+				workspaceRoot: string,
+				prompt: string,
+			) =>
+				service.createRootSessionWithArtifacts({
+					sessionId,
+					source: SessionSource.CLI,
+					pid: process.pid,
+					interactive: false,
+					provider: "anthropic",
+					model: "claude-sonnet-4-6",
+					cwd: workspaceRoot,
+					workspaceRoot,
+					enableTools: true,
+					enableSpawn: false,
+					enableTeams: false,
+					prompt,
+				});
+
+			const artifactsForA = await createProjectSession(
+				serviceA,
+				projectA,
+				"prompt-a",
+			);
+			const artifactsForB = await createProjectSession(
+				serviceB,
+				projectB,
+				"prompt-b",
+			);
+			await serviceA.persistSessionMessages(sessionId, [
+				{ role: "user", content: "message-a" },
+			]);
+			await serviceB.persistSessionMessages(sessionId, [
+				{ role: "user", content: "message-b" },
+			]);
+			expect(artifactsForA.manifestPath).not.toBe(artifactsForB.manifestPath);
+			expect(artifactsForA.messagesPath).not.toBe(artifactsForB.messagesPath);
+
+			serviceA.close();
+			serviceB.close();
+			storeA = new SqliteSessionStore({ sessionsDir: dbA });
+			storeB = new SqliteSessionStore({ sessionsDir: dbB });
+			stores.push(storeA, storeB);
+			serviceA = new CoreSessionService(storeA, {
+				sessionArtifactsDir: artifactsA,
+			});
+			serviceB = new CoreSessionService(storeB, {
+				sessionArtifactsDir: artifactsB,
+			});
+
+			const [listedA, listedB] = await Promise.all([
+				serviceA.listSessions(),
+				serviceB.listSessions(),
+			]);
+			expect(listedA.map((record) => record.sessionId)).toEqual([sessionId]);
+			expect(listedB.map((record) => record.sessionId)).toEqual([sessionId]);
+			expect(serviceA.readSessionManifest(sessionId)?.workspace_root).toBe(
+				projectA,
+			);
+			expect(serviceB.readSessionManifest(sessionId)?.workspace_root).toBe(
+				projectB,
+			);
+			const readPayload = (file: string) =>
+				JSON.parse(readFileSync(file, "utf8")) as {
+					messages: Array<{ content: string }>;
+				};
+			expect(readPayload(artifactsForA.messagesPath).messages[0]?.content).toBe(
+				"message-a",
+			);
+			expect(readPayload(artifactsForB.messagesPath).messages[0]?.content).toBe(
+				"message-b",
+			);
+
+			await expect(serviceA.deleteSession(sessionId)).resolves.toEqual({
+				deleted: true,
+			});
+			expect(await serviceA.listSessions()).toEqual([]);
+			expect(await serviceB.listSessions()).toHaveLength(1);
+			expect(readFileSync(artifactsForB.messagesPath, "utf8")).toContain(
+				"message-b",
+			);
+			expect(existsSync(artifactsForA.manifestPath)).toBe(false);
+			expect(existsSync(artifactsForB.manifestPath)).toBe(true);
+		},
+	);
+
+	sqliteIt(
 		"re-adopts the session row from the on-disk manifest when the DB row is missing",
 		async () => {
 			const dbDir = mkdtempSync(join(tmpdir(), "readopt-row-db-"));
@@ -486,18 +593,15 @@ describe("UnifiedSessionPersistenceService", () => {
 
 			const childSessions = await service.listSessions(10);
 			const teammateTaskSessions = childSessions.filter((row) =>
-				row.sessionId.includes("__teamtask__java-haiku-agent__"),
+				row.sessionId.includes(`__teamtask__java-haiku-agent__`),
 			);
-			const teammateSessionId = teammateTaskSessions.find((row) =>
-				row.prompt?.includes("Write a haiku about Java"),
-			)?.sessionId;
-			const secondRunSessionId = teammateTaskSessions.find((row) =>
-				row.prompt?.includes("Write another haiku about Java"),
-			)?.sessionId;
+			expect(teammateTaskSessions).toHaveLength(1);
+			const teammateSessionId = teammateTaskSessions[0]?.sessionId;
 			expect(teammateSessionId).toBeTruthy();
-			expect(secondRunSessionId).toBeTruthy();
-			expect(teammateTaskSessions).toHaveLength(2);
-			expect(childSessions.find((item) => item.sessionId === secondRunSessionId)?.status).toBe("running");
+			expect(
+				childSessions.find((item) => item.sessionId === teammateSessionId)
+					?.status,
+			).toBe("completed");
 			const row = childSessions.find(
 				(item) => item.sessionId === teammateSessionId,
 			);

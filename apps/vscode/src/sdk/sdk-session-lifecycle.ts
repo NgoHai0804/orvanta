@@ -7,9 +7,11 @@ import type {
 	StartSessionResult,
 } from "@cline/core"
 import { formatModeSwitchNotice, type ModeSwitchNotice } from "@cline/shared"
+import type { ProjectStorageRoots } from "@cline/shared/orvanta"
 import type { Mode } from "@shared/storage/types"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
+import { unregisterCeoSessionRuntimeBySdkSessionId } from "@/orvanta/ceo-session-runtime-reconnect"
 import { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
 import type { ActiveSession } from "./cline-session-factory"
@@ -43,6 +45,10 @@ export interface SdkSessionLifecycleOptions {
 	beforeStartSession?: () => Promise<void>
 	/** Returns the latest prepared remote-config integration, if remote config is active. */
 	getRemoteConfigIntegration?: () => PreparedRemoteConfigCoreIntegration | undefined
+	/** Resolves and validates roots for a workspace before constructing its host. */
+	resolveProjectStorageRoots?: (
+		workspaceRoot?: string,
+	) => ProjectStorageRoots | undefined | Promise<ProjectStorageRoots | undefined>
 	/** Shared SDK telemetry service owned by SdkController. */
 	telemetry?: ITelemetryService
 	onSendStart?: (sessionId: string) => void
@@ -66,7 +72,12 @@ export class SdkSessionLifecycle {
 	private activeSession: ActiveSession | undefined
 	private sharedHost: SdkSessionHost | undefined
 	private sharedHostPromise: Promise<SdkSessionHost> | undefined
-	private sharedHostUnsubscribe: (() => void) | undefined
+	private readonly hostUnsubscribes = new Map<SdkSessionHost, () => void>()
+	private readonly projectHostPromises = new Map<string, Promise<SdkSessionHost>>()
+	private readonly projectHosts = new WeakMap<SdkSessionHost, ProjectStorageRoots>()
+	private readonly unscopedHostOverrides = new WeakSet<SdkSessionHost>()
+	private readonly hostProjectRoots = new WeakMap<SdkSessionHost, string | undefined>()
+	private readonly projectHostUnsubscribes = new Map<string, () => void>()
 	/**
 	 * Stops still in flight, keyed by sessionId. Mode/MCP rebuilds and
 	 * follow-up resumes reuse the sessionId of the session they replace, and
@@ -178,6 +189,7 @@ export class SdkSessionLifecycle {
 			return undefined
 		}
 
+		unregisterCeoSessionRuntimeBySdkSessionId(activeSession.sessionId)
 		this.safeUnsubscribe(activeSession, reason)
 		const stopPromise = this.trackSessionStop(activeSession.sdkHost, activeSession.sessionId, reason)
 		if (options.awaitStop) {
@@ -247,7 +259,10 @@ export class SdkSessionLifecycle {
 		const toolPolicies =
 			!hostOverride && autoApprovalSettings ? buildToolPolicies(autoApprovalSettings, this.options.mcpHub) : undefined
 
-		const sdkHost = hostOverride ?? (await this.getOrCreateSharedHost())
+		const projectStorageRoots = hostOverride
+			? undefined
+			: await this.options.resolveProjectStorageRoots?.(startInput.config?.workspaceRoot ?? startInput.config?.cwd)
+		const sdkHost = hostOverride ?? (await this.getOrCreateSharedHost(projectStorageRoots))
 		if (!shouldContinue()) {
 			throw new SessionStartSupersededError()
 		}
@@ -399,9 +414,16 @@ export class SdkSessionLifecycle {
 		const sharedHost = this.sharedHost ?? (await this.sharedHostPromise?.catch(() => undefined))
 		this.sharedHost = undefined
 		this.sharedHostPromise = undefined
-		this.sharedHostUnsubscribe?.()
-		this.sharedHostUnsubscribe = undefined
-		await sharedHost?.dispose(reason)
+		const projectHosts = await Promise.all(
+			[...this.projectHostPromises.values()].map((promise) => promise.catch(() => undefined)),
+		)
+		this.projectHostPromises.clear()
+		for (const unsubscribe of this.hostUnsubscribes.values()) unsubscribe()
+		this.hostUnsubscribes.clear()
+		for (const unsubscribe of this.projectHostUnsubscribes.values()) unsubscribe()
+		this.projectHostUnsubscribes.clear()
+		await Promise.all([...new Set([sharedHost, ...projectHosts])].map((host) => host?.dispose(reason)))
+		this.projectHostPromises.clear()
 	}
 
 	private createSafeUnsubscribe(unsubscribe: () => void, label: string): () => void {
@@ -425,10 +447,13 @@ export class SdkSessionLifecycle {
 	}
 
 	private ensureSharedHostSubscription(sdkHost: SdkSessionHost): void {
-		if (this.sharedHostUnsubscribe) {
+		if (this.hostUnsubscribes.has(sdkHost)) {
 			return
 		}
-		this.sharedHostUnsubscribe = this.createSafeUnsubscribe(sdkHost.subscribe(this.options.onSessionEvent), "shared-host")
+		this.hostUnsubscribes.set(
+			sdkHost,
+			this.createSafeUnsubscribe(sdkHost.subscribe(this.options.onSessionEvent), "shared-host"),
+		)
 	}
 
 	/**
@@ -470,7 +495,58 @@ export class SdkSessionLifecycle {
 		}
 	}
 
-	private async getOrCreateSharedHost(): Promise<SdkSessionHost> {
+	async getHostForWorkspaceRoot(workspaceRoot?: string): Promise<SdkSessionHost> {
+		const projectStorageRoots = await this.options.resolveProjectStorageRoots?.(workspaceRoot)
+		const host = await this.getOrCreateSharedHost(projectStorageRoots)
+		return host
+	}
+
+	getProjectStorageRootsForHost(host: SdkSessionHost): ProjectStorageRoots | undefined {
+		const roots = this.projectHosts.get(host)
+		if (roots) return roots
+		const workspaceRoot = this.hostProjectRoots.get(host)
+		if (!workspaceRoot) return undefined
+		const resolved = this.options.resolveProjectStorageRoots?.(workspaceRoot)
+		return resolved instanceof Promise ? undefined : resolved
+	}
+
+	async resolveStorageRootsForWorkspace(workspaceRoot: string): Promise<ProjectStorageRoots | undefined> {
+		return await this.options.resolveProjectStorageRoots?.(workspaceRoot)
+	}
+
+	async getUnscopedHost(): Promise<SdkSessionHost> {
+		const host = await this.getOrCreateSharedHost()
+		this.unscopedHostOverrides.add(host)
+		return host
+	}
+
+	isHostUnscopedOverride(host: SdkSessionHost): boolean {
+		return this.unscopedHostOverrides.has(host)
+	}
+
+	isProjectScopedHost(host: SdkSessionHost): boolean {
+		return this.hostProjectRoots.get(host) !== undefined
+	}
+
+	private async getOrCreateSharedHost(projectStorageRoots?: ProjectStorageRoots): Promise<SdkSessionHost> {
+		if (projectStorageRoots) {
+			const key = projectStorageRoots.workspaceRoot
+			let hostPromise = this.projectHostPromises.get(key)
+			if (!hostPromise) {
+				hostPromise = this.createSessionHost(projectStorageRoots).then((host) => {
+					this.projectHostUnsubscribes.set(
+						key,
+						this.createSafeUnsubscribe(host.subscribe(this.options.onSessionEvent), `project-host:${key}`),
+					)
+					return host
+				})
+				this.projectHostPromises.set(key, hostPromise)
+				hostPromise.catch(() => {
+					if (this.projectHostPromises.get(key) === hostPromise) this.projectHostPromises.delete(key)
+				})
+			}
+			return hostPromise
+		}
 		if (this.sharedHost) {
 			this.ensureSharedHostSubscription(this.sharedHost)
 			return this.sharedHost
@@ -478,19 +554,7 @@ export class SdkSessionLifecycle {
 		if (!this.sharedHostPromise) {
 			// Host-lifetime dependencies only. Anything task/session-specific must be
 			// supplied to sdkHost.start(...), otherwise it can leak across reused sessions.
-			this.sharedHostPromise = VscodeSessionHost.create({
-				mcpHub: this.options.mcpHub,
-				requestToolApproval: this.options.requestToolApproval,
-				askQuestion: this.options.askQuestion,
-				editorExecutor: this.options.editorExecutor,
-				applyPatchExecutor: this.options.applyPatchExecutor,
-				readFileExecutor: this.options.readFileExecutor,
-				getTerminalManager: this.options.getTerminalManager,
-				foregroundCommands: this.options.foregroundCommands,
-				beforeStartSession: this.options.beforeStartSession,
-				getRemoteConfigIntegration: this.options.getRemoteConfigIntegration,
-				telemetry: this.options.telemetry,
-			})
+			this.sharedHostPromise = this.createSessionHost()
 				.then((sdkHost) => {
 					this.ensureSharedHostSubscription(sdkHost)
 					this.sharedHost = sdkHost
@@ -501,6 +565,27 @@ export class SdkSessionLifecycle {
 				})
 		}
 		return this.sharedHostPromise
+	}
+
+	private async createSessionHost(projectStorageRoots?: ProjectStorageRoots): Promise<SdkSessionHost> {
+		const sdkHost = await VscodeSessionHost.create({
+			mcpHub: this.options.mcpHub,
+			projectStorageRoots,
+			requestToolApproval: this.options.requestToolApproval,
+			askQuestion: this.options.askQuestion,
+			editorExecutor: this.options.editorExecutor,
+			applyPatchExecutor: this.options.applyPatchExecutor,
+			readFileExecutor: this.options.readFileExecutor,
+			getTerminalManager: this.options.getTerminalManager,
+			foregroundCommands: this.options.foregroundCommands,
+			beforeStartSession: this.options.beforeStartSession,
+			getRemoteConfigIntegration: this.options.getRemoteConfigIntegration,
+			telemetry: this.options.telemetry,
+		})
+		this.hostProjectRoots.set(sdkHost, projectStorageRoots?.workspaceRoot)
+		if (projectStorageRoots) this.projectHosts.set(sdkHost, projectStorageRoots)
+		if (!projectStorageRoots) this.ensureSharedHostSubscription(sdkHost)
+		return sdkHost
 	}
 
 	fireAndForgetSend(

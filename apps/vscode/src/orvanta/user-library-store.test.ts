@@ -1,9 +1,16 @@
-import { afterEach, describe, expect, it } from "bun:test"
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { slugify, WORKSPACE_DIRNAME } from "@cline/shared"
-import { NeedsReplaceError, SlugAlreadyExistsError, UserLibraryStore, userOrvantaRoot } from "./user-library-store"
+import { afterEach, describe, expect, it } from "vitest"
+import {
+	migrateUserLibraryIfNeeded,
+	NeedsReplaceError,
+	SlugAlreadyExistsError,
+	USER_LIBRARY_MIGRATION_STATUS_FILE,
+	UserLibraryStore,
+	userOrvantaRoot,
+} from "./user-library-store"
 import { createCompany, pathExists, removeAgent, upsertAgent } from "./workspace-store"
 
 const PURPOSE = "Xây công ty AI theo từng repo, giữ agent đúng mục tiêu."
@@ -21,10 +28,17 @@ async function tempDir(prefix = "orvanta-test-"): Promise<string> {
 }
 
 describe("userOrvantaRoot & slugify", () => {
-	it("userOrvantaRoot() ends with .orvanta under homedir()", () => {
+	it("userOrvantaRoot() uses the platform user-library location", () => {
 		const root = userOrvantaRoot()
-		expect(root.endsWith(".orvanta")).toBe(true)
-		expect(root).toBe(join(homedir(), ".orvanta"))
+		if (process.platform === "win32" && process.env.LOCALAPPDATA?.trim()) {
+			expect(root).toBe(join(process.env.LOCALAPPDATA, "Orvanta"))
+		} else {
+			expect(root).toBe(join(homedir(), ".orvanta"))
+		}
+	})
+
+	it("userOrvantaRoot(baseDir) stays injectable for tests", () => {
+		expect(userOrvantaRoot("D:\\tmp\\lib-fixture")).toBe(join("D:\\tmp\\lib-fixture", "Orvanta"))
 	})
 
 	it("slugify: 'Orvanta Core' -> 'orvanta-core'", () => {
@@ -208,5 +222,20 @@ describe("UserLibraryStore", () => {
 			expect(loaded.roster.agents.find((a) => a.id === "implementer")?.agentNumericId).toBe(3)
 			expect(loaded.roster.retiredAgents.find((a) => a.id === "reviewer")?.agentNumericId).toBe(2)
 		}
+	})
+
+	it("copies a legacy home library into an empty destination once", async () => {
+		const sourceRoot = await tempDir("legacy-lib-")
+		const destRoot = await tempDir("new-lib-")
+		const companies = join(sourceRoot, "companies", "alpha")
+		await mkdir(companies, { recursive: true })
+		await writeFile(join(companies, "company.json"), "{}\n")
+		const status = await migrateUserLibraryIfNeeded(destRoot, sourceRoot)
+		expect(status?.copied).toBe(true)
+		expect(await pathExists(join(destRoot, "companies", "alpha", "company.json"))).toBe(true)
+		expect(await pathExists(join(destRoot, USER_LIBRARY_MIGRATION_STATUS_FILE))).toBe(true)
+		expect(await pathExists(join(sourceRoot, "companies", "alpha", "company.json"))).toBe(true)
+		const second = await migrateUserLibraryIfNeeded(destRoot, sourceRoot)
+		expect(second).toBeUndefined()
 	})
 })

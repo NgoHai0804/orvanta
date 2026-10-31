@@ -668,20 +668,23 @@ describe("hasWorkspaceCheckpointForMessage", () => {
 	})
 
 	it("uses and disposes a temporary host for a history task", async () => {
+		const chatWorkspace = "/home/test/.cline/data/workspaces/chat"
 		const tempHost = {
 			get: vi.fn().mockResolvedValue({
+				cwd: chatWorkspace,
 				metadata: { checkpoint: { history: [{ ref: "checkpoint-a", createdAt: 1, runCount: 1 }] } },
 			}),
 			readMessages: vi.fn().mockResolvedValue(sdkMessages),
 			dispose: vi.fn().mockRejectedValue(new Error("cleanup failed")),
 		}
-		const controller = {
+		const controller = Object.assign(Object.create(SdkController.prototype), {
 			task: { taskId: "task-a", messageStateHandler: { getClineMessages: () => messages } },
 			sessions: { getActiveSession: () => undefined },
+			getWorkspaceRoot: vi.fn().mockResolvedValue(chatWorkspace),
 			createRemoteConfigAwareSessionHost: vi.fn().mockResolvedValue(tempHost),
-		}
+		})
 
-		await expect(SdkController.prototype.hasWorkspaceCheckpointForMessage.call(controller as never, 1)).resolves.toBe(true)
+		await expect(controller.hasWorkspaceCheckpointForMessage(1)).resolves.toBe(true)
 		expect(tempHost.get).toHaveBeenCalledWith("task-a")
 		expect(tempHost.dispose).toHaveBeenCalledWith("workspaceCheckpointForMessage")
 	})

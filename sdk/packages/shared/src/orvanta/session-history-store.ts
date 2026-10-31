@@ -44,6 +44,8 @@ export const OrvantaSessionStatusSchema = z.enum([
 	"error",
 	"deleting",
 	"archived",
+	"pause_requested",
+	"paused",
 ]);
 export type OrvantaSessionStatus = z.infer<typeof OrvantaSessionStatusSchema>;
 
@@ -743,16 +745,31 @@ export async function upsertParticipant(
 		}
 
 		const existingParticipant = existingIndex >= 0 ? manifest.participants[existingIndex] : undefined
-		const transcript = participantInput.transcript
+		const existingTranscript = existingParticipant?.transcript
+		const incomingTranscript = participantInput.transcript
+		if (
+			existingTranscript?.sdkSessionId &&
+			incomingTranscript?.sdkSessionId &&
+			incomingTranscript.sdkSessionId !== existingTranscript.sdkSessionId
+		) {
+			throw new SessionConflictError(
+				sessionId,
+				`Participant ${participantInput.agentNumericId} already mapped to sdkSessionId '${existingTranscript.sdkSessionId}'; cannot remap to '${incomingTranscript.sdkSessionId}'`,
+			)
+		}
+		// sdkSessionId is sticky once set; omit/undefined on later upserts must not wipe it.
+		const transcript = incomingTranscript
 			? OrvantaAgentTranscriptIdentitySchema.parse({
-					...existingParticipant?.transcript,
-					...participantInput.transcript,
-					runIds: Array.from(new Set([
-						...(existingParticipant?.transcript?.runIds ?? []),
-						...(participantInput.transcript.runIds ?? []),
-					])),
+					...existingTranscript,
+					...Object.fromEntries(
+						Object.entries(incomingTranscript).filter(([, value]) => value !== undefined),
+					),
+					sdkSessionId: existingTranscript?.sdkSessionId ?? incomingTranscript.sdkSessionId,
+					runIds: Array.from(
+						new Set([...(existingTranscript?.runIds ?? []), ...(incomingTranscript.runIds ?? [])]),
+					),
 				})
-			: existingParticipant?.transcript
+			: existingTranscript
 
 		const updatedParticipant: OrvantaSessionParticipant = {
 			agentNumericId: participantInput.agentNumericId,

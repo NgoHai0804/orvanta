@@ -18,6 +18,7 @@ export {
 	asBool,
 	asOptionalString,
 	asString,
+	backupSqliteDatabaseAfterClose,
 	ensureSessionSchema,
 	loadSqliteDb,
 	nowIso,

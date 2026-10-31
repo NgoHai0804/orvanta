@@ -26,6 +26,18 @@ service OrvantaService {
   rpc subscribeWarRoom(EmptyRequest) returns (stream OrvantaWarRoomSnapshot);
   rpc subscribeConsoleState(EmptyRequest) returns (stream OrvantaConsoleStateSnapshot);
   rpc sendAgentDirectMessage(OrvantaSendAgentDirectMessageRequest) returns (OrvantaSendAgentDirectMessageResponse);
+  rpc getAgentMemory(StringRequest) returns (OrvantaAgentMemoryResponse);
+  rpc saveAgentMemory(OrvantaSaveAgentMemoryRequest) returns (OrvantaAgentMemoryResponse);
+  rpc deleteAgentMemory(StringRequest) returns (OrvantaAgentMemoryResponse);
+  rpc listMemoryProposals(StringRequest) returns (OrvantaMemoryProposalList);
+  rpc approveMemoryProposal(OrvantaMemoryProposalActionRequest) returns (OrvantaAgentMemoryResponse);
+  rpc rejectMemoryProposal(OrvantaMemoryProposalActionRequest) returns (OrvantaMemoryProposalList);
+  rpc pauseCeoSession(OrvantaCeoSessionPauseRequest) returns (OrvantaCeoSessionPauseResponse);
+  rpc getCeoSessionPause(OrvantaCeoSessionPauseRequest) returns (OrvantaCeoSessionPauseResponse);
+  rpc resumeCeoSession(OrvantaCeoSessionPauseRequest) returns (OrvantaCeoSessionPauseResponse);
+  rpc listCeoSessions(EmptyRequest) returns (OrvantaCeoSessionListResponse);
+  rpc getCeoSession(OrvantaCeoSessionRequest) returns (OrvantaCeoSessionResponse);
+  rpc getParticipantTranscript(OrvantaParticipantTranscriptRequest) returns (OrvantaParticipantTranscriptResponse);
 }
 
 message OrvantaCreateCompanyRequest {
@@ -204,6 +216,10 @@ message OrvantaWarRoomSnapshot {
   repeated OrvantaAgentCard cards = 1;
   string company_name = 2;
   string purpose_one_liner = 3;
+  // live | stale | reconnecting
+  string sync_status = 4;
+  // ISO timestamp of last authoritative snapshot emit
+  string last_updated_at = 5;
 }
 
 // Console & Channels messages (v0.0.4)
@@ -235,6 +251,120 @@ message OrvantaSendAgentDirectMessageRequest {
 message OrvantaSendAgentDirectMessageResponse {
   bool success = 1;
   optional string error = 2;
+}
+
+message OrvantaAgentMemoryResponse {
+  bool success = 1;
+  optional string error = 2;
+  string agent_id = 3;
+  string content = 4;
+  // empty | ready | missing | corrupt
+  string status = 5;
+}
+
+message OrvantaSaveAgentMemoryRequest {
+  string agent_id = 1;
+  string content = 2;
+}
+
+message OrvantaMemoryProposal {
+  string id = 1;
+  string agent_id = 2;
+  string content = 3;
+  string created_at = 4;
+}
+
+message OrvantaMemoryProposalList {
+  bool success = 1;
+  optional string error = 2;
+  string agent_id = 3;
+  repeated OrvantaMemoryProposal proposals = 4;
+}
+
+message OrvantaMemoryProposalActionRequest {
+  string agent_id = 1;
+  string proposal_id = 2;
+}
+
+message OrvantaCeoSessionPauseRequest {
+  string session_id = 1;
+}
+
+message OrvantaCeoSessionPauseResponse {
+  bool success = 1;
+  optional string error = 2;
+  string session_id = 3;
+  // none | pause_requested | paused | partial
+  string status = 4;
+  string participants_json = 5;
+  // JSON array of { agentId, reason, at } for unclear side effects
+  string needs_attention_json = 6;
+}
+
+message OrvantaCeoSessionRequest {
+  string session_id = 1;
+}
+
+message OrvantaCeoSessionParticipant {
+  int64 agent_numeric_id = 1;
+  string agent_slug = 2;
+  string display_name = 3;
+  string role = 4;
+  string task_id = 5;
+  optional string sdk_session_id = 6;
+  repeated string run_ids = 7;
+  string status = 8;
+}
+
+message OrvantaCeoSessionIndexItem {
+  string session_id = 1;
+  string company_id = 2;
+  string title = 3;
+  string created_at = 4;
+  string updated_at = 5;
+  string status = 6;
+  bool is_favorited = 7;
+  repeated OrvantaCeoSessionParticipant participants = 8;
+}
+
+message OrvantaCeoSessionListResponse {
+  bool success = 1;
+  optional string error = 2;
+  // none | ready | missing_index | corrupt | workspace_mismatch
+  string status = 3;
+  repeated OrvantaCeoSessionIndexItem sessions = 4;
+}
+
+message OrvantaCeoSessionResponse {
+  bool success = 1;
+  optional string error = 2;
+  // none | ready | not_found | corrupt | workspace_mismatch
+  string status = 3;
+  optional OrvantaCeoSessionIndexItem session = 4;
+  string manifest_json = 5;
+}
+
+message OrvantaParticipantTranscriptRequest {
+  string session_id = 1;
+  optional int64 participant_numeric_id = 2;
+  optional string run_id = 3;
+  optional string cursor = 4;
+  optional int32 page_size = 5;
+}
+
+message OrvantaParticipantTranscriptResponse {
+  bool success = 1;
+  optional string error = 2;
+  // ok | not_linked | not_found | error
+  string status = 3;
+  optional string code = 4;
+  optional string sdk_session_id = 5;
+  optional int64 participant_numeric_id = 6;
+  optional string participant_slug = 7;
+  repeated string run_ids = 8;
+  string messages_json = 9;
+  optional string next_cursor = 10;
+  bool truncated = 11;
 }
 
 

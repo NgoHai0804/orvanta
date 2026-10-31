@@ -1,5 +1,5 @@
-import { describe, expect, it } from "bun:test"
 import type { CompanyLoad } from "@cline/shared"
+import { describe, expect, it } from "vitest"
 import { toCompanyResponse } from "./to-company-response"
 
 describe("toCompanyResponse", () => {

@@ -1654,8 +1654,8 @@ describe("buildSessionConfig", () => {
 
 		expect(config.enableAgentTeams).toBe(true)
 		expect(config.teamName).toBe("acme-corp-team")
-		expect(config.teamDir).toBe(path.join(workspaceRoot, ".orvanta", "state", "team"))
-		expect(fs.existsSync(path.join(workspaceRoot, ".orvanta", "state", "team"))).toBe(true)
+		expect(config.teamDir).toBe(path.join(workspaceRoot, ".orvanta", "local", "db"))
+		expect(fs.existsSync(path.join(workspaceRoot, ".orvanta", "local", "db"))).toBe(true)
 		expect(fs.existsSync(path.join(workspaceRoot, ".orvanta", "artifacts", "marketing"))).toBe(true)
 		expect(fs.existsSync(path.join(workspaceRoot, ".orvanta", "artifacts", "sales"))).toBe(true)
 		expect(fs.existsSync(path.join(workspaceRoot, ".orvanta", "artifacts", "research"))).toBe(true)
@@ -1761,9 +1761,11 @@ describe("createHistoryItemFromSession", () => {
 			"Fix the bug in main.ts",
 			"claude-sonnet-4-6",
 			"/home/user/project",
+			"ceo_fixed",
 		)
 
 		expect(item.id).toBe("session-abc")
+		expect(item.sessionId).toBe("ceo_fixed")
 		expect(item.task).toBe("Fix the bug in main.ts")
 		expect(item.modelId).toBe("claude-sonnet-4-6")
 		expect(item.cwdOnTaskInitialization).toBe("/home/user/project")
@@ -1778,6 +1780,8 @@ describe("createHistoryItemFromSession", () => {
 
 		expect(item.modelId).toBeUndefined()
 		expect(item.cwdOnTaskInitialization).toBeUndefined()
+		expect(item.sessionId).toMatch(/^ceo_/)
+		expect(item.sessionId).not.toBe(item.id)
 	})
 
 	it("creates unique timestamps for different calls", () => {

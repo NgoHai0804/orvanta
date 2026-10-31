@@ -24,12 +24,22 @@ export function createLocalTeamStore(options: SqliteTeamStoreOptions = {}): {
 	persistBatch: FileTeamStore["persistBatch"];
 	persistRuntime: FileTeamStore["persistRuntime"];
 	markInProgressRunsInterrupted: FileTeamStore["markInProgressRunsInterrupted"];
+	deleteTeam: FileTeamStore["deleteTeam"];
+	close?: () => void;
 } {
+	if (options.failClosed && !options.teamDir) {
+		throw new Error(
+			"Fail-closed TeamStore requires an explicit project-owned directory",
+		);
+	}
 	try {
 		const store = new SqliteTeamStore(options);
 		store.init();
 		return store;
-	} catch {
+	} catch (error) {
+		if (options.failClosed) {
+			throw error;
+		}
 		const store = new FileTeamStore({ teamDir: options.teamDir });
 		store.init();
 		return store;

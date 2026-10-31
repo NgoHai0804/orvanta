@@ -1569,6 +1569,31 @@ export class AgentTeamsRuntime {
 		return interrupted;
 	}
 
+	/**
+	 * Fail-closed host restart: mark only mid-flight `running` runs interrupted
+	 * so queued durable work can still be recovered without blind-replaying
+	 * unclear side effects.
+	 */
+	interruptRunningRuns(reason = "unclear_side_effect_on_restart"): TeamRunRecord[] {
+		const interrupted: TeamRunRecord[] = [];
+		for (const run of this.runs.values()) {
+			if (run.status !== "running") {
+				continue;
+			}
+			run.status = "interrupted";
+			run.error = reason;
+			run.endedAt = new Date();
+			run.currentActivity = "interrupted";
+			interrupted.push({ ...run });
+			this.emitEvent({
+				type: TeamMessageType.RunInterrupted,
+				run: { ...run },
+				reason,
+			});
+		}
+		return interrupted;
+	}
+
 	sendMessage(
 		fromAgentId: string,
 		toAgentId: string,

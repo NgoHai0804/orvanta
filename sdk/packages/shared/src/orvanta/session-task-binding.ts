@@ -42,6 +42,8 @@ export interface BindTaskToSessionInput {
 	prompt?: string;
 	lastMessagePreview?: string;
 	usage?: OrvantaUsage;
+	/** Canonical SDK transcript id for this participant. Never inferred from run/task aliases. */
+	sdkSessionId?: string;
 }
 
 export interface BindTaskToSessionResult {
@@ -208,6 +210,9 @@ export async function bindTaskToSession(
 			taskId: input.taskId,
 			lastMessagePreview: input.lastMessagePreview,
 			usage: input.usage,
+			transcript: input.sdkSessionId
+				? { sdkSessionId: input.sdkSessionId, runIds: [] }
+				: undefined,
 		});
 
 		const participant = updatedSession.participants.find(

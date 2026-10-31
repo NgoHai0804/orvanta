@@ -4,6 +4,7 @@ import {
 	asBool,
 	asOptionalString,
 	asString,
+	backupSqliteDatabaseAfterClose,
 	ensureSessionSchema,
 	loadSqliteDb,
 	nowIso,
@@ -58,6 +59,12 @@ export class SqliteSessionStore implements SessionStore {
 
 	close(): void {
 		this.db?.close?.();
+		this.db = undefined;
+	}
+
+	backupTo(destinationPath: string): void {
+		const db = this.getRawDb();
+		backupSqliteDatabaseAfterClose(db, this.sessionDbPath(), destinationPath);
 		this.db = undefined;
 	}
 

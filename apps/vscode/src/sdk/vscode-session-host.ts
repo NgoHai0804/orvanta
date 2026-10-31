@@ -35,6 +35,7 @@ import {
 	toClineCoreStartInput,
 } from "@cline/core"
 import { RUNTIME_CONFIG_EXTENSION_KINDS, type ToolApprovalRequest, type ToolApprovalResult, type ToolPolicy } from "@cline/shared"
+import { type ProjectStorageRoots, validateProjectStorageRoots } from "@cline/shared/orvanta"
 import { StateManager } from "@/core/storage/StateManager"
 import type { VscodeTerminalManager } from "@/hosts/vscode/terminal/VscodeTerminalManager"
 import { getDistinctId } from "@/services/logging/distinctId"
@@ -48,6 +49,8 @@ import { getEffectiveTerminalExecutionMode } from "./vscode-terminal-execution-m
 
 export interface VscodeSessionHostOptions {
 	mcpHub: McpHub
+	/** Validated project-owned persistence roots for this host's workspace. */
+	projectStorageRoots?: ProjectStorageRoots
 	requestToolApproval?: (request: {
 		agentId: string
 		conversationId: string
@@ -146,6 +149,13 @@ export class VscodeSessionHost implements SdkSessionHost {
 			const inputWithRemoteConfig = remoteConfigIntegration
 				? await remoteConfigIntegration.applyToStartSessionInput(input)
 				: input
+			if (options.projectStorageRoots) {
+				const sessionWorkspaceRoot = inputWithRemoteConfig.config.workspaceRoot ?? inputWithRemoteConfig.config.cwd
+				if (!sessionWorkspaceRoot) {
+					throw new Error("Project-scoped sessions require an explicit workspace root")
+				}
+				validateProjectStorageRoots(options.projectStorageRoots, sessionWorkspaceRoot)
+			}
 			const requestedTerminalExecutionMode = StateManager.get().getGlobalStateKey("vscodeTerminalExecutionMode")
 			const extraTools = await createVscodeExtraTools(options.mcpHub, {
 				cwd: inputWithRemoteConfig.config.cwd,
@@ -155,6 +165,12 @@ export class VscodeSessionHost implements SdkSessionHost {
 			})
 			const config: ClineCoreStartInput["config"] = {
 				...inputWithRemoteConfig.config,
+				...(options.projectStorageRoots && inputWithRemoteConfig.config.enableAgentTeams
+					? {
+							teamDir: options.projectStorageRoots.teamStoreDir,
+							teamStoreFailClosed: true,
+						}
+					: {}),
 				telemetry: inputWithRemoteConfig.config.telemetry ?? options.telemetry,
 				extraTools: [...(inputWithRemoteConfig.config.extraTools ?? []), ...extraTools],
 			}
@@ -178,6 +194,7 @@ export class VscodeSessionHost implements SdkSessionHost {
 
 		const inner = await ClineCore.create({
 			backendMode: "local",
+			...(options.projectStorageRoots ? { projectStorageRoots: options.projectStorageRoots } : {}),
 			capabilities: {
 				requestToolApproval: options.requestToolApproval as
 					| ((request: ToolApprovalRequest) => Promise<ToolApprovalResult>)

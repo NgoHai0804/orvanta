@@ -75,7 +75,7 @@ export const ChromeTabBar: React.FC<ChromeTabBarProps> = ({
 						}
 					`}
 					onClick={onToggleHistory}
-					title="Lịch sử cuộc trò chuyện (.orvanta/history)"
+					title="Lịch sử cuộc trò chuyện (.orvanta/local/history)"
 					type="button">
 					<IconHistory size={14} />
 					<span className="hidden sm:inline">Lịch sử</span>

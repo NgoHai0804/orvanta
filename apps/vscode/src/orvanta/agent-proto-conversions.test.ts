@@ -1,5 +1,5 @@
-import { describe, expect, it } from "bun:test"
 import type { AgentProfile } from "@cline/shared"
+import { describe, expect, it } from "vitest"
 import { fromOrvantaAgentProfile, toOrvantaAgentProfile } from "./agent-proto-conversions"
 
 describe("agent-proto-conversions", () => {

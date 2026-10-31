@@ -38,8 +38,9 @@ describe("prepareTaskResumeStartInput", () => {
 		expect(result.config.sessionId).toBe("task-1")
 		expect(result.initialMessages).toEqual([{ role: "user", content: "sdk" }])
 		expect(deps.taskHistory.getLegacyResumeInitialMessages).not.toHaveBeenCalled()
-		// The transient reader host is always disposed.
-		expect(tempHost.dispose).toHaveBeenCalledWith("readMessages")
+		// Session lifecycle owns cached hosts; reading history must not dispose the host.
+		expect(deps.createTempSessionHost).toHaveBeenCalledWith("/workspace")
+		expect(tempHost.dispose).not.toHaveBeenCalled()
 	})
 
 	it("converts a legacy task's transcript through the legacy resume path", async () => {
@@ -55,11 +56,11 @@ describe("prepareTaskResumeStartInput", () => {
 		expect(result.initialMessages).toEqual([{ role: "user", content: "legacy" }])
 	})
 
-	it("disposes the reader host even when reading messages throws", async () => {
+	it("preserves lifecycle ownership when reading messages throws", async () => {
 		const { deps, tempHost } = makeDeps()
 		deps.loadInitialMessages.mockRejectedValueOnce(new Error("read failed"))
 
 		await expect(prepareTaskResumeStartInput(deps, "task-1")).rejects.toThrow("read failed")
-		expect(tempHost.dispose).toHaveBeenCalledWith("readMessages")
+		expect(tempHost.dispose).not.toHaveBeenCalled()
 	})
 })

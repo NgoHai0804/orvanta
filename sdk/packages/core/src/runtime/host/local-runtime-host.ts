@@ -264,6 +264,7 @@ function isIncomingCompactionStateStale(
 export interface LocalRuntimeHostOptions {
 	distinctId?: string;
 	sessionService: SessionBackend;
+	closeSessionServiceOnDispose?: boolean;
 	runtimeBuilder?: RuntimeBuilder;
 	connectorsRequest?: ConnectorsRequest;
 	createAgent?: (config: AgentConfig) => SessionRuntime;
@@ -296,6 +297,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	public readonly pluginCommands: PluginCommandsApi;
 	private readonly pluginCommandManager: PluginCommandManager;
 	private readonly sessionService: SessionBackend;
+	private readonly closeSessionServiceOnDispose: boolean;
 	private readonly runtimeBuilder: RuntimeBuilder;
 	private readonly createAgentInstance: (config: AgentConfig) => SessionRuntime;
 	private readonly toolExecutors?: Partial<ToolExecutors>;
@@ -330,6 +332,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const distinctId = resolveCoreDistinctId(options.distinctId);
 		this.distinctId = distinctId;
 		this.sessionService = options.sessionService;
+		this.closeSessionServiceOnDispose =
+			options.closeSessionServiceOnDispose ?? false;
 		this.runtimeBuilder = options.runtimeBuilder ?? new DefaultRuntimeBuilder();
 		this.createAgentInstance =
 			options.createAgent ?? ((config) => new SessionRuntime(config));
@@ -1501,7 +1505,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 	async dispose(reason = "session_manager_dispose"): Promise<void> {
 		const sessions = [...this.sessions.values()];
 		await this.pluginCommandManager.dispose();
-		if (sessions.length === 0) return;
 		await Promise.allSettled(
 			sessions.map((session) =>
 				session.interactive && !isNonTerminalSessionStatus(session.status)
@@ -1523,6 +1526,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 		);
 		this.usageBySession.clear();
 		this.aggregateUsageBySession.clear();
+		if (this.closeSessionServiceOnDispose) {
+			const sessionStore = this.sessionService as SessionBackend & {
+				close?: () => void;
+			};
+			await sessionStore.close?.();
+		}
 	}
 
 	async getSession(sessionId: string): Promise<SessionRecord | undefined> {

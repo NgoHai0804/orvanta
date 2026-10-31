@@ -24,6 +24,8 @@ import {
 } from "@cline/core"
 import { loadCloudModels } from "@cline/core/cloud"
 import { formatDisplayUserInput, type RemoteConfig, type RemoteConfigBundle } from "@cline/shared"
+import { resolveProjectStorageRoots as resolveValidatedProjectStorageRoots } from "@cline/shared/orvanta"
+import { isChatWorkspacePath } from "@cline/shared/storage"
 import type { ApiConfiguration } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
@@ -451,6 +453,7 @@ export class Controller {
 			onDidBecomeIdle: () => this.handleSessionBecameIdle(),
 			beforeStartSession: () => this.ensureRemoteConfigForSessionStart(),
 			getRemoteConfigIntegration: () => this.remoteConfigCoreIntegration,
+			resolveProjectStorageRoots: (workspaceRoot) => this.resolveProjectStorageRoots(workspaceRoot),
 			foregroundCommands: this.foregroundCommands,
 			getTerminalManager: () => {
 				// Guarded by getEffectiveTerminalExecutionMode() at the read sites
@@ -551,6 +554,11 @@ export class Controller {
 				find: (id) => this.cloud.findHistoryRecord(id),
 				delete: (id) => this.cloud.deleteSession(id),
 			},
+			getWorkspaceRoot: () => this.getWorkspaceRoot(),
+			getActiveSessionHost: () => {
+				const active = this.sessions.getActiveSession()?.sdkHost
+				return active && "listHistory" in active ? (active as VscodeSessionHost) : undefined
+			},
 		})
 		this.mode = new SdkModeCoordinator({
 			stateManager: this.stateManager,
@@ -624,7 +632,10 @@ export class Controller {
 			sessionConfigBuilder: this.sessionConfigBuilder,
 			runExclusive: (operation) => this.sessionRebuilds.runExclusive(operation),
 			getTask: () => this.task,
-			createTempSessionHost: () => this.createRemoteConfigAwareSessionHost(),
+			createTempSessionHost: async (workspaceRoot) => {
+				const resolvedWorkspaceRoot = workspaceRoot ?? (await this.getWorkspaceRoot())
+				return this.sessions.getHostForWorkspaceRoot(resolvedWorkspaceRoot) as Promise<VscodeSessionHost>
+			},
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
 			loadInitialMessages: (sessionHost, taskId) => this.sessionHistory.loadInitialMessages(sessionHost, taskId),
 			buildStartSessionInput,
@@ -685,7 +696,10 @@ export class Controller {
 			onAskResponse: (text, images, files) => this.askResponse(text, images, files),
 			onCancelTask: () => this.cancelTask(),
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
-			createTempSessionHost: () => this.createRemoteConfigAwareSessionHost(),
+			createTempSessionHost: async (workspaceRoot) => {
+				const resolvedWorkspaceRoot = workspaceRoot ?? (await this.getWorkspaceRoot())
+				return this.sessions.getHostForWorkspaceRoot(resolvedWorkspaceRoot) as Promise<VscodeSessionHost>
+			},
 			loadInitialMessages: (reader, taskId) => this.sessionHistory.loadInitialMessages(reader, taskId),
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
 			isClineManagedProviderActive: () => this.isClineManagedProviderActive(),
@@ -765,7 +779,10 @@ export class Controller {
 			taskHistory: this.taskHistory,
 			sessionConfigBuilder: this.sessionConfigBuilder,
 			getDisplayedTaskId: () => this.task?.taskId,
-			createTempSessionHost: () => this.createRemoteConfigAwareSessionHost(),
+			createTempSessionHost: async (workspaceRoot) => {
+				const resolvedWorkspaceRoot = workspaceRoot ?? (await this.getWorkspaceRoot())
+				return this.sessions.getHostForWorkspaceRoot(resolvedWorkspaceRoot) as Promise<VscodeSessionHost>
+			},
 			loadInitialMessages: (reader, taskId) => this.sessionHistory.loadInitialMessages(reader, taskId),
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
 			postStateToWebview: () => this.postStateToWebview(),
@@ -1000,9 +1017,11 @@ export class Controller {
 		throw new Error("Could not verify organization policy. Check your connection and try again.")
 	}
 
-	private createRemoteConfigAwareSessionHost(): Promise<VscodeSessionHost> {
+	private async createRemoteConfigAwareSessionHost(workspaceRoot?: string): Promise<VscodeSessionHost> {
+		const projectStorageRoots = await this.resolveProjectStorageRoots(workspaceRoot ?? (await this.getWorkspaceRoot()))
 		return VscodeSessionHost.create({
 			mcpHub: this.mcpHub,
+			projectStorageRoots,
 			beforeStartSession: () => this.ensureRemoteConfigForSessionStart(),
 			getRemoteConfigIntegration: () => this.remoteConfigCoreIntegration,
 		})
@@ -1255,18 +1274,39 @@ export class Controller {
 	 * which produces invalid SDK workspace metadata with an empty hint.
 	 */
 	private async getWorkspaceRoot(): Promise<string> {
-		try {
-			const { paths } = await HostProvider.workspace.getWorkspacePaths({})
-			const workspaceRoot = paths?.find((workspacePath) => workspacePath.trim().length > 0)
-			if (workspaceRoot) {
-				this.lastKnownWorkspaceRoot = workspaceRoot
-				return workspaceRoot
-			}
-		} catch (error) {
-			Logger.warn("[SdkController] Failed to get workspace paths, using the no-workspace fallback:", error)
+		const { paths } = await HostProvider.workspace.getWorkspacePaths({})
+		const workspaceRoot = paths?.find((workspacePath) => workspacePath.trim().length > 0)
+		if (workspaceRoot) {
+			this.lastKnownWorkspaceRoot = workspaceRoot
+			return workspaceRoot
 		}
 		this.lastKnownWorkspaceRoot = await this.getNoWorkspaceFallback()
 		return this.lastKnownWorkspaceRoot
+	}
+
+	private async resolveProjectStorageRoots(workspaceRoot?: string) {
+		const root = workspaceRoot?.trim()
+		if (!root || isChatWorkspacePath(root)) return undefined
+		return resolveValidatedProjectStorageRoots(root)
+	}
+
+	private async sessionBelongsToWorkspace(sessionWorkspace: string | undefined, selectedWorkspace: string): Promise<boolean> {
+		if (!sessionWorkspace) return false
+		if (isChatWorkspacePath(sessionWorkspace) || isChatWorkspacePath(selectedWorkspace)) {
+			return (
+				isChatWorkspacePath(sessionWorkspace) &&
+				isChatWorkspacePath(selectedWorkspace) &&
+				arePathsEqual(sessionWorkspace, selectedWorkspace)
+			)
+		}
+		const [sessionProjectRoots, selectedProjectRoots] = await Promise.all([
+			this.resolveProjectStorageRoots(sessionWorkspace),
+			this.resolveProjectStorageRoots(selectedWorkspace),
+		])
+		if (sessionProjectRoots) {
+			return selectedProjectRoots?.workspaceRoot === sessionProjectRoots.workspaceRoot
+		}
+		return !selectedProjectRoots && arePathsEqual(sessionWorkspace, selectedWorkspace)
 	}
 
 	private noWorkspaceFallbackPromise?: Promise<string>
@@ -1837,9 +1877,17 @@ export class Controller {
 		const sourceSessionId = activeSession?.sessionId ?? currentTask.taskId
 		let sdkMessages: SdkUserMessage[]
 		let tempHost: VscodeSessionHost | undefined
-		const sessionHost = activeSession?.sdkHost ?? (tempHost = await this.createRemoteConfigAwareSessionHost())
 		try {
-			sdkMessages = (await readCurrentMessages(sessionHost, sourceSessionId)) as SdkUserMessage[]
+			const selectedWorkspace = activeSession ? undefined : await this.getWorkspaceRoot()
+			const host = activeSession?.sdkHost ?? (tempHost = await this.createRemoteConfigAwareSessionHost(selectedWorkspace))
+			if (!activeSession) {
+				const sessionRecord = await host.get(sourceSessionId)
+				const sessionWorkspace = sessionRecord?.workspaceRoot || sessionRecord?.cwd
+				if (!(await this.sessionBelongsToWorkspace(sessionWorkspace, selectedWorkspace!))) {
+					throw new Error("Cannot edit a session outside the selected workspace")
+				}
+			}
+			sdkMessages = (await readCurrentMessages(host, sourceSessionId)) as SdkUserMessage[]
 			const sdkTargetIndex = findSdkUserMessageIndexByOrdinal(sdkMessages, userOrdinal)
 			if (sdkTargetIndex === -1) {
 				throw new Error("Could not map edited message to the conversation history")
@@ -1858,7 +1906,7 @@ export class Controller {
 					: extractSdkUserText(firstUserMessage ?? {}) || clineMessages[0]?.text || editedText
 			const fallbackCwd = await this.getWorkspaceRoot()
 			const [sessionRecord, historyItem] = await Promise.all([
-				sessionHost.get(sourceSessionId).catch(() => undefined),
+				host.get(sourceSessionId).catch(() => undefined),
 				this.taskHistory.findHistoryItem(currentTask.taskId).catch(() => undefined),
 			])
 			const workspaceCheckpoint =
@@ -1900,7 +1948,7 @@ export class Controller {
 				if (!canRestoreWorkspace || checkpointRunCount === undefined) {
 					throw new Error("Workspace restore is only available for messages that started an agent run")
 				}
-				await sessionHost.restore({
+				await host.restore({
 					sessionId: sourceSessionId,
 					checkpointRunCount,
 					cwd,
@@ -2074,7 +2122,8 @@ export class Controller {
 		// After a window reload the latest task is shown from history without a
 		// live session, so fall back to a temporary host for the comparison.
 		let tempHost: VscodeSessionHost | undefined
-		const sessionHost = activeSession?.sdkHost ?? (tempHost = await this.createRemoteConfigAwareSessionHost())
+		const sessionHost =
+			activeSession?.sdkHost ?? (tempHost = await this.createRemoteConfigAwareSessionHost(await this.getWorkspaceRoot()))
 		try {
 			if (!sessionHost.compareCheckpoint) {
 				throw new Error("This session host does not support checkpoint comparison")
@@ -2127,10 +2176,16 @@ export class Controller {
 		const sessionId = activeSession?.sessionId ?? currentTask.taskId
 		let tempHost: VscodeSessionHost | undefined
 		try {
-			const sessionHost = activeSession?.sdkHost ?? (tempHost = await this.createRemoteConfigAwareSessionHost())
+			const selectedWorkspace = activeSession ? undefined : await this.getWorkspaceRoot()
+			const host = activeSession?.sdkHost ?? (tempHost = await this.createRemoteConfigAwareSessionHost(selectedWorkspace))
+			if (!activeSession) {
+				const sessionRecord = await host.get(sessionId)
+				const sessionWorkspace = sessionRecord?.workspaceRoot || sessionRecord?.cwd
+				if (!(await this.sessionBelongsToWorkspace(sessionWorkspace, selectedWorkspace!))) return false
+			}
 			const [sessionRecord, sdkMessages] = await Promise.all([
-				sessionHost.get(sessionId),
-				readCurrentMessages(sessionHost, sessionId) as Promise<SdkUserMessage[]>,
+				host.get(sessionId),
+				readCurrentMessages(host, sessionId) as Promise<SdkUserMessage[]>,
 			])
 			const sdkIndex = findSdkUserMessageIndexByOrdinal(sdkMessages, userOrdinal)
 			if (sdkIndex === -1) {

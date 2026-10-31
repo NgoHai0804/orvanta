@@ -191,8 +191,13 @@ export function checkPurposeLockPath(
 		return { allowed: true, path: relPath };
 	}
 
-	// Memory folder: .orvanta/memory/** - must not contain ".." and must end with .md
-	if (subPath === "memory" || subPath.startsWith("memory/")) {
+	// Memory folder: .orvanta/memory/** or .orvanta/local/memory/**
+	if (
+		subPath === "memory" ||
+		subPath.startsWith("memory/") ||
+		subPath === "local/memory" ||
+		subPath.startsWith("local/memory/")
+	) {
 		if (relPath.includes("..") || !subPath.endsWith(".md")) {
 			return {
 				allowed: false,
@@ -202,7 +207,34 @@ export function checkPurposeLockPath(
 				path: relPath,
 			};
 		}
-		return { allowed: true, path: relPath };
+		const requester = options.requesterId?.toLowerCase().trim();
+		const acceptedOwn = requester
+			? `local/memory/agents/${requester}/memory.md`
+			: undefined;
+		if (acceptedOwn && subPath === acceptedOwn) {
+			return {
+				allowed: false,
+				code: "purpose_lock_denied",
+				reason:
+					"Agent không được ghi thẳng memory.md đã chấp nhận. Chỉ được đề xuất trong proposals/.",
+				path: relPath,
+			};
+		}
+		const ownProposalPrefix = requester
+			? `local/memory/agents/${requester}/proposals/`
+			: undefined;
+		if (ownProposalPrefix && subPath.startsWith(ownProposalPrefix)) {
+			return { allowed: true, path: relPath };
+		}
+		if (subPath === "memory" || subPath.startsWith("memory/")) {
+			return { allowed: true, path: relPath };
+		}
+		return {
+			allowed: false,
+			code: "purpose_lock_denied",
+			reason: "Không được ghi memory của agent khác.",
+			path: relPath,
+		};
 	}
 
 	// Agent's own space: org/agents/<requesterId>/workspace/**

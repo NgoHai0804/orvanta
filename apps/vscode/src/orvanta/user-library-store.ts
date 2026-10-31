@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
+import { cp, mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import {
@@ -39,8 +39,56 @@ export class NeedsReplaceError extends Error {
 	}
 }
 
-export function userOrvantaRoot(baseDir: string = homedir()): string {
-	return join(baseDir, ".orvanta")
+export const USER_LIBRARY_MIGRATION_STATUS_FILE = "migration-status.json"
+
+export function userOrvantaRoot(baseDir?: string): string {
+	if (baseDir !== undefined) {
+		return join(baseDir, "Orvanta")
+	}
+	if (process.platform === "win32") {
+		const localAppData = process.env.LOCALAPPDATA?.trim()
+		if (localAppData) {
+			return join(localAppData, "Orvanta")
+		}
+	}
+	return join(homedir(), ".orvanta")
+}
+
+export function legacyUserOrvantaRoot(): string {
+	return join(homedir(), ".orvanta")
+}
+
+export interface UserLibraryMigrationStatus {
+	copiedAt: string
+	sourceRoot: string
+	destRoot: string
+	copied: boolean
+}
+
+export async function migrateUserLibraryIfNeeded(
+	destRoot: string = userOrvantaRoot(),
+	sourceRoot: string = legacyUserOrvantaRoot(),
+): Promise<UserLibraryMigrationStatus | undefined> {
+	if (destRoot === sourceRoot) {
+		return undefined
+	}
+	const destCompanies = join(destRoot, LIBRARY_DIRNAME)
+	const sourceCompanies = join(sourceRoot, LIBRARY_DIRNAME)
+	const destHasCompanies = await pathExists(destCompanies)
+	const sourceHasCompanies = await pathExists(sourceCompanies)
+	if (destHasCompanies || !sourceHasCompanies) {
+		return undefined
+	}
+	await mkdir(destRoot, { recursive: true })
+	await cp(sourceRoot, destRoot, { recursive: true, force: false })
+	const status: UserLibraryMigrationStatus = {
+		copiedAt: new Date().toISOString(),
+		sourceRoot,
+		destRoot,
+		copied: true,
+	}
+	await writeFile(join(destRoot, USER_LIBRARY_MIGRATION_STATUS_FILE), `${JSON.stringify(status, null, "\t")}\n`, "utf8")
+	return status
 }
 
 export function companySnapshotDir(slug: string, root: string = userOrvantaRoot()): string {
@@ -82,6 +130,12 @@ async function readTextIfPresent(filePath: string): Promise<string | undefined> 
 export class UserLibraryStore {
 	constructor(private readonly root: string = userOrvantaRoot()) {}
 
+	private async maybeMigrateDefaultRoot(): Promise<void> {
+		if (this.root === userOrvantaRoot()) {
+			await migrateUserLibraryIfNeeded(this.root)
+		}
+	}
+
 	private get companiesDir(): string {
 		return join(this.root, LIBRARY_DIRNAME)
 	}
@@ -91,6 +145,7 @@ export class UserLibraryStore {
 	}
 
 	async list(): Promise<LibraryCompanyEntry[]> {
+		await this.maybeMigrateDefaultRoot()
 		if (!(await pathExists(this.companiesDir))) {
 			return []
 		}
@@ -341,15 +396,13 @@ export class UserLibraryStore {
 			await mkdir(join(tmp, "org"), { recursive: true })
 			await writeFile(join(tmp, ROSTER_FILE), `${JSON.stringify(newRoster, null, "\t")}\n`, "utf8")
 
-			// Agent profiles and empty memory
+			// Agent profiles only — memory is project-local and starts empty
 			for (const agent of idleAgents) {
 				const profileSrc = await readTextIfPresent(join(snapshotDir, "org", "agents", agent.id, "profile.md"))
 				if (profileSrc !== undefined) {
 					const agentDir = join(tmp, "org", "agents", agent.id)
-					const wsDir = join(agentDir, "workspace")
-					await mkdir(wsDir, { recursive: true })
+					await mkdir(agentDir, { recursive: true })
 					await writeFile(join(agentDir, "profile.md"), profileSrc, "utf8")
-					await writeFile(join(wsDir, "memory.md"), "", "utf8")
 				}
 			}
 

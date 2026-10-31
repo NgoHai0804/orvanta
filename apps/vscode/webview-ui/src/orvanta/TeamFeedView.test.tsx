@@ -43,6 +43,14 @@ let currentSnapshot = mockSnapshot
 vi.mock("./useWarRoom", () => ({
 	useWarRoom: () => ({
 		snapshot: currentSnapshot,
+		syncStatus: "live",
+		lastUpdatedAt: undefined,
+		pauseStatus: "none",
+		needsAttention: [],
+		pauseError: undefined,
+		canPauseRuntime: false,
+		requestRuntimePause: vi.fn(),
+		requestRuntimeResume: vi.fn(),
 		paused: false,
 		filter: "all",
 		setPaused: vi.fn(),

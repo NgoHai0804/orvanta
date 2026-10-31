@@ -46,7 +46,14 @@ export {
 	COMPANY_FILE,
 	COORDINATOR_AGENT_ID,
 	COORDINATOR_MEMORY_FILE,
+	LEGACY_COORDINATOR_MEMORY_FILE,
 	COORDINATOR_PROFILE_FILE,
+	LOCAL_DIRNAME,
+	PROJECT_LAYOUT_VERSION,
+	PROJECT_LAYOUT_VERSION_FILE,
+	acceptedMemoryRelativePath,
+	memoryProposalsDirRelativePath,
+	legacyMemoryRelativePath,
 	MAX_COMPANY_NAME_LENGTH,
 	MIN_PURPOSE_LENGTH,
 	PURPOSE_FILE,
@@ -68,6 +75,7 @@ export {
 	ARTIFACTS_REVIEWS_DIR,
 	ARTIFACTS_BUILD_DIR,
 	HISTORY_DIRNAME,
+	LEGACY_HISTORY_DIRNAME,
 	HISTORY_SCHEMA_VERSION,
 	HISTORY_SESSIONS_FILE,
 	HISTORY_TASKS_DIR,
@@ -170,6 +178,57 @@ export {
 	BRAND_GUIDELINES_TEMPLATE,
 	CODING_STANDARDS_TEMPLATE,
 } from "./workspace-store";
+export {
+	AgentMemoryCorruptError,
+	AgentMemoryNotFoundError,
+	type MemoryProposal,
+	getAcceptedMemoryPath,
+	getLegacyMemoryPath,
+	getMemoryProposalsDir,
+	writeMemoryProposal,
+	listMemoryProposals,
+	approveMemoryProposal,
+	rejectMemoryProposal,
+	deleteAgentMemory,
+	renameAgentMemoryDir,
+} from "./agent-memory-store";
+export {
+	type InventoryLabel,
+	type InventoryPath,
+	type CleanupListing,
+	LEGACY_HISTORY_DELETE_PATHS,
+	PROTECTED_KEEP_PATHS,
+	getLegacyHistoryInventory,
+	dryRunLegacyHistoryCleanup,
+	applyLegacyHistoryCleanup,
+} from "./legacy-history-cleanup";
+export {
+	type CeoPauseStatus,
+	type CeoParticipantPauseState,
+	type CeoSessionPauseRecord,
+	CeoSessionPauseError,
+	getCeoSessionPause,
+	requestCeoSessionPause,
+	acknowledgeCeoSessionPause,
+	resumeCeoSessionPause,
+	reportCeoSessionNeedsAttention,
+	clearCeoSessionNeedsAttention,
+	isCeoSessionDispatchBlocked,
+	type CeoNeedsAttentionItem,
+} from "./ceo-session-pause";
+export {
+	type CeoResumeRunHint,
+	type CeoSessionResumePlan,
+	planCeoSessionRuntimeRecovery,
+	isCeoSessionBlindRecoverBlocked,
+} from "./ceo-session-resume-plan";
+export {
+	EVENT_CONTENT_ALLOWLIST,
+	type AllowedEventType,
+	isAllowedEventType,
+	redactEventText,
+	projectEventContent,
+} from "./event-content-allowlist";
 export {
 	CannotFireCoordinatorError,
 	DecisionNotFoundError,
@@ -343,6 +402,14 @@ export {
 	markTaskUnavailable,
 	getParticipantDisplayIdentity,
 } from "./session-task-binding";
+
+export {
+	ProjectStorageRootError,
+	type ProjectStorageRootErrorCode,
+	type ProjectStorageRoots,
+	resolveProjectStorageRoots,
+	validateProjectStorageRoots,
+} from "./project-storage";
 
 
 

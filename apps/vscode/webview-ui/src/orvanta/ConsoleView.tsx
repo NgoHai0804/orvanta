@@ -40,6 +40,7 @@ export function ConsoleView({
 		createNewTab,
 		closeTab,
 		openTaskInTab,
+		openSessionInTab,
 		bindTaskToActiveAgent,
 		switchAgentInActiveTab,
 		handleTaskDeleted,
@@ -49,12 +50,16 @@ export function ConsoleView({
 		onActiveAgentChange: onSelectAgent,
 	})
 
-	// Synchronize backend currentTaskItem with the active agent in the active tab
+	// Synchronize backend currentTaskItem with the active agent in the active tab.
+	// Pass HistoryItem.sessionId (CEO session) separately from the SDK task id.
 	useEffect(() => {
 		if (currentTaskItem?.id && activeTab) {
 			const currentAgentTask = activeTab.agentTasks?.[activeTab.activeAgentId]
-			if (!currentAgentTask || currentAgentTask !== currentTaskItem.id) {
-				bindTaskToActiveAgent(currentTaskItem.id, currentTaskItem.task)
+			const ceoSessionId = currentTaskItem.sessionId
+			const needsTaskBind = !currentAgentTask || currentAgentTask !== currentTaskItem.id
+			const needsSessionBind = !!ceoSessionId && activeTab.sessionId !== ceoSessionId
+			if (needsTaskBind || needsSessionBind) {
+				bindTaskToActiveAgent(currentTaskItem.id, currentTaskItem.task, ceoSessionId)
 			}
 		}
 	}, [currentTaskItem, activeTab, bindTaskToActiveAgent])
@@ -104,7 +109,11 @@ export function ConsoleView({
 					{/* 1. When #team-feed is active */}
 					{isTeamFeed && (
 						<div className="flex flex-1 min-h-0 w-full overflow-hidden flex-col">
-							<TeamFeedView companyName={companyName} onSelectAgent={onSelectAgent} />
+							<TeamFeedView
+								ceoSessionId={activeTab?.sessionId}
+								companyName={companyName}
+								onSelectAgent={onSelectAgent}
+							/>
 						</div>
 					)}
 
@@ -174,6 +183,18 @@ export function ConsoleView({
 					onClose={() => toggleHistory(false)}
 					onDeleteTask={(taskId) => {
 						void handleTaskDeleted(taskId)
+					}}
+					onSelectCeoSession={(session) => {
+						void openSessionInTab(
+							session.sessionId,
+							session.title,
+							session.participants.map((p) => ({
+								agentSlug: p.agentSlug,
+								taskId: p.taskId || p.sdkSessionId || undefined,
+								agentNumericId: Number(p.agentNumericId) || undefined,
+							})),
+						)
+						toggleHistory(false)
 					}}
 					onSelectTask={(taskId, title, agentId, sessionAgentTasks) => {
 						void openTaskInTab(taskId, title, agentId, sessionAgentTasks)

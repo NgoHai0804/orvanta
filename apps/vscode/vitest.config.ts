@@ -8,7 +8,8 @@ export default defineConfig({
 	test: {
 		include: [
 			"src/sdk/**/*.test.ts",
-			"src/orvanta/participant-transcript-query.test.ts",
+			"src/orvanta/**/*.test.ts",
+			"src/core/controller/orvanta/**/*.test.ts",
 			"src/hosts/vscode/VscodeEditPreview.test.ts",
 			"src/shared/vsCodeSelectorUtils.test.ts",
 			"src/shared/net.test.ts",
@@ -64,6 +65,10 @@ export default defineConfig({
 			{
 				find: "@cline/shared/storage",
 				replacement: path.resolve(__dirname, "node_modules/@cline/shared/dist/storage/index.js"),
+			},
+			{
+				find: "@cline/shared/orvanta",
+				replacement: path.resolve(__dirname, "node_modules/@cline/shared/dist/orvanta/index.js"),
 			},
 			{ find: "@cline/shared/db", replacement: path.resolve(__dirname, "node_modules/@cline/shared/dist/db/index.js") },
 			{ find: "@cline/shared", replacement: path.resolve(__dirname, "node_modules/@cline/shared/dist/index.js") },
